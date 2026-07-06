@@ -42,9 +42,10 @@ export class QuickAskUseCase {
 
     // 2. 프라이버시 규칙 적용
     const settings = await this.config.getSettings();
-    const filteredChunks = contextChunks.filter(chunk =>
-      this.isChunkAllowed(chunk, [...settings.privacyRules])
+    const allowedChecks = await Promise.all(
+      contextChunks.map(chunk => this.isChunkAllowed(chunk, [...settings.privacyRules]))
     );
+    const filteredChunks = contextChunks.filter((_, i) => allowedChecks[i]);
 
     // 3. AI 호출
     const prompt = this.buildPrompt(request.question, filteredChunks);
@@ -108,8 +109,11 @@ export class QuickAskUseCase {
     return PromptTemplates.quickAsk(question, noteChunks);
   }
 
-  private isChunkAllowed(result: SearchResult, rules: ReadonlyArray<PrivacyRule>): boolean {
-    return isNoteAllowedByRules(result.notePath as string, [], [], rules);
+  private async isChunkAllowed(result: SearchResult, rules: ReadonlyArray<PrivacyRule>): Promise<boolean> {
+    const note = await this.vault.readNote(result.notePath);
+    const tags = note ? note.metadata.tags.map(t => t as string) : [];
+    const frontmatterKeys = note ? [...note.metadata.frontmatterKeys] : [];
+    return isNoteAllowedByRules(result.notePath as string, tags, frontmatterKeys, rules);
   }
 
   private extractLinkSuggestions(content: string): ReadonlyArray<NotePath> {

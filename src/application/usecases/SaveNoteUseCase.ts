@@ -3,6 +3,7 @@ import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { TagName } from '../../domain/values/TagName';
 import { HeadingPath } from '../../domain/values/HeadingPath';
 import { Timestamp } from '../../domain/values/Timestamp';
+import { NoteNotFoundError } from '../../domain/errors/DomainErrors';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { ConfigPort } from '../ports/ConfigPort';
 import { ClockPort } from '../ports/ClockPort';
@@ -55,7 +56,7 @@ export class SaveNoteUseCase {
     const target = request.target as Extract<SaveTarget, { kind: 'append-to-note' }>;
     const existingContent = await this.vault.readNote(target.targetPath);
     if (!existingContent) {
-      throw new Error(`대상 노트를 찾을 수 없습니다: ${target.targetPath}`);
+      throw new NoteNotFoundError(target.targetPath as string);
     }
 
     const newContent = target.headingPath

@@ -10,6 +10,7 @@ import { createTimestamp } from '../../domain/values/Timestamp';
 import { createTagName } from '../../domain/values/TagName';
 import { createChunkText } from '../../domain/values/ChunkText';
 import { createHeadingPath } from '../../domain/values/HeadingPath';
+import { NoteNotFoundError } from '../../domain/errors/DomainErrors';
 
 /**
  * Obsidian Vault API를 VaultAccessPort 인터페이스로 래핑한다.
@@ -74,7 +75,7 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
   async updateFrontmatter(path: NotePath, updates: Record<string, unknown>): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(path as string);
     if (!(file instanceof TFile)) {
-      throw new Error(`노트를 찾을 수 없습니다: ${path}`);
+      throw new NoteNotFoundError(path as string);
     }
 
     await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
@@ -171,6 +172,7 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
       aliases: Array.isArray(frontmatter.aliases) ? frontmatter.aliases.map(String) : [],
       links,
       backlinks,
+      frontmatterKeys: Object.keys(frontmatter).filter(k => k !== 'position'),
       createdAt: createTimestamp(file.stat.ctime),
       modifiedAt: createTimestamp(file.stat.mtime),
       isInbox: false,

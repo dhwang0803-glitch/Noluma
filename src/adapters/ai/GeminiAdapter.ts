@@ -81,7 +81,7 @@ export class GeminiAdapter implements AIProviderPort {
     const prompt = PromptTemplates.classifyAndTag(request.text, request.existingTags ?? []);
     const completionResponse = await this.callCompletion({
       prompt,
-      systemPrompt: '당신은 노트 분류 및 태깅 전문가입니다. JSON 형식으로만 응답하세요.',
+      systemPrompt: PromptTemplates.classificationSystemPrompt,
       maxTokens: 500,
       temperature: 0.3,
     });
