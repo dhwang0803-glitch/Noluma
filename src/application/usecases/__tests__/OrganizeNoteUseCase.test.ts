@@ -177,7 +177,7 @@ describe('OrganizeNoteUseCase', () => {
       );
     });
 
-    it('suggestedFolder가 폴더 경로면 createNotePath에서 에러 (BUG: suggestedFolder는 .md 경로가 아님)', async () => {
+    it('suggestedFolder가 있으면 노트를 해당 폴더로 이동한다', async () => {
       const vault = createMockVault({
         readNote: vi.fn().mockResolvedValue(
           createTestNote({ content: 'content' }),
@@ -191,8 +191,10 @@ describe('OrganizeNoteUseCase', () => {
       });
 
       const uc = new OrganizeNoteUseCase(ai, vault, createMockHistory(), createMockConfig());
-      // BUG: suggestedFolder를 createNotePath()에 넘기지만 .md가 아니므로 에러
-      await expect(uc.execute(np('inbox/note.md'), true)).rejects.toThrow('.md');
+      await uc.execute(np('inbox/note.md'), true);
+
+      expect(vault.writeNote).toHaveBeenCalledWith(np('Projects/note.md'), 'content');
+      expect(vault.deleteNote).toHaveBeenCalledWith(np('inbox/note.md'));
     });
 
     it('이력을 기록한다', async () => {
