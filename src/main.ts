@@ -32,7 +32,18 @@ import { VaultEvent } from './application/ports/VaultAccessPort';
 import { createNotePath } from './domain/values/NotePath';
 import { SaveTarget } from './domain/models/SaveTarget';
 import { createNoteTitle } from './domain/values/NoteTitle';
-import { INBOX_DEBOUNCE_MS } from './constants';
+import {
+  INBOX_DEBOUNCE_MS,
+  DEFAULT_INBOX_FOLDER,
+  DEFAULT_SAVE_FOLDER,
+  DEFAULT_DAILY_NOTE_FOLDER,
+  DEFAULT_DAILY_NOTE_FORMAT,
+  DEFAULT_AI_MODEL,
+  DEFAULT_AI_MAX_TOKENS,
+  DEFAULT_AI_TEMPERATURE,
+  DEFAULT_MAINTENANCE_INTERVAL_MINUTES,
+  DEFAULT_MAX_CONTEXT_CHUNKS,
+} from './constants';
 
 /**
  * 기본 설정값.
@@ -40,18 +51,18 @@ import { INBOX_DEBOUNCE_MS } from './constants';
 const DEFAULT_SETTINGS: PluginSettings = {
   aiProvider: 'openai',
   aiApiKey: '',
-  aiModel: 'gpt-4o',
-  aiMaxTokens: 2048,
-  aiTemperature: 0.7,
-  inboxFolder: 'Inbox',
+  aiModel: DEFAULT_AI_MODEL,
+  aiMaxTokens: DEFAULT_AI_MAX_TOKENS,
+  aiTemperature: DEFAULT_AI_TEMPERATURE,
+  inboxFolder: DEFAULT_INBOX_FOLDER,
   autoApplyInbox: false,
-  defaultSaveFolder: 'QuickAsk',
+  defaultSaveFolder: DEFAULT_SAVE_FOLDER,
   defaultSaveTarget: 'new-note',
-  maxContextChunks: 5,
-  dailyNoteFormat: 'YYYY-MM-DD',
-  dailyNoteFolder: 'DailyNotes',
+  maxContextChunks: DEFAULT_MAX_CONTEXT_CHUNKS,
+  dailyNoteFormat: DEFAULT_DAILY_NOTE_FORMAT,
+  dailyNoteFolder: DEFAULT_DAILY_NOTE_FOLDER,
   maintenanceEnabled: false,
-  maintenanceIntervalMinutes: 60,
+  maintenanceIntervalMinutes: DEFAULT_MAINTENANCE_INTERVAL_MINUTES,
   privacyRules: [],
   knownTags: [],
   trackTokenUsage: true,
