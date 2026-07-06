@@ -1,4 +1,4 @@
-import { NoteChunk } from '../../domain/models/NoteChunk';
+import { NoteChunk } from '../domain/models/NoteChunk';
 
 /**
  * AI 호출에 사용되는 프롬프트 템플릿 모음.

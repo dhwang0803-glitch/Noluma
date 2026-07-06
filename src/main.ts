@@ -15,7 +15,6 @@ import { QuickAskUseCase } from './application/usecases/QuickAskUseCase';
 import { OrganizeNoteUseCase } from './application/usecases/OrganizeNoteUseCase';
 import { RunInboxProcessUseCase } from './application/usecases/RunInboxProcessUseCase';
 import { RunMaintenanceUseCase } from './application/usecases/RunMaintenanceUseCase';
-import { SearchNotesUseCase } from './application/usecases/SearchNotesUseCase';
 import { SaveNoteUseCase } from './application/usecases/SaveNoteUseCase';
 import { CaptureClipboardUseCase } from './application/usecases/CaptureClipboardUseCase';
 import { GetHistoryUseCase } from './application/usecases/GetHistoryUseCase';
@@ -28,7 +27,12 @@ import { PluginSettingTab } from './ui/PluginSettingTab';
 
 // Ports
 import { AIProviderPort } from './application/ports/AIProviderPort';
-import { NotePath, createNotePath } from './domain/values/NotePath';
+import { ConfigPort } from './application/ports/ConfigPort';
+import { VaultEvent } from './application/ports/VaultAccessPort';
+import { createNotePath } from './domain/values/NotePath';
+import { SaveTarget } from './domain/models/SaveTarget';
+import { createNoteTitle } from './domain/values/NoteTitle';
+import { INBOX_DEBOUNCE_MS } from './constants';
 
 /**
  * 기본 설정값.
@@ -64,6 +68,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private clipboardAdapter!: ObsidianClipboardAdapter;
   private clockAdapter!: SystemClockAdapter;
 
+  // Shared ConfigPort (Q1: 단일 인스턴스)
+  private configPort!: ConfigPort;
+
   // Use Cases
   private quickAskUseCase!: QuickAskUseCase;
   private organizeNoteUseCase!: OrganizeNoteUseCase;
@@ -96,18 +103,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.registerCommands();
 
     // 6. 설정 탭 등록
-    this.addSettingTab(new PluginSettingTab(
-      this.app,
-      this,
-      {
-        getSettings: async () => this.settings,
-        saveSettings: async (s) => { this.settings = s; await this.saveData(s); },
-        updateSettings: async (partial) => {
-          this.settings = { ...this.settings, ...partial };
-          await this.saveData(this.settings);
-        },
-      },
-    ));
+    this.addSettingTab(new PluginSettingTab(this.app, this, this.configPort));
 
     // 7. Vault 이벤트 감시 시작
     this.startInboxWatcher();
@@ -153,6 +149,16 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
     // AI 어댑터는 설정에 따라 동적 선택
     this.aiAdapter = this.createAIAdapter();
+
+    // ConfigPort — 단일 인스턴스로 모든 계층에 공유
+    this.configPort = {
+      getSettings: async () => this.settings,
+      saveSettings: async (s) => { this.settings = s; await this.saveData(s); },
+      updateSettings: async (partial) => {
+        this.settings = { ...this.settings, ...partial };
+        await this.saveData(this.settings);
+      },
+    };
   }
 
   private createAIAdapter(): AIProviderPort {
@@ -167,43 +173,34 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   }
 
   private wireUseCases(): void {
-    const configPort = {
-      getSettings: async () => this.settings,
-      saveSettings: async (s: PluginSettings) => { this.settings = s; await this.saveData(s); },
-      updateSettings: async (partial: Partial<PluginSettings>) => {
-        this.settings = { ...this.settings, ...partial };
-        await this.saveData(this.settings);
-      },
-    };
-
     this.saveNoteUseCase = new SaveNoteUseCase(
-      this.vaultAdapter, configPort, this.clockAdapter,
+      this.vaultAdapter, this.configPort, this.clockAdapter,
     );
 
     this.quickAskUseCase = new QuickAskUseCase(
       this.aiAdapter, this.vaultAdapter, this.searchIndex,
-      this.historyAdapter, configPort, this.clockAdapter,
+      this.historyAdapter, this.configPort, this.clockAdapter,
       this.saveNoteUseCase,
     );
 
     this.organizeNoteUseCase = new OrganizeNoteUseCase(
       this.aiAdapter, this.vaultAdapter,
-      this.historyAdapter, configPort,
+      this.historyAdapter, this.configPort,
     );
 
     this.runInboxProcessUseCase = new RunInboxProcessUseCase(
       this.organizeNoteUseCase, this.vaultAdapter,
-      configPort, this.historyAdapter, this.clockAdapter,
+      this.configPort, this.historyAdapter, this.clockAdapter,
     );
 
     this.runMaintenanceUseCase = new RunMaintenanceUseCase(
       this.vaultAdapter, this.searchIndex,
-      configPort, this.clockAdapter,
+      this.configPort, this.clockAdapter,
     );
 
     this.captureClipboardUseCase = new CaptureClipboardUseCase(
       this.clipboardAdapter, this.saveNoteUseCase,
-      configPort, this.historyAdapter, this.clockAdapter,
+      this.configPort, this.historyAdapter, this.clockAdapter,
     );
 
     this.getHistoryUseCase = new GetHistoryUseCase(this.historyAdapter);
@@ -217,11 +214,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
     this.registerView(
       INBOX_STATUS_VIEW_TYPE,
-      (leaf: WorkspaceLeaf) => new InboxStatusView(leaf, this.vaultAdapter, {
-        getSettings: async () => this.settings,
-        saveSettings: async () => {},
-        updateSettings: async () => {},
-      }),
+      (leaf: WorkspaceLeaf) => new InboxStatusView(leaf, this.vaultAdapter, this.configPort),
     );
   }
 
@@ -230,12 +223,11 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       id: 'quick-ask',
       name: 'Quick Ask',
       callback: () => {
-        new QuickAskModal(
-          this.app,
-          this.quickAskUseCase,
-          { kind: this.settings.defaultSaveTarget === 'daily-note' ? 'daily-note' : 'new-note' as any,
-            title: '' as any, position: 'bottom' },
-        ).open();
+        const saveTarget: SaveTarget = this.settings.defaultSaveTarget === 'daily-note'
+          ? { kind: 'daily-note', position: 'bottom' }
+          : { kind: 'new-note', title: createNoteTitle('Quick Ask') };
+
+        new QuickAskModal(this.app, this.quickAskUseCase, saveTarget).open();
       },
     });
 
@@ -341,7 +333,30 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   }
 
   private startInboxWatcher(): void {
-    // 섹션 12에서 상세 설명
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const pendingPaths = new Set<string>();
+
+    this.unsubscribeVaultEvents = this.vaultAdapter.watchEvents((event: VaultEvent) => {
+      if (event.type !== 'create' && event.type !== 'modify') return;
+
+      const pathStr = event.path as string;
+      if (!pathStr.startsWith(this.settings.inboxFolder)) return;
+
+      pendingPaths.add(pathStr);
+
+      if (debounceTimer !== null) {
+        clearTimeout(debounceTimer);
+      }
+
+      debounceTimer = setTimeout(async () => {
+        debounceTimer = null;
+        const count = pendingPaths.size;
+        pendingPaths.clear();
+
+        const { Notice } = await import('obsidian');
+        new Notice(`Inbox: ${count}개 파일 변경 감지`);
+      }, INBOX_DEBOUNCE_MS);
+    });
   }
 
   private scheduleMaintenanceIfEnabled(): void {
