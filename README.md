@@ -1,6 +1,6 @@
-# vaulta
+# Noluma
 
-Copyright © 2026 Vaulta.
+Copyright © 2026 Noluma for Obsidian.
 All rights reserved.
 
 This repository contains proprietary source code and related materials.
