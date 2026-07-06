@@ -2,6 +2,7 @@ import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { createTagName } from '../../domain/values/TagName';
 import { createTimestamp } from '../../domain/values/Timestamp';
 import { OrganizeResult } from '../../domain/models/OrganizeModels';
+import { NoteNotFoundError } from '../../domain/errors/DomainErrors';
 import { AIProviderPort } from '../ports/AIProviderPort';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { HistoryPort } from '../ports/HistoryPort';
@@ -27,7 +28,7 @@ export class OrganizeNoteUseCase {
   async execute(notePath: NotePath, autoApply: boolean): Promise<OrganizeResult> {
     const note = await this.vault.readNote(notePath);
     if (!note) {
-      throw new Error(`노트를 찾을 수 없습니다: ${notePath}`);
+      throw new NoteNotFoundError(notePath as string);
     }
 
     const settings = await this.config.getSettings();

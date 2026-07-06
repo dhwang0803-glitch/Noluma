@@ -3,6 +3,7 @@ import { HistoryEntry } from '../../domain/models/HistoryEntry';
 import { VaultAccessPort } from '../../application/ports/VaultAccessPort';
 import { NotePath } from '../../domain/values/NotePath';
 import { Timestamp } from '../../domain/values/Timestamp';
+import { HistoryEntryNotFoundError } from '../../domain/errors/DomainErrors';
 
 /**
  * 파일 기반 변경 이력 어댑터.
@@ -73,7 +74,7 @@ export class FileHistoryAdapter implements HistoryPort {
       }
     }
 
-    throw new Error(`되돌릴 이력 항목을 찾을 수 없습니다: ${entryId}`);
+    throw new HistoryEntryNotFoundError(entryId);
   }
 
   private async loadMonthEntries(filePath: NotePath): Promise<HistoryEntry[]> {
