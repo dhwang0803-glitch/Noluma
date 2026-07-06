@@ -171,6 +171,7 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
       aliases: Array.isArray(frontmatter.aliases) ? frontmatter.aliases.map(String) : [],
       links,
       backlinks,
+      frontmatterKeys: Object.keys(frontmatter).filter(k => k !== 'position'),
       createdAt: createTimestamp(file.stat.ctime),
       modifiedAt: createTimestamp(file.stat.mtime),
       isInbox: false,
