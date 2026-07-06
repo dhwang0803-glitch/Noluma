@@ -128,6 +128,43 @@ describe('OrganizeNoteUseCase', () => {
     });
   });
 
+  describe('content-redact (via execute)', () => {
+    it('content-redact 규칙이 있으면 AI에 보내는 텍스트에서 패턴이 마스킹된다', async () => {
+      const vault = createMockVault({
+        readNote: vi.fn().mockResolvedValue(
+          createTestNote({ content: 'my password:secret123 is here' }),
+        ),
+        listNotes: vi.fn().mockResolvedValue([]),
+      });
+      const ai = createMockAI({
+        callClassification: vi.fn().mockResolvedValue({
+          category: 'tech',
+          suggestedTags: [],
+          suggestedFolder: undefined,
+          summary: '',
+          confidence: 0.9,
+          tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30, estimatedCostUsd: 0.001 },
+        }),
+      });
+      const config = createMockConfig({
+        privacyRules: [{
+          id: '1',
+          name: 'redact-passwords',
+          type: 'content-redact',
+          pattern: 'password:\\S+',
+          enabled: true,
+        }],
+      });
+
+      const uc = new OrganizeNoteUseCase(ai, vault, createMockHistory(), config);
+      await uc.execute(np('test.md'), false);
+
+      const callArgs = (ai.callClassification as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(callArgs.text).toContain('[REDACTED]');
+      expect(callArgs.text).not.toContain('password:secret123');
+    });
+  });
+
   describe('applyOrganization (via autoApply=true)', () => {
     it('태그를 추가한다 (중복 제거)', async () => {
       const note = createTestNote({

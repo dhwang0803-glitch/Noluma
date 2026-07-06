@@ -202,6 +202,43 @@ describe('QuickAskUseCase', () => {
     });
   });
 
+  describe('content-redact (via execute)', () => {
+    it('content-redact 규칙이 있으면 AI에 보내는 청크 텍스트에서 패턴이 마스킹된다', async () => {
+      const searchResults: SearchResult[] = [
+        makeSearchResult('note.md', 'my password:abc123 is here'),
+      ];
+      const search = createMockSearch(searchResults);
+      const vault = createMockVault({
+        readNote: vi.fn().mockResolvedValue(
+          createTestNote({ metadata: createTestMetadata() }),
+        ),
+      });
+      const ai = createMockAI();
+      const config = createMockConfig({
+        privacyRules: [{
+          id: '1',
+          name: 'redact-passwords',
+          type: 'content-redact',
+          pattern: 'password:\\S+',
+          enabled: true,
+        }],
+      });
+
+      const uc = createUseCase({ vault, search, ai, config });
+      await uc.execute({
+        question: 'test',
+        maxContextChunks: 10,
+        saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
+        autoTag: false,
+        autoLink: false,
+      });
+
+      const callArgs = (ai.callCompletion as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(callArgs.prompt).toContain('[REDACTED]');
+      expect(callArgs.prompt).not.toContain('password:abc123');
+    });
+  });
+
   describe('execute (전체 파이프라인)', () => {
     it('질문 → 검색 → AI → 저장 → 이력 전체 흐름을 실행한다', async () => {
       const vault = createMockVault({
