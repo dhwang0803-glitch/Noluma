@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { isNoteAllowedByRules, PrivacyRule } from '../PrivacyRule';
+import { describe, it, expect, vi } from 'vitest';
+import { isNoteAllowedByRules, applyContentRedaction, PrivacyRule } from '../PrivacyRule';
 
 function makeRule(overrides: Partial<PrivacyRule> & { type: PrivacyRule['type']; pattern: string }): PrivacyRule {
   return {
@@ -110,5 +110,67 @@ describe('isNoteAllowedByRules', () => {
     it('모든 규칙을 통과하면 true', () => {
       expect(isNoteAllowedByRules('public/note.md', ['#work'], ['tags'], rules)).toBe(true);
     });
+  });
+});
+
+describe('applyContentRedaction', () => {
+  it('매칭되는 패턴을 [REDACTED]로 치환한다', () => {
+    const rule = makeRule({ type: 'content-redact', pattern: 'password:\\S+' });
+    expect(applyContentRedaction('my password:abc123 here', [rule]))
+      .toBe('my [REDACTED] here');
+  });
+
+  it('대소문자를 무시한다', () => {
+    const rule = makeRule({ type: 'content-redact', pattern: 'SECRET' });
+    expect(applyContentRedaction('this is a Secret value', [rule]))
+      .toBe('this is a [REDACTED] value');
+  });
+
+  it('여러 규칙을 순서대로 적용한다', () => {
+    const rules = [
+      makeRule({ id: '1', type: 'content-redact', pattern: 'password' }),
+      makeRule({ id: '2', type: 'content-redact', pattern: 'token' }),
+    ];
+    expect(applyContentRedaction('password and token here', rules))
+      .toBe('[REDACTED] and [REDACTED] here');
+  });
+
+  it('disabled 규칙은 무시한다', () => {
+    const rule = makeRule({ type: 'content-redact', pattern: 'secret', enabled: false });
+    expect(applyContentRedaction('this is secret', [rule]))
+      .toBe('this is secret');
+  });
+
+  it('content-redact가 아닌 규칙은 무시한다', () => {
+    const rule = makeRule({ type: 'folder-exclude', pattern: 'private/' });
+    expect(applyContentRedaction('private/ folder content', [rule]))
+      .toBe('private/ folder content');
+  });
+
+  it('매칭 없으면 원본 그대로 반환한다', () => {
+    const rule = makeRule({ type: 'content-redact', pattern: 'xyz123' });
+    expect(applyContentRedaction('nothing to redact here', [rule]))
+      .toBe('nothing to redact here');
+  });
+
+  it('잘못된 regex 패턴은 건너뛰고 경고를 로깅한다', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const rules = [
+      makeRule({ id: '1', type: 'content-redact', pattern: '[invalid(' }),
+      makeRule({ id: '2', type: 'content-redact', pattern: 'valid' }),
+    ];
+    expect(applyContentRedaction('valid text', rules)).toBe('[REDACTED] text');
+    expect(warnSpy).toHaveBeenCalledOnce();
+    warnSpy.mockRestore();
+  });
+
+  it('빈 규칙 배열이면 원본 반환한다', () => {
+    expect(applyContentRedaction('untouched text', [])).toBe('untouched text');
+  });
+
+  it('같은 텍스트 내 여러 매칭을 모두 치환한다', () => {
+    const rule = makeRule({ type: 'content-redact', pattern: 'api_key=\\S+' });
+    expect(applyContentRedaction('api_key=abc api_key=def', [rule]))
+      .toBe('[REDACTED] [REDACTED]');
   });
 });

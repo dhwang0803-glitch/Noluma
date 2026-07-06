@@ -8,7 +8,7 @@ import { SearchIndexPort, SearchResult } from '../ports/SearchIndexPort';
 import { HistoryPort } from '../ports/HistoryPort';
 import { ConfigPort } from '../ports/ConfigPort';
 import { ClockPort } from '../ports/ClockPort';
-import { PrivacyRule, isNoteAllowedByRules } from '../../domain/models/PrivacyRule';
+import { PrivacyRule, isNoteAllowedByRules, applyContentRedaction } from '../../domain/models/PrivacyRule';
 import { PromptTemplates } from '../PromptTemplates';
 import { SaveNoteUseCase } from './SaveNoteUseCase';
 
@@ -47,8 +47,12 @@ export class QuickAskUseCase {
     );
     const filteredChunks = contextChunks.filter((_, i) => allowedChecks[i]);
 
-    // 3. AI 호출
-    const prompt = this.buildPrompt(request.question, filteredChunks);
+    // 3. content-redact 적용 후 AI 호출
+    const redactedChunks = filteredChunks.map(sr => ({
+      ...sr,
+      chunk: { ...sr.chunk, text: applyContentRedaction(sr.chunk.text as string, [...settings.privacyRules]) as typeof sr.chunk.text },
+    }));
+    const prompt = this.buildPrompt(request.question, redactedChunks);
     const aiResponse = await this.aiProvider.callCompletion({
       prompt,
       maxTokens: settings.aiMaxTokens,

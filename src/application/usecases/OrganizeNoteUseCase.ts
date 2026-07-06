@@ -3,6 +3,7 @@ import { createTagName } from '../../domain/values/TagName';
 import { createTimestamp } from '../../domain/values/Timestamp';
 import { OrganizeResult } from '../../domain/models/OrganizeModels';
 import { NoteNotFoundError } from '../../domain/errors/DomainErrors';
+import { applyContentRedaction } from '../../domain/models/PrivacyRule';
 import { AIProviderPort } from '../ports/AIProviderPort';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { HistoryPort } from '../ports/HistoryPort';
@@ -33,9 +34,10 @@ export class OrganizeNoteUseCase {
 
     const settings = await this.config.getSettings();
 
-    // AI 분류
+    // AI 분류 (content-redact 적용)
+    const redactedContent = applyContentRedaction(note.content, [...settings.privacyRules]);
     const classification = await this.aiProvider.callClassification({
-      text: note.content,
+      text: redactedContent,
       task: 'classify-and-tag',
       existingTags: settings.knownTags,
     });
