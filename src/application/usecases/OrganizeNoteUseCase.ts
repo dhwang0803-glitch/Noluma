@@ -49,9 +49,7 @@ export class OrganizeNoteUseCase {
       classifiedCategory: classification.category,
       addedTags: classification.suggestedTags.map(t => createTagName(t)),
       suggestedLinks,
-      suggestedMoveTarget: classification.suggestedFolder
-        ? createNotePath(classification.suggestedFolder)
-        : undefined,
+      suggestedMoveTarget: classification.suggestedFolder ?? undefined,
       summary: classification.summary,
     };
 
