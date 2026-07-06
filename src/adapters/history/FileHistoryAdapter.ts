@@ -84,6 +84,7 @@ export class FileHistoryAdapter implements HistoryPort {
     try {
       return JSON.parse(note.content) as HistoryEntry[];
     } catch {
+      console.warn(`[Knowledge Maintenance] 이력 파일 파싱 실패: ${filePath}`);
       return [];
     }
   }
