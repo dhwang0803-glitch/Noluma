@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { RunMaintenanceUseCase } from '../RunMaintenanceUseCase';
 import { createMockVault, createMockSearch, createMockConfig, createMockClock } from '../../../test-utils/mock-ports';
 import { createTestNote, createTestMetadata } from '../../../test-utils/fixtures';

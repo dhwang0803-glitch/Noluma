@@ -5,8 +5,7 @@ import { createTestNote, createTestMetadata } from '../../../test-utils/fixtures
 import { NoteNotFoundError } from '../../../domain/errors/DomainErrors';
 import type { NotePath } from '../../../domain/values/NotePath';
 import type { TagName } from '../../../domain/values/TagName';
-import type { VaultAccessPort } from '../../ports/VaultAccessPort';
-import type { AIProviderPort, ClassificationResponse } from '../../ports/AIProviderPort';
+import type { ClassificationResponse } from '../../ports/AIProviderPort';
 
 function np(path: string): NotePath {
   return path as unknown as NotePath;

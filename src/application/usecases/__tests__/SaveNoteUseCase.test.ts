@@ -1,13 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { SaveNoteUseCase } from '../SaveNoteUseCase';
 import { createMockVault, createMockConfig, createMockClock } from '../../../test-utils/mock-ports';
-import { createTestNote, createDefaultSettings } from '../../../test-utils/fixtures';
+import { createTestNote } from '../../../test-utils/fixtures';
 import { NoteNotFoundError } from '../../../domain/errors/DomainErrors';
 import type { NotePath } from '../../../domain/values/NotePath';
 import type { NoteTitle } from '../../../domain/values/NoteTitle';
 import type { HeadingPath } from '../../../domain/values/HeadingPath';
 import type { TagName } from '../../../domain/values/TagName';
-import type { Timestamp } from '../../../domain/values/Timestamp';
 
 function np(path: string): NotePath {
   return path as unknown as NotePath;
@@ -112,7 +111,7 @@ describe('SaveNoteUseCase', () => {
       const config = createMockConfig({ dailyNoteFormat: 'YYYY-MM-DD', dailyNoteFolder: 'Daily' });
       const uc = new SaveNoteUseCase(vault, config, clock);
 
-      const result = await uc.execute({
+      await uc.execute({
         content: 'Daily entry',
         target: { kind: 'daily-note', position: 'bottom' },
       });
