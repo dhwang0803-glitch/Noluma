@@ -1,13 +1,15 @@
 import { QuickAskRequest, QuickAskResult } from '../../domain/models/QuickAskModels';
 import { NoteChunk } from '../../domain/models/NoteChunk';
 import { TagName, createTagName } from '../../domain/values/TagName';
+import { NotePath } from '../../domain/values/NotePath';
 import { AIProviderPort } from '../ports/AIProviderPort';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { SearchIndexPort, SearchResult } from '../ports/SearchIndexPort';
 import { HistoryPort } from '../ports/HistoryPort';
 import { ConfigPort } from '../ports/ConfigPort';
 import { ClockPort } from '../ports/ClockPort';
-import { PrivacyRule } from '../../domain/models/PrivacyRule';
+import { PrivacyRule, isNoteAllowedByRules } from '../../domain/models/PrivacyRule';
+import { PromptTemplates } from '../PromptTemplates';
 import { SaveNoteUseCase } from './SaveNoteUseCase';
 
 export class QuickAskUseCase {
@@ -101,23 +103,42 @@ export class QuickAskUseCase {
     };
   }
 
-  private buildPrompt(question: string, chunks: ReadonlyArray<any>): string {
-    // 구현 상세는 PromptTemplates로 위임
-    throw new Error('구현 예정');
+  private buildPrompt(question: string, chunks: ReadonlyArray<SearchResult>): string {
+    const noteChunks = chunks.map(sr => sr.chunk);
+    return PromptTemplates.quickAsk(question, noteChunks);
   }
 
-  private isChunkAllowed(chunk: any, rules: any[]): boolean {
-    // PrivacyRule 검증 로직
-    throw new Error('구현 예정');
+  private isChunkAllowed(result: SearchResult, rules: ReadonlyArray<PrivacyRule>): boolean {
+    return isNoteAllowedByRules(result.notePath as string, [], [], rules);
   }
 
-  private extractLinkSuggestions(content: string): any[] {
-    // [[wikilink]] 패턴 추출
-    throw new Error('구현 예정');
+  private extractLinkSuggestions(content: string): ReadonlyArray<NotePath> {
+    const wikiLinkPattern = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
+    const links: NotePath[] = [];
+    const seen = new Set<string>();
+    let match: RegExpExecArray | null;
+
+    while ((match = wikiLinkPattern.exec(content)) !== null) {
+      const linkTarget = match[1].trim();
+      if (!seen.has(linkTarget)) {
+        seen.add(linkTarget);
+        links.push(linkTarget as NotePath);
+      }
+    }
+    return links;
   }
 
-  private formatAnswer(question: string, answer: string, tags: any[]): string {
-    // 마크다운 포맷 구성
-    throw new Error('구현 예정');
+  private formatAnswer(question: string, answer: string, tags: ReadonlyArray<TagName>): string {
+    const tagLine = tags.length > 0 ? `tags: [${tags.join(', ')}]` : '';
+    const frontmatter = [
+      '---',
+      `source: quick-ask`,
+      `question: "${question.replace(/"/g, '\\"')}"`,
+      `created: ${new Date().toISOString()}`,
+      tagLine,
+      '---',
+    ].filter(Boolean).join('\n');
+
+    return `${frontmatter}\n\n## Question\n\n${question}\n\n## Answer\n\n${answer}`;
   }
 }

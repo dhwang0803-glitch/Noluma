@@ -28,9 +28,11 @@ import { PluginSettingTab } from './ui/PluginSettingTab';
 // Ports
 import { AIProviderPort } from './application/ports/AIProviderPort';
 import { ConfigPort } from './application/ports/ConfigPort';
+import { VaultEvent } from './application/ports/VaultAccessPort';
 import { createNotePath } from './domain/values/NotePath';
 import { SaveTarget } from './domain/models/SaveTarget';
 import { createNoteTitle } from './domain/values/NoteTitle';
+import { INBOX_DEBOUNCE_MS } from './constants';
 
 /**
  * 기본 설정값.
@@ -331,7 +333,30 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   }
 
   private startInboxWatcher(): void {
-    // 섹션 12에서 상세 설명
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const pendingPaths = new Set<string>();
+
+    this.unsubscribeVaultEvents = this.vaultAdapter.watchEvents((event: VaultEvent) => {
+      if (event.type !== 'create' && event.type !== 'modify') return;
+
+      const pathStr = event.path as string;
+      if (!pathStr.startsWith(this.settings.inboxFolder)) return;
+
+      pendingPaths.add(pathStr);
+
+      if (debounceTimer !== null) {
+        clearTimeout(debounceTimer);
+      }
+
+      debounceTimer = setTimeout(async () => {
+        debounceTimer = null;
+        const count = pendingPaths.size;
+        pendingPaths.clear();
+
+        const { Notice } = await import('obsidian');
+        new Notice(`Inbox: ${count}개 파일 변경 감지`);
+      }, INBOX_DEBOUNCE_MS);
+    });
   }
 
   private scheduleMaintenanceIfEnabled(): void {

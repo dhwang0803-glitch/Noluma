@@ -2,7 +2,7 @@ import { requestUrl, RequestUrlParam } from 'obsidian';
 import { AIProviderPort, CompletionRequest, CompletionResponse,
          ClassificationRequest, ClassificationResponse } from '../../application/ports/AIProviderPort';
 import { AIProviderError, RateLimitError } from '../../domain/errors/DomainErrors';
-import { PromptTemplates } from './PromptTemplates';
+import { PromptTemplates } from '../../application/PromptTemplates';
 
 /**
  * Google Gemini API 어댑터.
