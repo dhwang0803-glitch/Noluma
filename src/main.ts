@@ -15,7 +15,6 @@ import { QuickAskUseCase } from './application/usecases/QuickAskUseCase';
 import { OrganizeNoteUseCase } from './application/usecases/OrganizeNoteUseCase';
 import { RunInboxProcessUseCase } from './application/usecases/RunInboxProcessUseCase';
 import { RunMaintenanceUseCase } from './application/usecases/RunMaintenanceUseCase';
-import { SearchNotesUseCase } from './application/usecases/SearchNotesUseCase';
 import { SaveNoteUseCase } from './application/usecases/SaveNoteUseCase';
 import { CaptureClipboardUseCase } from './application/usecases/CaptureClipboardUseCase';
 import { GetHistoryUseCase } from './application/usecases/GetHistoryUseCase';
@@ -29,7 +28,7 @@ import { PluginSettingTab } from './ui/PluginSettingTab';
 // Ports
 import { AIProviderPort } from './application/ports/AIProviderPort';
 import { ConfigPort } from './application/ports/ConfigPort';
-import { NotePath, createNotePath } from './domain/values/NotePath';
+import { createNotePath } from './domain/values/NotePath';
 import { SaveTarget } from './domain/models/SaveTarget';
 import { createNoteTitle } from './domain/values/NoteTitle';
 
