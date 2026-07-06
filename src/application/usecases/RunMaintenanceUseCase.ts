@@ -91,7 +91,6 @@ export class RunMaintenanceUseCase {
 
     const pairs: DuplicatePair[] = [];
     for (const [, { a, b, tokensA, tokensB }] of candidateScores) {
-      const setA = new Set(tokensA);
       const setB = new Set(tokensB);
       const intersection = tokensA.filter(t => setB.has(t)).length;
       const union = new Set([...tokensA, ...tokensB]).size;
