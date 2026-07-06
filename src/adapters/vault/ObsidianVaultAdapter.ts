@@ -167,7 +167,10 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
     return {
       tags: uniqueTags.map(t => {
         try { return createTagName(t); }
-        catch { return createTagName('#untagged'); }
+        catch {
+          console.warn(`[Knowledge Maintenance] 비정상 태그 감지, #untagged로 대체: "${t}"`);
+          return createTagName('#untagged');
+        }
       }),
       aliases: Array.isArray(frontmatter.aliases) ? frontmatter.aliases.map(String) : [],
       links,
