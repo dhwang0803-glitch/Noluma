@@ -108,8 +108,8 @@ export class OrganizeNoteUseCase {
       const currentNote = await this.vault.readNote(notePath);
       if (currentNote) {
         const linkLines = result.suggestedLinks.map(link => {
-          const name = (link as string).split('/').pop()?.replace('.md', '') ?? '';
-          return `- [[${name}]]`;
+          const linkPath = (link as string).replace('.md', '');
+          return `- [[${linkPath}]]`;
         });
         const section = `\n\n## Related Notes\n\n${linkLines.join('\n')}`;
         await this.vault.writeNote(notePath, currentNote.content + section);
@@ -122,6 +122,7 @@ export class OrganizeNoteUseCase {
       const currentNote = await this.vault.readNote(notePath);
       if (currentNote) {
         await this.vault.writeNote(newPath, currentNote.content);
+        await this.vault.updateFrontmatter(newPath, { processed: true });
         await this.vault.deleteNote(notePath);
       }
     }

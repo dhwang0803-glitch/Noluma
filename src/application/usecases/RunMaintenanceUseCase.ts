@@ -113,6 +113,12 @@ export class RunMaintenanceUseCase {
     const wikiLinkPattern = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
     const broken: BrokenLink[] = [];
 
+    const basenameSet = new Set<string>();
+    for (const np of allNotes) {
+      const base = (np as string).split('/').pop()?.replace('.md', '')?.toLowerCase() ?? '';
+      if (base) basenameSet.add(base);
+    }
+
     for (const notePath of allNotes) {
       const note = await this.vault.readNote(notePath);
       if (!note) continue;
@@ -126,6 +132,9 @@ export class RunMaintenanceUseCase {
           const hashIdx = target.indexOf('#');
           if (hashIdx !== -1) target = target.substring(0, hashIdx);
           if (!target) continue;
+
+          const targetBasename = target.split('/').pop()?.toLowerCase() ?? '';
+          if (basenameSet.has(targetBasename)) continue;
 
           const normalized = target.endsWith('.md') ? target : `${target}.md`;
           try {
