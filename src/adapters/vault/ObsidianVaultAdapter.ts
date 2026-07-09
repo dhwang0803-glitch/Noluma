@@ -47,12 +47,18 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
     if (existing instanceof TFile) {
       await this.app.vault.modify(existing, content);
     } else {
-      // 부모 폴더가 없으면 생성
       const folderPath = pathStr.substring(0, pathStr.lastIndexOf('/'));
       if (folderPath) {
         await this.ensureFolderExists(folderPath);
       }
-      await this.app.vault.create(pathStr, content);
+      try {
+        await this.app.vault.create(pathStr, content);
+      } catch {
+        const file = this.app.vault.getAbstractFileByPath(pathStr);
+        if (file instanceof TFile) {
+          await this.app.vault.modify(file, content);
+        }
+      }
     }
   }
 
