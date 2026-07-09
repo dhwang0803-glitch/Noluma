@@ -158,13 +158,30 @@ describe('ApplyMaintenanceActionUseCase', () => {
 
       expect(vault.writeNote).toHaveBeenCalledWith(np('note.md'), '# note.md\n');
     });
+
+    it('heading fragment(#section)를 제거하고 노트를 생성한다', async () => {
+      const { uc, vault } = createUseCase();
+
+      await uc.execute({ kind: 'create-missing-note', targetLink: 'missing#section' });
+
+      expect(vault.writeNote).toHaveBeenCalledWith(np('missing.md'), '# missing\n');
+    });
+
+    it('fragment만 있는 링크(#only)는 무시한다', async () => {
+      const { uc, vault } = createUseCase();
+
+      await uc.execute({ kind: 'create-missing-note', targetLink: '#only-heading' });
+
+      expect(vault.writeNote).not.toHaveBeenCalled();
+    });
   });
 
   describe('apply-missing-tags', () => {
     it('누락된 태그를 frontmatter에 추가한다', async () => {
+      const content = '---\ntags:\n  - existing\n---\n# Tagged\ncontent';
       const note = createTestNote({
         path: np('tagged.md'),
-        content: '# Tagged\ncontent',
+        content,
         metadata: createTestMetadata({ tags: [tn('#existing')] }),
       });
       const { uc, vault, history } = createUseCase({
@@ -183,7 +200,30 @@ describe('ApplyMaintenanceActionUseCase', () => {
       );
       const entry = (history.record as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(entry.action).toBe('tag-add');
-      expect(entry.previousContent).toBe('# Tagged\ncontent');
+      expect(entry.previousContent).toBe(content);
+    });
+
+    it('인라인 태그는 frontmatter에 복사하지 않는다', async () => {
+      const content = '# Note\nSome text with #inline-tag in body';
+      const note = createTestNote({
+        path: np('inline.md'),
+        content,
+        metadata: createTestMetadata({ tags: [tn('#inline-tag')] }),
+      });
+      const { uc, vault } = createUseCase({
+        readNote: vi.fn().mockResolvedValue(note),
+      });
+
+      await uc.execute({
+        kind: 'apply-missing-tags',
+        notePath: np('inline.md'),
+        tags: [tn('#new-tag')],
+      });
+
+      expect(vault.updateFrontmatter).toHaveBeenCalledWith(
+        np('inline.md'),
+        { tags: ['#new-tag'] },
+      );
     });
 
     it('이미 존재하는 태그는 추가하지 않는다', async () => {

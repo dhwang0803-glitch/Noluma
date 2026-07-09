@@ -11,6 +11,7 @@ export { MAINTENANCE_RESULT_VIEW_TYPE };
 export class MaintenanceResultView extends ItemView {
   private currentPlan: MaintenancePlan | null = null;
   private scanInProgress = false;
+  private readonly dismissedIds = new Set<string>();
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -93,8 +94,11 @@ export class MaintenanceResultView extends ItemView {
         .onClick(() => this.triggerScan()),
       );
 
-    const totalIssues = plan.missingTags.length + plan.brokenLinks.length
-      + plan.orphanNotes.length + plan.duplicateCandidates.length;
+    const missingTagsCount = plan.missingTags.filter(i => !this.dismissedIds.has(`missing-tags:${i.notePath as string}`)).length;
+    const brokenLinksCount = plan.brokenLinks.filter(i => !this.dismissedIds.has(`broken-link:${i.sourcePath as string}:${i.lineNumber}:${i.targetLink}`)).length;
+    const orphanCount = plan.orphanNotes.filter(p => !this.dismissedIds.has(`orphan:${p as string}`)).length;
+    const dupCount = plan.duplicateCandidates.filter(p => !this.dismissedIds.has(`duplicate:${p.noteA as string}|${p.noteB as string}`)).length;
+    const totalIssues = missingTagsCount + brokenLinksCount + orphanCount + dupCount;
 
     if (totalIssues === 0) {
       contentEl.createEl('p', {
@@ -106,10 +110,10 @@ export class MaintenanceResultView extends ItemView {
 
     const summaryEl = contentEl.createDiv('maintenance-result-summary');
     const parts: string[] = [];
-    if (plan.missingTags.length > 0) parts.push(`누락 태그 ${plan.missingTags.length}`);
-    if (plan.brokenLinks.length > 0) parts.push(`깨진 링크 ${plan.brokenLinks.length}`);
-    if (plan.orphanNotes.length > 0) parts.push(`고아 노트 ${plan.orphanNotes.length}`);
-    if (plan.duplicateCandidates.length > 0) parts.push(`중복 후보 ${plan.duplicateCandidates.length}`);
+    if (missingTagsCount > 0) parts.push(`누락 태그 ${missingTagsCount}`);
+    if (brokenLinksCount > 0) parts.push(`깨진 링크 ${brokenLinksCount}`);
+    if (orphanCount > 0) parts.push(`고아 노트 ${orphanCount}`);
+    if (dupCount > 0) parts.push(`중복 후보 ${dupCount}`);
     summaryEl.createEl('p', { text: parts.join(' · ') });
 
     if (plan.missingTags.length > 0) {
@@ -127,9 +131,11 @@ export class MaintenanceResultView extends ItemView {
   }
 
   private renderMissingTags(container: HTMLElement, items: ReadonlyArray<MissingTagSuggestion>): void {
-    container.createEl('h5', { text: `누락 태그 (${items.length})` });
+    const filtered = items.filter(i => !this.dismissedIds.has(`missing-tags:${i.notePath as string}`));
+    if (filtered.length === 0) return;
+    container.createEl('h5', { text: `누락 태그 (${filtered.length})` });
 
-    for (const item of items) {
+    for (const item of filtered) {
       const settingEl = new Setting(container)
         .setName(this.basename(item.notePath))
         .setDesc(`${item.suggestedTags.join(', ')} 추가 제안`);
@@ -148,9 +154,11 @@ export class MaintenanceResultView extends ItemView {
   }
 
   private renderBrokenLinks(container: HTMLElement, items: ReadonlyArray<BrokenLink>): void {
-    container.createEl('h5', { text: `깨진 링크 (${items.length})` });
+    const filtered = items.filter(i => !this.dismissedIds.has(`broken-link:${i.sourcePath as string}:${i.lineNumber}:${i.targetLink}`));
+    if (filtered.length === 0) return;
+    container.createEl('h5', { text: `깨진 링크 (${filtered.length})` });
 
-    for (const item of items) {
+    for (const item of filtered) {
       const settingEl = new Setting(container)
         .setName(`${this.basename(item.sourcePath)}:${item.lineNumber}`)
         .setDesc(`[[${item.targetLink}]]`);
@@ -176,9 +184,11 @@ export class MaintenanceResultView extends ItemView {
   }
 
   private renderOrphanNotes(container: HTMLElement, items: ReadonlyArray<NotePath>): void {
-    container.createEl('h5', { text: `고아 노트 (${items.length})` });
+    const filtered = items.filter(p => !this.dismissedIds.has(`orphan:${p as string}`));
+    if (filtered.length === 0) return;
+    container.createEl('h5', { text: `고아 노트 (${filtered.length})` });
 
-    for (const notePath of items) {
+    for (const notePath of filtered) {
       const settingEl = new Setting(container)
         .setName(this.basename(notePath))
         .setDesc(notePath as string);
@@ -202,9 +212,11 @@ export class MaintenanceResultView extends ItemView {
   }
 
   private renderDuplicates(container: HTMLElement, items: ReadonlyArray<DuplicatePair>): void {
-    container.createEl('h5', { text: `중복 후보 (${items.length})` });
+    const filtered = items.filter(p => !this.dismissedIds.has(`duplicate:${p.noteA as string}|${p.noteB as string}`));
+    if (filtered.length === 0) return;
+    container.createEl('h5', { text: `중복 후보 (${filtered.length})` });
 
-    for (const pair of items) {
+    for (const pair of filtered) {
       const score = Math.round(pair.similarityScore * 100);
       const settingEl = new Setting(container)
         .setName(`${this.basename(pair.noteA)} ↔ ${this.basename(pair.noteB)}`)
@@ -229,6 +241,7 @@ export class MaintenanceResultView extends ItemView {
           issueType: issueType as MaintenanceIssueType,
           identifier,
         });
+        this.dismissedIds.add(`${issueType}:${identifier}`);
         setting.settingEl.remove();
         new Notice('이슈를 무시했습니다');
       }),

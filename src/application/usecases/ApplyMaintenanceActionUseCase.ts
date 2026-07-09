@@ -71,10 +71,14 @@ export class ApplyMaintenanceActionUseCase {
   }
 
   private async createMissingNote(targetLink: string): Promise<void> {
-    const normalized = targetLink.endsWith('.md') ? targetLink : `${targetLink}.md`;
+    const hashIdx = targetLink.indexOf('#');
+    const baseName = hashIdx !== -1 ? targetLink.substring(0, hashIdx) : targetLink;
+    if (!baseName) return;
+
+    const normalized = baseName.endsWith('.md') ? baseName : `${baseName}.md`;
     const notePath = createNotePath(normalized);
 
-    const content = `# ${targetLink}\n`;
+    const content = `# ${baseName}\n`;
     await this.vault.writeNote(notePath, content);
 
     const entry: HistoryEntry = {
@@ -82,7 +86,7 @@ export class ApplyMaintenanceActionUseCase {
       action: 'create',
       notePath,
       timestamp: this.clock.now(),
-      description: `누락 노트 생성: ${targetLink}`,
+      description: `누락 노트 생성: ${baseName}`,
     };
     await this.history.record(entry);
   }
@@ -91,12 +95,13 @@ export class ApplyMaintenanceActionUseCase {
     const note = await this.vault.readNote(notePath);
     if (!note) return;
 
-    const existingTags = note.metadata.tags.map(t => t as string);
-    const newTags = tags.filter(t => !existingTags.includes(t as string));
+    const frontmatterTags = this.extractFrontmatterTags(note.content);
+    const allExisting = note.metadata.tags.map(t => t as string);
+    const newTags = tags.filter(t => !allExisting.includes(t as string));
     if (newTags.length === 0) return;
 
-    const allTags = [...existingTags, ...newTags.map(t => t as string)];
-    await this.vault.updateFrontmatter(notePath, { tags: allTags });
+    const updatedFmTags = [...frontmatterTags, ...newTags.map(t => t as string)];
+    await this.vault.updateFrontmatter(notePath, { tags: updatedFmTags });
 
     const entry: HistoryEntry = {
       id: crypto.randomUUID(),
@@ -118,6 +123,22 @@ export class ApplyMaintenanceActionUseCase {
       description: `이슈 무시: [${issueType}] ${identifier}`,
     };
     await this.history.record(entry);
+  }
+
+  private extractFrontmatterTags(content: string): string[] {
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (!fmMatch) return [];
+    const fmBlock = fmMatch[1];
+    const tagsMatch = fmBlock.match(/^tags:\s*\[([^\]]*)\]/m)
+      ?? fmBlock.match(/^tags:\s*\n((?:\s*-\s*.+\n?)*)/m);
+    if (!tagsMatch) return [];
+
+    if (tagsMatch[0].includes('[')) {
+      return tagsMatch[1].split(',').map(t => t.trim().replace(/^["']|["']$/g, '')).filter(Boolean)
+        .map(t => t.startsWith('#') ? t : `#${t}`);
+    }
+    return tagsMatch[1].split('\n').map(l => l.replace(/^\s*-\s*/, '').trim()).filter(Boolean)
+      .map(t => t.startsWith('#') ? t : `#${t}`);
   }
 
   private escapeRegex(str: string): string {
