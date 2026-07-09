@@ -99,7 +99,7 @@ export class GeminiAdapter implements AIProviderPort {
 
   private stripCodeBlock(text: string): string {
     const trimmed = text.trim();
-    const match = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```$/);
+    const match = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```$/i);
     return match ? match[1].trim() : trimmed;
   }
 
