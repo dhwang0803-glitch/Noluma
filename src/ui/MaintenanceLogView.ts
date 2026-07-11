@@ -35,7 +35,13 @@ export class MaintenanceLogView extends ItemView {
     const { contentEl } = this;
     contentEl.empty();
 
-    contentEl.createEl('h4', { text: t('log.title') });
+    new Setting(contentEl)
+      .setName(t('log.title'))
+      .addExtraButton(btn => btn
+        .setIcon('refresh-cw')
+        .setTooltip(t('log.refresh'))
+        .onClick(() => this.refresh()),
+      );
 
     const entries = await this.getHistory.execute({ limit: 50 });
 
