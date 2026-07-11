@@ -119,6 +119,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'log.viewTitle': 'Maintenance Log',
   'log.title': '유지보수 활동 로그',
   'log.empty': '아직 기록된 활동이 없습니다.',
+  'log.undo': '복원',
 
   // ─── Inbox Status View ───
   'inbox.viewTitle': 'Inbox Status',

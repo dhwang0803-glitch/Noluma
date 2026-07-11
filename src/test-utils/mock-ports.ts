@@ -20,6 +20,7 @@ export function createMockVault(overrides?: Partial<VaultAccessPort>): VaultAcce
     exists: vi.fn().mockResolvedValue(false),
     moveNote: vi.fn().mockResolvedValue(undefined),
     readFileRaw: vi.fn().mockResolvedValue(null),
+    writeFileRaw: vi.fn().mockResolvedValue(undefined),
     watchEvents: vi.fn().mockReturnValue(() => {}),
     ...overrides,
   };

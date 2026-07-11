@@ -35,6 +35,9 @@ export interface VaultAccessPort {
   /** 비-마크다운 파일의 원시 텍스트를 읽는다. 없으면 null. */
   readFileRaw(path: string): Promise<string | null>;
 
+  /** 비-마크다운 파일에 원시 텍스트를 쓴다. 폴더가 없으면 생성한다. */
+  writeFileRaw(path: string, content: string): Promise<void>;
+
   /** 파일 이벤트 감시 등록. 해제를 위한 콜백 반환. */
   watchEvents(handler: VaultEventHandler): () => void;
 }

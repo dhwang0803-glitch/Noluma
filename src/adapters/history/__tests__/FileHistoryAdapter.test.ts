@@ -35,11 +35,11 @@ describe('FileHistoryAdapter', () => {
 
       await adapter.record(makeEntry());
 
-      expect(vault.writeNote).toHaveBeenCalledWith(
-        np('.knowledge-maintenance/history/2024-07.json'),
+      expect(vault.writeFileRaw).toHaveBeenCalledWith(
+        '.knowledge-maintenance/history/2024-07.json',
         expect.any(String),
       );
-      const written = JSON.parse((vault.writeNote as any).mock.calls[0][1]);
+      const written = JSON.parse((vault.writeFileRaw as any).mock.calls[0][1]);
       expect(written).toHaveLength(1);
       expect(written[0].id).toBe('entry-1');
     });
@@ -53,7 +53,7 @@ describe('FileHistoryAdapter', () => {
 
       await adapter.record(makeEntry({ id: 'new-1' }));
 
-      const written = JSON.parse((vault.writeNote as any).mock.calls[0][1]);
+      const written = JSON.parse((vault.writeFileRaw as any).mock.calls[0][1]);
       expect(written).toHaveLength(2);
       expect(written[1].id).toBe('new-1');
     });
@@ -66,8 +66,8 @@ describe('FileHistoryAdapter', () => {
 
       await adapter.record(makeEntry({ timestamp: ts(1735689600000) })); // 2025-01
 
-      expect(vault.writeNote).toHaveBeenCalledWith(
-        np('.knowledge-maintenance/history/2025-01.json'),
+      expect(vault.writeFileRaw).toHaveBeenCalledWith(
+        '.knowledge-maintenance/history/2025-01.json',
         expect.any(String),
       );
     });
