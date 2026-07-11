@@ -139,6 +139,25 @@ const en = {
   'quickAsk.cost': 'Cost: ${{amount}}',
   'quickAsk.tags': 'Tags: {{tags}}',
 
+  // ─── Organize Result Modal ───
+  'organize.title': 'Organize Note',
+  'organize.category': 'Category',
+  'organize.summary': 'Summary',
+  'organize.suggestedTags': 'Suggested Tags',
+  'organize.suggestedLinks': 'Suggested Links',
+  'organize.suggestedMove': 'Suggested Folder',
+  'organize.noTags': 'No tags suggested.',
+  'organize.noLinks': 'No links suggested.',
+  'organize.noMove': 'No folder move suggested.',
+  'organize.applyTags': 'Apply Tags',
+  'organize.addLinks': 'Add Links',
+  'organize.moveNote': 'Move Note',
+  'organize.moveTo': 'Move to',
+  'organize.tagsApplied': '{{count}} tags applied',
+  'organize.linksAdded': '{{count}} links added',
+  'organize.noteMoved': 'Moved to {{folder}}/',
+  'organize.analyzing': 'Analyzing note with AI...',
+
   // ─── Settings ───
   'settings.title': 'Knowledge Maintenance Settings',
 

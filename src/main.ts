@@ -21,6 +21,7 @@ import { ApplyMaintenanceActionUseCase } from './application/usecases/ApplyMaint
 
 // UI
 import { QuickAskModal } from './ui/QuickAskModal';
+import { OrganizeResultModal, OrganizeApplyActions } from './ui/OrganizeResultModal';
 import { MaintenanceLogView, MAINTENANCE_LOG_VIEW_TYPE } from './ui/MaintenanceLogView';
 import { MaintenanceResultView, MAINTENANCE_RESULT_VIEW_TYPE } from './ui/MaintenanceResultView';
 import { InboxStatusView, INBOX_STATUS_VIEW_TYPE } from './ui/InboxStatusView';
@@ -307,13 +308,48 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         if (!activeFile) return false;
         if (checking) return true;
 
+        const notePath = createNotePath(activeFile.path);
+        new Notice(t('organize.analyzing'));
+
         this.organizeNoteUseCase
-          .execute(createNotePath(activeFile.path), false)
+          .execute(notePath, false)
           .then(result => {
-            new Notice(t('notice.organizeResult', { category: result.classifiedCategory, tags: result.addedTags.join(', ') }));
+            const actions: OrganizeApplyActions = {
+              applyTags: async (path, tags) => {
+                const note = await this.vaultAdapter.readNote(path);
+                if (!note) return;
+                const existing = note.metadata.tags.map(tag => tag as string);
+                const newTags = tags.filter(tag => !existing.includes(tag));
+                if (newTags.length > 0) {
+                  await this.vaultAdapter.updateFrontmatter(path, {
+                    tags: [...existing, ...newTags],
+                  });
+                }
+              },
+              addLinks: async (path, links) => {
+                const note = await this.vaultAdapter.readNote(path);
+                if (!note) return;
+                const linkLines = links.map(link => {
+                  const linkPath = (link as string).replace('.md', '');
+                  return `- [[${linkPath}]]`;
+                });
+                const section = `\n\n## Related Notes\n\n${linkLines.join('\n')}`;
+                await this.vaultAdapter.writeNote(path, note.content + section);
+              },
+              moveNote: async (path, targetFolder) => {
+                const filename = (path as string).split('/').pop() ?? '';
+                const newPath = createNotePath(`${targetFolder}/${filename}`);
+                const existing = await this.vaultAdapter.readNote(newPath);
+                if (existing) {
+                  throw new Error(`Note already exists: ${newPath as string}`);
+                }
+                await this.vaultAdapter.moveNote(path, newPath);
+              },
+            };
+            new OrganizeResultModal(this.app, notePath, result, actions).open();
           })
           .catch(err => {
-            new Notice(t('notice.organizeFailed', { error: err.message }));
+            new Notice(t('notice.organizeFailed', { error: err instanceof Error ? err.message : String(err) }));
           });
       },
     });

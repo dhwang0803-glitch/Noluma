@@ -274,3 +274,121 @@
   border-color: var(--interactive-accent);
   outline: none;
 }
+
+/* Organize Result Modal */
+.modal:has(.knowledge-maintenance-organize-result) {
+  width: 560px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.knowledge-maintenance-organize-result {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
+.organize-note-name {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  margin-top: -8px;
+  margin-bottom: 12px;
+}
+
+.organize-section {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--background-secondary);
+  border-radius: 6px;
+}
+
+.organize-section h4 {
+  margin: 0 0 8px;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.organize-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.organize-section-header h4 {
+  margin: 0;
+}
+
+.organize-category-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 16px;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-weight: var(--font-semibold);
+  font-size: var(--font-ui-small);
+}
+
+.organize-summary-text {
+  margin: 0;
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  line-height: 1.5;
+}
+
+.organize-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.organize-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--background-primary-alt);
+  color: var(--text-accent);
+  font-size: var(--font-ui-small);
+}
+
+.organize-link-list {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.organize-link-list li {
+  font-size: var(--font-ui-small);
+  color: var(--text-accent);
+  margin-bottom: 4px;
+}
+
+.organize-move-target {
+  margin: 0;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  font-weight: var(--font-semibold);
+}
+
+.organize-empty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  font-style: italic;
+}
+
+.organize-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.organize-applied {
+  opacity: 0.5;
+}
