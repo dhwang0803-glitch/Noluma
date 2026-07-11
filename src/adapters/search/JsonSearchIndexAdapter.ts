@@ -73,7 +73,7 @@ export class JsonSearchIndexAdapter implements SearchIndexPort {
   async rebuild(): Promise<void> {
     this.indexCache.clear();
     this.dirty = true;
-    // 전체 Vault를 다시 인덱싱해야 함 — 호출자가 처리
+    // Full vault re-index required — caller handles
   }
 
   private calculateScore(text: string, queryTerms: string[]): number {
@@ -82,7 +82,7 @@ export class JsonSearchIndexAdapter implements SearchIndexPort {
       const index = text.indexOf(term);
       if (index !== -1) {
         score += 1;
-        // 완전 일치 보너스
+        // Exact match bonus
         if (text.includes(` ${term} `)) score += 0.5;
       }
     }
@@ -119,8 +119,8 @@ export class JsonSearchIndexAdapter implements SearchIndexPort {
 interface IndexEntry {
   notePath: string;
   headingPath: string;
-  text: string;       // 검색용 소문자
-  originalText: string; // 원본 텍스트
+  text: string;       // Lowercased for search
+  originalText: string; // Original text
   startLine: number;
   endLine: number;
 }

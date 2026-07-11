@@ -29,7 +29,7 @@ export class FileHistoryAdapter implements HistoryPort {
   }
 
   async list(filter?: HistoryFilter): Promise<ReadonlyArray<HistoryEntry>> {
-    // 모든 이력 파일을 로드하여 필터 적용
+    // Load all history files and apply filter
     const historyFiles = await this.vault.listNotes(FileHistoryAdapter.HISTORY_FOLDER);
     let allEntries: HistoryEntry[] = [];
 
@@ -38,7 +38,7 @@ export class FileHistoryAdapter implements HistoryPort {
       allEntries = allEntries.concat(entries);
     }
 
-    // 필터 적용
+    // Apply filter
     let filtered = allEntries;
     if (filter?.since) {
       filtered = filtered.filter(e => (e.timestamp as number) >= (filter.since as number));
@@ -50,7 +50,7 @@ export class FileHistoryAdapter implements HistoryPort {
       filtered = filtered.filter(e => e.action === filter.action);
     }
 
-    // 최신순 정렬
+    // Sort by newest first
     filtered.sort((a, b) => (b.timestamp as number) - (a.timestamp as number));
 
     if (filter?.limit) {
@@ -61,7 +61,7 @@ export class FileHistoryAdapter implements HistoryPort {
   }
 
   async undo(entryId: string): Promise<void> {
-    // 해당 항목의 previousContent를 사용하여 되돌리기
+    // Revert using previousContent from the entry
     const historyFiles = await this.vault.listNotes(FileHistoryAdapter.HISTORY_FOLDER);
 
     for (const filePath of historyFiles) {

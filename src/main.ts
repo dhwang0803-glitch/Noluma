@@ -91,7 +91,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private clipboardAdapter!: ObsidianClipboardAdapter;
   private clockAdapter!: SystemClockAdapter;
 
-  // Shared ConfigPort (Q1: 단일 인스턴스)
+  // Shared ConfigPort (single instance)
   private configPort!: ConfigPort;
 
   // Use Cases
@@ -104,47 +104,47 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private getHistoryUseCase!: GetHistoryUseCase;
   private applyMaintenanceActionUseCase!: ApplyMaintenanceActionUseCase;
 
-  // 이벤트 해제 함수
+  // Event unsubscribe functions
   private unsubscribeVaultEvents: (() => void) | null = null;
   private maintenanceInterval: number | null = null;
 
   async onload(): Promise<void> {
     console.log('Knowledge Maintenance Plugin: loading');
 
-    // 1. 설정 로드
+    // 1. Load settings
     await this.loadSettings();
 
-    // 1b. 로캘 초기화
+    // 1b. Initialize locale
     const resolvedLocale = this.settings.locale === 'auto'
       ? detectObsidianLocale()
       : this.settings.locale;
     setLocale(resolvedLocale);
 
-    // 2. 어댑터 초기화
+    // 2. Initialize adapters
     this.wireAdapters();
 
-    // 3. 유스케이스 초기화
+    // 3. Initialize use cases
     this.wireUseCases();
 
-    // 4. 뷰 등록
+    // 4. Register views
     this.registerViews();
 
-    // 5. 명령 등록
+    // 5. Register commands
     this.registerCommands();
 
-    // 6. 설정 탭 등록
+    // 6. Register settings tab
     this.addSettingTab(new PluginSettingTab(this.app, this, this.configPort));
 
-    // 7. 폴더 우클릭 메뉴 등록
+    // 7. Register folder context menu
     this.registerFolderContextMenu();
 
-    // 8. Vault 이벤트 감시 시작
+    // 8. Start vault event watching
     this.startInboxWatcher();
 
-    // 9. 자동 유지보수 스케줄링
+    // 9. Schedule auto-maintenance
     this.scheduleMaintenanceIfEnabled();
 
-    // 10. 앱 열림 시 Catch-up (마지막 실행 이후 변경된 Inbox 노트 처리)
+    // 10. Catch-up on app open (process Inbox notes changed since last run)
     this.app.workspace.onLayoutReady(() => {
       this.runCatchUp();
     });
@@ -153,20 +153,20 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   onunload(): void {
     console.log('Knowledge Maintenance Plugin: unloading');
 
-    // 이벤트 감시 해제
+    // Unsubscribe event watchers
     if (this.unsubscribeVaultEvents) {
       this.unsubscribeVaultEvents();
       this.unsubscribeVaultEvents = null;
     }
 
-    // 유지보수 타이머 해제
+    // Clear maintenance timer
     if (this.maintenanceInterval !== null) {
       window.clearInterval(this.maintenanceInterval);
       this.maintenanceInterval = null;
     }
   }
 
-  // ─── 내부 메서드 ───
+  // ─── Internal methods ───
 
   private async loadSettings(): Promise<void> {
     const data = await this.loadData();
@@ -180,7 +180,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.clipboardAdapter = new ObsidianClipboardAdapter();
     this.clockAdapter = new SystemClockAdapter();
 
-    // ConfigPort — 단일 인스턴스로 모든 계층에 공유
+    // ConfigPort — shared single instance across all layers
     this.configPort = {
       getSettings: async () => this.settings,
       saveSettings: async (s) => { this.settings = s; await this.saveData(s); },
@@ -190,7 +190,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       },
     };
 
-    // AI 어댑터 — 매 호출마다 ConfigPort에서 최신 설정을 읽어 적절한 공급자에 위임
+    // AI adapter — reads latest settings from ConfigPort on each call, delegates to the appropriate provider
     this.aiAdapter = new DynamicAIAdapter(this.configPort);
   }
 

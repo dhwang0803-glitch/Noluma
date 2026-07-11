@@ -12,7 +12,7 @@ export class ObsidianClipboardAdapter implements ClipboardPort {
       const text = await navigator.clipboard.readText();
       return text && text.trim().length > 0 ? text : null;
     } catch {
-      // 클립보드 접근 권한이 없거나 비어 있는 경우
+      // Clipboard access denied or empty
       return null;
     }
   }

@@ -10,7 +10,7 @@ export interface HistoryEntry {
   readonly notePath: NotePath;
   readonly timestamp: Timestamp;
   readonly description: string;
-  readonly previousContent?: string;  // 되돌리기(undo)를 위한 이전 내용
+  readonly previousContent?: string;  // Previous content for undo
   readonly metadata?: Record<string, unknown>;
 }
 

@@ -172,7 +172,7 @@ describe('QuickAskUseCase', () => {
         autoLink: false,
       });
 
-      // private/secret.md의 청크는 필터링, public/open.md만 사용
+      // Chunks from private/secret.md are filtered, only public/open.md used
       expect(result.contextChunksUsed).toHaveLength(1);
       expect((result.contextChunksUsed[0].text as string)).toBe('open data');
     });

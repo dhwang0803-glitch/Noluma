@@ -55,7 +55,7 @@ export class RunInboxProcessUseCase {
         );
         results.push(result);
 
-        // 처리 완료 마킹
+        // Mark as processed
         await this.vault.updateFrontmatter(notePath, { processed: true });
       } catch (err) {
         errors.push({

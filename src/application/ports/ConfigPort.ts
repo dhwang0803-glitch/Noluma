@@ -20,30 +20,30 @@ export interface ConfigPort {
  * 이 인터페이스는 포트 계층에 위치하지만, 구조적으로 도메인 모델이기도 하다.
  */
 export interface PluginSettings {
-  // AI 공급자 설정
+  // AI provider settings
   readonly aiProvider: 'openai' | 'gemini';
   readonly aiApiKey: string;
   readonly aiModel: string;
   readonly aiMaxTokens: number;
   readonly aiTemperature: number;
 
-  // Inbox 설정
+  // Inbox settings
   readonly inboxFolder: string;
   readonly autoApplyInbox: boolean;
 
-  // Quick Ask 설정
+  // Quick Ask settings
   readonly defaultSaveFolder: string;
   readonly defaultSaveTarget: 'new-note' | 'daily-note';
   readonly quickAskSaveMode: 'timestamp' | 'daily-note';
   readonly dailyNoteSizeLimitKB: number;
   readonly maxContextChunks: number;
 
-  // Daily Note 설정
+  // Daily Note settings
   readonly dailyNoteFormat: string;
   readonly dailyNoteFolder: string;
   readonly dailyNoteTemplate?: string;
 
-  // 유지보수 설정
+  // Maintenance settings
   readonly maintenanceEnabled: boolean;
   readonly maintenanceIntervalMinutes: number;
   readonly maintenanceExcludeFolders: ReadonlyArray<string>;
@@ -51,16 +51,16 @@ export interface PluginSettings {
   readonly maintenanceExcludeTags: ReadonlyArray<string>;
   readonly maintenanceArchiveFolder: string;
 
-  // 프라이버시
+  // Privacy
   readonly privacyRules: ReadonlyArray<PrivacyRule>;
 
-  // 알려진 태그 (자동완성/제안용)
+  // Known tags (for autocomplete/suggestions)
   readonly knownTags: ReadonlyArray<TagName>;
 
-  // 비용 추적
+  // Cost tracking
   readonly trackTokenUsage: boolean;
   readonly monthlyBudgetUsd?: number;
 
-  // 언어
+  // Language
   readonly locale: 'auto' | 'en' | 'ko';
 }

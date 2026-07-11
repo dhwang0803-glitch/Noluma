@@ -34,20 +34,20 @@ export class QuickAskUseCase {
    * 6. 이력 기록
    */
   async execute(request: QuickAskRequest): Promise<QuickAskResult> {
-    // 1. 관련 컨텍스트 검색
+    // 1. Search relevant context
     const contextChunks = await this.searchIndex.search(
       request.question,
       request.maxContextChunks,
     );
 
-    // 2. 프라이버시 규칙 적용
+    // 2. Apply privacy rules
     const settings = await this.config.getSettings();
     const allowedChecks = await Promise.all(
       contextChunks.map(chunk => this.isChunkAllowed(chunk, [...settings.privacyRules]))
     );
     const filteredChunks = contextChunks.filter((_, i) => allowedChecks[i]);
 
-    // 3. content-redact 적용 후 AI 호출
+    // 3. Call AI after content-redact
     const redactedChunks = filteredChunks.map(sr => ({
       ...sr,
       chunk: { ...sr.chunk, text: applyContentRedaction(sr.chunk.text as string, [...settings.privacyRules]) as typeof sr.chunk.text },
@@ -59,7 +59,7 @@ export class QuickAskUseCase {
       temperature: settings.aiTemperature,
     });
 
-    // 4. 응답 파싱 — 태그/링크 추출
+    // 4. Parse response — extract tags/links
     const suggestedTags: ReadonlyArray<TagName> = request.autoTag
       ? (await this.aiProvider.callClassification({
           text: aiResponse.content,
@@ -72,7 +72,7 @@ export class QuickAskUseCase {
       ? this.extractLinkSuggestions(aiResponse.content)
       : [];
 
-    // 5. 노트 저장
+    // 5. Save note
     const content = this.formatAnswer(request.question, aiResponse.content, [...suggestedTags]);
     const savedPath = await this.saveNote.execute({
       content,
@@ -81,7 +81,7 @@ export class QuickAskUseCase {
       links: suggestedLinks,
     });
 
-    // 6. 이력 기록
+    // 6. Record history
     const now = this.clock.now();
     await this.history.record({
       id: crypto.randomUUID(),

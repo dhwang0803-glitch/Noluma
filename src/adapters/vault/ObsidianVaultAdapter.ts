@@ -133,7 +133,7 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
           result.set(canvas.path, refs);
         }
       } catch {
-        // 파싱 실패 시 무시
+        // Ignore parse failures
       }
     }
     return result;
@@ -168,7 +168,7 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
       }
     });
 
-    // 해제 함수 반환
+    // Return unsubscribe function
     return () => {
       this.app.vault.offref(createRef);
       this.app.vault.offref(modifyRef);

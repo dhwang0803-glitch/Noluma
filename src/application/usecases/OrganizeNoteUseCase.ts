@@ -34,7 +34,7 @@ export class OrganizeNoteUseCase {
 
     const settings = await this.config.getSettings();
 
-    // AI 분류 (content-redact 적용)
+    // AI classification (content-redact applied)
     const redactedContent = applyContentRedaction(note.content, [...settings.privacyRules]);
     const classification = await this.aiProvider.callClassification({
       text: redactedContent,
@@ -42,7 +42,7 @@ export class OrganizeNoteUseCase {
       existingTags: settings.knownTags,
     });
 
-    // 링크 제안 — Vault의 다른 노트 제목과 내용 기반
+    // Link suggestions — based on other note titles and content
     const allNotes = await this.vault.listNotes();
     const suggestedLinks = this.findRelevantLinks(note.content, allNotes, notePath);
 
@@ -55,7 +55,7 @@ export class OrganizeNoteUseCase {
       summary: classification.summary,
     };
 
-    // 자동 적용 모드인 경우 실제 변경 수행
+    // Apply changes if auto-apply mode is enabled
     if (autoApply) {
       await this.applyOrganization(notePath, result);
     }

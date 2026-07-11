@@ -11,10 +11,10 @@ export interface PrivacyRule {
 }
 
 export type PrivacyRuleType =
-  | 'folder-exclude'      // 특정 폴더 전체 제외
-  | 'tag-exclude'          // 특정 태그가 달린 노트 제외
-  | 'frontmatter-exclude'  // 특정 frontmatter 키가 있는 노트 제외
-  | 'content-redact';      // 특정 패턴의 텍스트를 마스킹
+  | 'folder-exclude'      // Exclude entire folder
+  | 'tag-exclude'          // Exclude notes with specific tag
+  | 'frontmatter-exclude'  // Exclude notes with specific frontmatter key
+  | 'content-redact';      // Mask text matching a pattern
 
 /**
  * 주어진 규칙에 따라 노트가 AI 컨텍스트에 포함 가능한지 판단한다.
@@ -38,7 +38,7 @@ export function isNoteAllowedByRules(
       case 'frontmatter-exclude':
         if (frontmatterKeys.includes(rule.pattern)) return false;
         break;
-      // content-redact는 전송 시점에 처리 (노트 자체는 허용)
+      // content-redact is applied at send time (note itself is allowed)
     }
   }
   return true;

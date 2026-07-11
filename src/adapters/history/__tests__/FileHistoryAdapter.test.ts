@@ -95,7 +95,7 @@ describe('FileHistoryAdapter', () => {
       const result = await adapter.list();
 
       expect(result).toHaveLength(2);
-      expect(result[0].id).toBe('b'); // 최신순
+      expect(result[0].id).toBe('b'); // Newest first
       expect(result[1].id).toBe('a');
     });
 

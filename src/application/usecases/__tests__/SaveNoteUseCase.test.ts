@@ -186,7 +186,7 @@ describe('SaveNoteUseCase', () => {
 
       const writtenContent = (vault.writeNote as ReturnType<typeof vi.fn>).mock.calls[0][1] as string;
       expect(writtenContent).toContain('Appended');
-      // Appended 뒤에 Other 섹션이 있어야 함
+      // Other section should follow appended content
       expect(writtenContent.indexOf('Appended')).toBeLessThan(writtenContent.indexOf('## Other'));
     });
 
@@ -230,7 +230,7 @@ describe('SaveNoteUseCase', () => {
       });
 
       const path = result as string;
-      // 날짜 패턴이 포함되어야 함 (로컬 타임존 의존)
+      // Should contain date pattern (locale timezone dependent)
       expect(path).toMatch(/\d{4}-\d{2}-\d{2}\.md$/);
     });
   });

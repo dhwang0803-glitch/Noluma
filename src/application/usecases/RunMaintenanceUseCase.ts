@@ -110,7 +110,7 @@ export class RunMaintenanceUseCase {
         }
       }
     } catch {
-      // canvas 지원 없는 어댑터 — 무시
+      // Adapter does not support canvas — ignore
     }
     return canvasRefs;
   }

@@ -39,7 +39,7 @@ export interface VaultAccessPort {
 export interface VaultEvent {
   readonly type: 'create' | 'modify' | 'delete' | 'rename';
   readonly path: NotePath;
-  readonly oldPath?: NotePath;  // rename 시
+  readonly oldPath?: NotePath;  // On rename
 }
 
 export type VaultEventHandler = (event: VaultEvent) => void;

@@ -42,7 +42,7 @@ export class CaptureClipboardUseCase {
       target: {
         kind: 'new-note',
         title,
-        folder: createNotePath(`${settings.inboxFolder}/placeholder.md`), // 폴더 용도
+        folder: createNotePath(`${settings.inboxFolder}/placeholder.md`), // Used for folder path
       },
     });
 

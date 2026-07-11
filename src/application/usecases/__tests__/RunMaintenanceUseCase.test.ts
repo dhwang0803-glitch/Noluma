@@ -83,10 +83,10 @@ describe('RunMaintenanceUseCase', () => {
 
     it('유사 제목을 Jaccard ≥ 0.6으로 감지한다', async () => {
       // "react hooks guide" vs "react hooks tutorial"
-      // 토큰: [react, hooks, guide] vs [react, hooks, tutorial]
-      // intersection = 2, union = 4 → Jaccard = 0.5 → 미검출
-      // 더 유사한 예: "react hooks" vs "react hooks intro"
-      // 토큰: [react, hooks] vs [react, hooks, intro]
+      // Tokens: [react, hooks, guide] vs [react, hooks, tutorial]
+      // intersection = 2, union = 4 → Jaccard = 0.5 → not detected
+      // More similar example: "react hooks" vs "react hooks intro"
+      // Tokens: [react, hooks] vs [react, hooks, intro]
       // intersection = 2, union = 3 → Jaccard ≈ 0.67
       const notes = [np('react-hooks.md'), np('react-hooks-intro.md')];
       vault = createMockVault({
@@ -119,9 +119,9 @@ describe('RunMaintenanceUseCase', () => {
     });
 
     it('같은 토큰을 공유하는 노트가 50개 초과이면 스킵한다', async () => {
-      // 51개 노트가 동일 토큰을 공유 → paths.length > 50 → continue
+      // 51 notes share the same token → paths.length > 50 → continue
       const notes = Array.from({ length: 51 }, (_, i) => np(`same-${i}.md`));
-      // 모든 노트가 "same" 토큰만 가짐 → tokenIndex["same"].length = 51 > 50 → 스킵
+      // All notes have only "same" token → tokenIndex["same"].length = 51 > 50 → skip
       vault = createMockVault({
         listNotes: vi.fn().mockResolvedValue(notes),
         readNote: vi.fn().mockResolvedValue(
@@ -132,10 +132,10 @@ describe('RunMaintenanceUseCase', () => {
       const uc = new RunMaintenanceUseCase(vault, createMockSearch(), createMockConfig(), createMockClock());
       const plan = await uc.execute();
 
-      // "same"만 토큰이므로 candidate가 0
-      // 하지만 숫자 부분(0, 1, ...)은 개별 토큰으로 들어가서 일부 매칭될 수 있음
-      // tokenize "same-0" → ["same", "0"]. "0" 토큰은 51개 모두에 없음 (각 숫자가 다름)
-      // 실제로는 "same"만 >50이므로 스킵, 각 숫자 토큰은 1개씩이므로 후보 없음
+      // Only "same" as token so candidates = 0
+      // But numeric parts (0, 1, ...) become individual tokens and may partially match
+      // tokenize "same-0" → ["same", "0"]. Token "0" is not in all 51 (each number differs)
+      // In practice only "same" is >50 so it's skipped, each number token has count=1 so no candidates
       expect(plan.duplicateCandidates).toHaveLength(0);
     });
   });
