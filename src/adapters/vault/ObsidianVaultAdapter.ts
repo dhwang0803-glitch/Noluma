@@ -79,10 +79,14 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
   }
 
   async listFiles(folder: string, extension: string): Promise<ReadonlyArray<string>> {
-    const allFiles = this.app.vault.getFiles();
-    return allFiles
-      .filter(f => f.extension === extension && f.path.startsWith(folder + '/'))
-      .map(f => f.path);
+    try {
+      const exists = await this.app.vault.adapter.exists(folder);
+      if (!exists) return [];
+      const listing = await this.app.vault.adapter.list(folder);
+      return listing.files.filter(f => f.endsWith('.' + extension));
+    } catch {
+      return [];
+    }
   }
 
   async updateFrontmatter(path: NotePath, updates: Record<string, unknown>): Promise<void> {
@@ -114,9 +118,33 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
   }
 
   async readFileRaw(path: string): Promise<string | null> {
-    const file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof TFile)) return null;
-    return this.app.vault.read(file);
+    try {
+      const exists = await this.app.vault.adapter.exists(path);
+      if (!exists) return null;
+      return await this.app.vault.adapter.read(path);
+    } catch {
+      return null;
+    }
+  }
+
+  async writeFileRaw(path: string, content: string): Promise<void> {
+    const folderPath = path.substring(0, path.lastIndexOf('/'));
+    if (folderPath) {
+      await this.ensureFolderExistsRaw(folderPath);
+    }
+    await this.app.vault.adapter.write(path, content);
+  }
+
+  private async ensureFolderExistsRaw(folderPath: string): Promise<void> {
+    const parts = folderPath.split('/');
+    let current = '';
+    for (const part of parts) {
+      current = current ? `${current}/${part}` : part;
+      const exists = await this.app.vault.adapter.exists(current);
+      if (!exists) {
+        await this.app.vault.adapter.mkdir(current);
+      }
+    }
   }
 
   async getCanvasReferences(): Promise<Map<string, string[]>> {

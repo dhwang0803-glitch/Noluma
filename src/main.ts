@@ -235,7 +235,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private registerViews(): void {
     this.registerView(
       MAINTENANCE_LOG_VIEW_TYPE,
-      (leaf: WorkspaceLeaf) => new MaintenanceLogView(leaf, this.getHistoryUseCase),
+      (leaf: WorkspaceLeaf) => new MaintenanceLogView(leaf, this.getHistoryUseCase, this.historyAdapter),
     );
 
     this.registerView(

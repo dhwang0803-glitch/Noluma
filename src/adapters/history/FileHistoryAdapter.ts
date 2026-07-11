@@ -20,12 +20,12 @@ export class FileHistoryAdapter implements HistoryPort {
 
   async record(entry: HistoryEntry): Promise<void> {
     const monthKey = this.getMonthKey(entry.timestamp);
-    const filePath = `${FileHistoryAdapter.HISTORY_FOLDER}/${monthKey}.json` as NotePath;
+    const filePath = `${FileHistoryAdapter.HISTORY_FOLDER}/${monthKey}.json`;
 
-    const existing = await this.loadMonthEntries(filePath);
+    const existing = await this.loadMonthEntries(filePath as NotePath);
     existing.push(entry);
 
-    await this.vault.writeNote(filePath, JSON.stringify(existing, null, 2));
+    await this.vault.writeFileRaw(filePath, JSON.stringify(existing, null, 2));
   }
 
   async list(filter?: HistoryFilter): Promise<ReadonlyArray<HistoryEntry>> {

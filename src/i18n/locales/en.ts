@@ -117,6 +117,7 @@ const en = {
   'log.viewTitle': 'Maintenance Log',
   'log.title': 'Maintenance Activity Log',
   'log.empty': 'No activity recorded yet.',
+  'log.undo': 'Restore',
 
   // ─── Inbox Status View ───
   'inbox.viewTitle': 'Inbox Status',
