@@ -1,10 +1,9 @@
-import { Notice, Plugin, TFile, WorkspaceLeaf } from 'obsidian';
+import { Notice, Plugin, TFile, TFolder, WorkspaceLeaf } from 'obsidian';
 import { PluginSettings } from './application/ports/ConfigPort';
 
 // Adapters
 import { ObsidianVaultAdapter } from './adapters/vault/ObsidianVaultAdapter';
-import { OpenAIAdapter } from './adapters/ai/OpenAIAdapter';
-import { GeminiAdapter } from './adapters/ai/GeminiAdapter';
+import { DynamicAIAdapter } from './adapters/ai/DynamicAIAdapter';
 import { JsonSearchIndexAdapter } from './adapters/search/JsonSearchIndexAdapter';
 import { FileHistoryAdapter } from './adapters/history/FileHistoryAdapter';
 import { ObsidianClipboardAdapter } from './adapters/clipboard/ObsidianClipboardAdapter';
@@ -46,7 +45,10 @@ import {
   DEFAULT_MAINTENANCE_INTERVAL_MINUTES,
   DEFAULT_MAX_CONTEXT_CHUNKS,
   DEFAULT_DAILY_NOTE_SIZE_LIMIT_KB,
+  DEFAULT_ARCHIVE_FOLDER,
+  DEFAULT_LOCALE,
 } from './constants';
+import { t, setLocale, detectObsidianLocale } from './i18n';
 
 /**
  * 기본 설정값.
@@ -69,9 +71,13 @@ const DEFAULT_SETTINGS: PluginSettings = {
   maintenanceEnabled: false,
   maintenanceIntervalMinutes: DEFAULT_MAINTENANCE_INTERVAL_MINUTES,
   maintenanceExcludeFolders: [DEFAULT_SAVE_FOLDER],
+  maintenanceExcludeFiles: [],
+  maintenanceExcludeTags: [],
+  maintenanceArchiveFolder: DEFAULT_ARCHIVE_FOLDER,
   privacyRules: [],
   knownTags: [],
   trackTokenUsage: true,
+  locale: DEFAULT_LOCALE,
 };
 
 export default class KnowledgeMaintenancePlugin extends Plugin {
@@ -108,6 +114,12 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     // 1. 설정 로드
     await this.loadSettings();
 
+    // 1b. 로캘 초기화
+    const resolvedLocale = this.settings.locale === 'auto'
+      ? detectObsidianLocale()
+      : this.settings.locale;
+    setLocale(resolvedLocale);
+
     // 2. 어댑터 초기화
     this.wireAdapters();
 
@@ -123,13 +135,16 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     // 6. 설정 탭 등록
     this.addSettingTab(new PluginSettingTab(this.app, this, this.configPort));
 
-    // 7. Vault 이벤트 감시 시작
+    // 7. 폴더 우클릭 메뉴 등록
+    this.registerFolderContextMenu();
+
+    // 8. Vault 이벤트 감시 시작
     this.startInboxWatcher();
 
-    // 8. 자동 유지보수 스케줄링
+    // 9. 자동 유지보수 스케줄링
     this.scheduleMaintenanceIfEnabled();
 
-    // 9. 앱 열림 시 Catch-up (마지막 실행 이후 변경된 Inbox 노트 처리)
+    // 10. 앱 열림 시 Catch-up (마지막 실행 이후 변경된 Inbox 노트 처리)
     this.app.workspace.onLayoutReady(() => {
       this.runCatchUp();
     });
@@ -165,9 +180,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.clipboardAdapter = new ObsidianClipboardAdapter();
     this.clockAdapter = new SystemClockAdapter();
 
-    // AI 어댑터는 설정에 따라 동적 선택
-    this.aiAdapter = this.createAIAdapter();
-
     // ConfigPort — 단일 인스턴스로 모든 계층에 공유
     this.configPort = {
       getSettings: async () => this.settings,
@@ -177,17 +189,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         await this.saveData(this.settings);
       },
     };
-  }
 
-  private createAIAdapter(): AIProviderPort {
-    switch (this.settings.aiProvider) {
-      case 'openai':
-        return new OpenAIAdapter(this.settings.aiApiKey, this.settings.aiModel);
-      case 'gemini':
-        return new GeminiAdapter(this.settings.aiApiKey, this.settings.aiModel);
-      default:
-        return new OpenAIAdapter(this.settings.aiApiKey, this.settings.aiModel);
-    }
+    // AI 어댑터 — 매 호출마다 ConfigPort에서 최신 설정을 읽어 적절한 공급자에 위임
+    this.aiAdapter = new DynamicAIAdapter(this.configPort);
   }
 
   private wireUseCases(): void {
@@ -240,6 +244,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         leaf,
         this.runMaintenanceUseCase,
         this.applyMaintenanceActionUseCase,
+        this.configPort,
         (path: string) => {
           const file = this.app.vault.getAbstractFileByPath(path);
           if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
@@ -282,20 +287,20 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
     this.addCommand({
       id: 'capture-clipboard',
-      name: '클립보드 캡처',
+      name: t('command.captureClipboard'),
       callback: async () => {
         try {
           const path = await this.captureClipboardUseCase.execute();
-          new Notice(`클립보드 내용을 저장했습니다: ${path}`);
+          new Notice(t('notice.clipboardSaved', { path: String(path) }));
         } catch (err) {
-          new Notice(`클립보드 캡처 실패: ${err instanceof Error ? err.message : String(err)}`);
+          new Notice(t('notice.clipboardFailed', { error: err instanceof Error ? err.message : String(err) }));
         }
       },
     });
 
     this.addCommand({
       id: 'organize-current-note',
-      name: '현재 노트 정리',
+      name: t('command.organizeNote'),
       checkCallback: (checking: boolean) => {
         const activeFile = this.app.workspace.getActiveFile();
         if (!activeFile) return false;
@@ -304,17 +309,17 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         this.organizeNoteUseCase
           .execute(createNotePath(activeFile.path), false)
           .then(result => {
-            new Notice(`분류: ${result.classifiedCategory} | 태그: ${result.addedTags.join(', ')}`);
+            new Notice(t('notice.organizeResult', { category: result.classifiedCategory, tags: result.addedTags.join(', ') }));
           })
           .catch(err => {
-            new Notice(`노트 정리 실패: ${err.message}`);
+            new Notice(t('notice.organizeFailed', { error: err.message }));
           });
       },
     });
 
     this.addCommand({
       id: 'run-maintenance',
-      name: '유지보수 실행',
+      name: t('command.runMaintenance'),
       callback: async () => {
         await this.activateView(MAINTENANCE_RESULT_VIEW_TYPE);
         const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
@@ -327,32 +332,54 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
     this.addCommand({
       id: 'run-inbox-process',
-      name: 'Inbox 처리',
+      name: t('command.runInbox'),
       callback: async () => {
-        new Notice('Inbox 처리를 시작합니다...');
+        new Notice(t('notice.inboxStarted'));
         try {
           const result = await this.runInboxProcessUseCase.execute();
-          new Notice(
-            `Inbox 처리 완료: ${result.processedCount}개 처리, ` +
-            `${result.skippedCount}개 건너뜀, ${result.errors.length}개 오류`,
-          );
+          new Notice(t('notice.inboxComplete', {
+            processed: result.processedCount,
+            skipped: result.skippedCount,
+            errors: result.errors.length,
+          }));
         } catch (err) {
-          new Notice(`Inbox 처리 실패: ${err instanceof Error ? err.message : String(err)}`);
+          new Notice(t('notice.inboxFailed', { error: err instanceof Error ? err.message : String(err) }));
         }
       },
     });
 
     this.addCommand({
       id: 'open-maintenance-log',
-      name: '유지보수 로그 열기',
+      name: t('command.openLog'),
       callback: () => this.activateView(MAINTENANCE_LOG_VIEW_TYPE),
     });
 
     this.addCommand({
       id: 'open-inbox-status',
-      name: 'Inbox 상태 열기',
+      name: t('command.openInbox'),
       callback: () => this.activateView(INBOX_STATUS_VIEW_TYPE),
     });
+  }
+
+  private registerFolderContextMenu(): void {
+    this.registerEvent(
+      this.app.workspace.on('file-menu', (menu, file) => {
+        if (!(file instanceof TFolder)) return;
+        menu.addItem(item => {
+          item
+            .setTitle(t('command.scanFolder'))
+            .setIcon('shield-check')
+            .onClick(async () => {
+              await this.activateView(MAINTENANCE_RESULT_VIEW_TYPE);
+              const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
+              if (leaves.length > 0) {
+                const view = leaves[0].view as MaintenanceResultView;
+                view.triggerScanForFolder(file.path);
+              }
+            });
+        });
+      }),
+    );
   }
 
   private async activateView(viewType: string): Promise<void> {
@@ -390,7 +417,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         const count = pendingPaths.size;
         pendingPaths.clear();
 
-        new Notice(`Inbox: ${count}개 파일 변경 감지`);
+        new Notice(t('notice.inboxDetected', { count }));
       }, INBOX_DEBOUNCE_MS);
     });
   }
