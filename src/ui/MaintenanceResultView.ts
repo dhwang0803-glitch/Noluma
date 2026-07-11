@@ -599,10 +599,13 @@ export class MaintenanceResultView extends ItemView {
       .setClass('maintenance-batch-controls')
       .setName(t('batch.selectAll'));
 
-    batchSetting.addToggle(toggle => toggle
-      .setTooltip(t('batch.toggleAll'))
-      .onChange(checked => entries.forEach(e => { e.checkbox.checked = checked; })),
-    );
+    const selectAllCheckbox = document.createElement('input');
+    selectAllCheckbox.type = 'checkbox';
+    selectAllCheckbox.className = 'maintenance-batch-checkbox maintenance-select-all';
+    selectAllCheckbox.addEventListener('change', () => {
+      entries.forEach(e => { e.checkbox.checked = selectAllCheckbox.checked; });
+    });
+    batchSetting.settingEl.prepend(selectAllCheckbox);
 
     if (primaryLabel) {
       batchSetting.addButton(btn => {
