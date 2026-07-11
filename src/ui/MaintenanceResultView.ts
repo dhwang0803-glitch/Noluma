@@ -227,6 +227,7 @@ export class MaintenanceResultView extends ItemView {
       if (isActive) chip.addClass('active');
       chip.setAttribute('aria-pressed', String(isActive));
       chip.addClass(`filter-chip-${sev}`);
+      chip.addClass(`severity-chip-${sev}`);
 
       const badge = chip.createSpan({ cls: `maintenance-severity-badge severity-${sev}` });
       badge.textContent = t(`severity.${sev}` as const);

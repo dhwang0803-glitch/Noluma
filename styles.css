@@ -231,9 +231,28 @@
 }
 
 .filter-chip.active {
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
-  border-color: var(--interactive-accent);
+  background: var(--background-primary-alt);
+  color: var(--text-normal);
+  border-color: var(--text-muted);
+  font-weight: var(--font-semibold);
+}
+
+.filter-chip.active.severity-chip-critical {
+  background: rgba(var(--color-red-rgb), 0.15);
+  color: var(--text-error);
+  border-color: var(--text-error);
+}
+
+.filter-chip.active.severity-chip-warning {
+  background: rgba(var(--color-orange-rgb), 0.15);
+  color: var(--text-warning);
+  border-color: var(--text-warning);
+}
+
+.filter-chip.active.severity-chip-info {
+  background: rgba(var(--color-blue-rgb), 0.15);
+  color: var(--text-accent);
+  border-color: var(--text-accent);
 }
 
 .filter-chip .chip-count {
