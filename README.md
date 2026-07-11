@@ -15,6 +15,7 @@ An AI-powered knowledge maintenance engine for Obsidian. Automatically classify,
 
 - [Quick Start](#quick-start)
 - [Features](#features)
+  - [Cost Transparency](#cost-transparency)
   - [Quick Ask](#quick-ask)
   - [Note Organizer](#note-organizer)
   - [Inbox Processing](#inbox-processing)
@@ -47,6 +48,20 @@ That's it. The plugin is ready to organize your vault.
 
 ## Features
 
+### Cost Transparency
+
+Every AI feature in this plugin shows **token usage and estimated cost** after each call. No hidden spending — you always know exactly what you're paying for.
+
+| Feature | Where cost is shown |
+|---------|-------------------|
+| Quick Ask | Below the AI response |
+| Note Organizer | Bottom of the result modal |
+| Inbox Processing | Per-note in the activity log |
+
+This is a deliberate design choice: AI tools should be transparent about resource consumption.
+
+---
+
 ### Quick Ask
 
 Ask AI questions using your vault as context — directly from the Command Palette.
@@ -72,19 +87,31 @@ Ask AI questions using your vault as context — directly from the Command Palet
 
 ### Note Organizer
 
-Analyze the active note with AI to get classification, tags, and link suggestions.
+Analyze the active note with AI — classify, tag, link, and move — all from an interactive modal.
+
+<!-- TODO: screenshot of Organize Note modal -->
 
 **How to use**: Open a note → `Ctrl/Cmd + P` → "Organize Current Note"
 
 > This command only appears when a note is actively open in the editor.
 
 The AI will:
-1. Classify the note into a category (technology, personal, work, etc.)
-2. Suggest relevant tags based on your vault's existing tag list
-3. Propose links to related notes in your vault
-4. Suggest a folder to move the note into
+1. **Classify** the note into a category (technology, personal, work, etc.)
+2. **Suggest tags** from your vault's existing tags (frequency-sorted, up to 200 tags). New tags are only created when no existing tag fits.
+3. **Propose links** to related notes found in your vault
+4. **Suggest a folder** from your vault's actual folder structure
 
-Results are shown as a Notice (`Category: X | Tags: Y`). This command **shows results only** — it does not modify your note. To auto-apply changes, use Inbox Processing instead.
+Results open in an **interactive modal** where you can review and edit everything before applying:
+
+| Feature | Description |
+|---------|-------------|
+| Editable tag chips | Remove suggested tags or add your own with the input field |
+| Editable link chips | Remove suggested links or add new ones |
+| Folder dropdown | Pick from existing vault folders, or keep the current location |
+| Apply All | One click to apply tags + links + folder move together |
+| Token & cost display | See exactly how many tokens and how much the AI call cost |
+
+**Nothing changes until you click Apply All.** You're always in control.
 
 ---
 
@@ -102,7 +129,7 @@ Automatically detect and process new notes landing in your Inbox folder. Interna
 5. Tags are written to frontmatter, note is moved to the suggested folder
 
 **How AI decides tags and folders**:
-- **Tags**: AI reads the note content and references your vault's existing tag list (`knownTags` in settings) to suggest relevant tags. New tags may also be proposed based on content.
+- **Tags**: AI reads the note content and references your vault's existing tags (collected dynamically from the metadata cache, sorted by frequency). It strongly prefers reusing existing tags to keep your vault consistent.
 - **Folder**: AI classifies the note's category (technology, personal, work, etc.) and maps it to an appropriate folder path. The mapping is inferred from your vault's existing folder structure.
 
 **Trigger methods**:
@@ -414,7 +441,7 @@ main.ts          ← Composition Root
 | Area | Limitation |
 |------|-----------|
 | AI dependency | Quick Ask, Organizer, Inbox require an API key. Maintenance scan (orphans, broken links) works without AI. |
-| API costs | All AI calls consume tokens. Monitor usage in Quick Ask's token display. |
+| API costs | All AI calls consume tokens. Token usage and cost are shown in every AI feature (Quick Ask, Organizer, Inbox). |
 | Network | AI features need internet. Maintenance scans work offline. |
 | Search index | JSON keyword-based. Very large vaults (1000+ notes) may be slower. No semantic search. |
 | Duplicates | Jaccard similarity — may miss semantically similar but differently worded notes. |

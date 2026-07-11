@@ -2,6 +2,7 @@ import { TagName } from '../values/TagName';
 import { NotePath } from '../values/NotePath';
 import { NoteId } from '../values/NoteId';
 import { Timestamp } from '../values/Timestamp';
+import { TokenUsage } from './QuickAskModels';
 
 /**
  * OrganizeResult — 단일 노트 정리 결과.
@@ -13,6 +14,7 @@ export interface OrganizeResult {
   readonly suggestedLinks: ReadonlyArray<NotePath>;
   readonly suggestedMoveTarget?: string;
   readonly summary: string;
+  readonly tokenUsage: TokenUsage;
 }
 
 /**
