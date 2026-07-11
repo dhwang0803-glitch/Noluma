@@ -103,6 +103,13 @@ const en = {
   'duplicate.tagSuggestion': '{{tags}} suggested',
   'duplicate.similarity': 'Similarity {{score}}%',
 
+  // Undo / Redo
+  'undo.tooltip': 'Undo',
+  'redo.tooltip': 'Redo',
+  'undo.success': 'Undone',
+  'redo.success': 'Redone',
+  'undo.failed': 'Undo failed: {{error}}',
+
   // Filter
   'filter.searchPlaceholder': 'Filter by path...',
 

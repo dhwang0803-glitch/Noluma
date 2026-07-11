@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { FileHistoryAdapter } from '../FileHistoryAdapter';
 import { createMockVault } from '../../../test-utils/mock-ports';
-import { createTestNote } from '../../../test-utils/fixtures';
 import type { HistoryEntry } from '../../../domain/models/HistoryEntry';
 import type { NotePath } from '../../../domain/values/NotePath';
 import type { Timestamp } from '../../../domain/values/Timestamp';
@@ -30,7 +29,7 @@ describe('FileHistoryAdapter', () => {
   describe('record', () => {
     it('빈 이력에 새 항목을 기록한다', async () => {
       const vault = createMockVault({
-        readNote: vi.fn().mockResolvedValue(null),
+        readFileRaw: vi.fn().mockResolvedValue(null),
       });
       const adapter = new FileHistoryAdapter(vault);
 
@@ -48,9 +47,7 @@ describe('FileHistoryAdapter', () => {
     it('기존 이력에 추가한다', async () => {
       const existing = [makeEntry({ id: 'existing-1' })];
       const vault = createMockVault({
-        readNote: vi.fn().mockResolvedValue(
-          createTestNote({ content: JSON.stringify(existing) }),
-        ),
+        readFileRaw: vi.fn().mockResolvedValue(JSON.stringify(existing)),
       });
       const adapter = new FileHistoryAdapter(vault);
 
@@ -63,7 +60,7 @@ describe('FileHistoryAdapter', () => {
 
     it('다른 월의 항목은 다른 파일에 저장된다', async () => {
       const vault = createMockVault({
-        readNote: vi.fn().mockResolvedValue(null),
+        readFileRaw: vi.fn().mockResolvedValue(null),
       });
       const adapter = new FileHistoryAdapter(vault);
 
@@ -82,13 +79,13 @@ describe('FileHistoryAdapter', () => {
       const entries2 = [makeEntry({ id: 'b', timestamp: ts(2000) })];
 
       const vault = createMockVault({
-        listNotes: vi.fn().mockResolvedValue([
-          np('.knowledge-maintenance/history/2024-01.json'),
-          np('.knowledge-maintenance/history/2024-02.json'),
+        listFiles: vi.fn().mockResolvedValue([
+          '.knowledge-maintenance/history/2024-01.json',
+          '.knowledge-maintenance/history/2024-02.json',
         ]),
-        readNote: vi.fn()
-          .mockResolvedValueOnce(createTestNote({ content: JSON.stringify(entries1) }))
-          .mockResolvedValueOnce(createTestNote({ content: JSON.stringify(entries2) })),
+        readFileRaw: vi.fn()
+          .mockResolvedValueOnce(JSON.stringify(entries1))
+          .mockResolvedValueOnce(JSON.stringify(entries2)),
       });
       const adapter = new FileHistoryAdapter(vault);
 
@@ -106,10 +103,8 @@ describe('FileHistoryAdapter', () => {
         makeEntry({ id: 'c', timestamp: ts(3000) }),
       ];
       const vault = createMockVault({
-        listNotes: vi.fn().mockResolvedValue([np('f.json')]),
-        readNote: vi.fn().mockResolvedValue(
-          createTestNote({ content: JSON.stringify(entries) }),
-        ),
+        listFiles: vi.fn().mockResolvedValue(['f.json']),
+        readFileRaw: vi.fn().mockResolvedValue(JSON.stringify(entries)),
       });
       const adapter = new FileHistoryAdapter(vault);
 
@@ -124,10 +119,8 @@ describe('FileHistoryAdapter', () => {
         makeEntry({ id: 'new', timestamp: ts(5000) }),
       ];
       const vault = createMockVault({
-        listNotes: vi.fn().mockResolvedValue([np('f.json')]),
-        readNote: vi.fn().mockResolvedValue(
-          createTestNote({ content: JSON.stringify(entries) }),
-        ),
+        listFiles: vi.fn().mockResolvedValue(['f.json']),
+        readFileRaw: vi.fn().mockResolvedValue(JSON.stringify(entries)),
       });
       const adapter = new FileHistoryAdapter(vault);
 
@@ -143,10 +136,8 @@ describe('FileHistoryAdapter', () => {
         makeEntry({ id: 'b', action: 'move' }),
       ];
       const vault = createMockVault({
-        listNotes: vi.fn().mockResolvedValue([np('f.json')]),
-        readNote: vi.fn().mockResolvedValue(
-          createTestNote({ content: JSON.stringify(entries) }),
-        ),
+        listFiles: vi.fn().mockResolvedValue(['f.json']),
+        readFileRaw: vi.fn().mockResolvedValue(JSON.stringify(entries)),
       });
       const adapter = new FileHistoryAdapter(vault);
 
@@ -158,7 +149,7 @@ describe('FileHistoryAdapter', () => {
 
     it('이력 파일이 없으면 빈 배열을 반환한다', async () => {
       const vault = createMockVault({
-        listNotes: vi.fn().mockResolvedValue([]),
+        listFiles: vi.fn().mockResolvedValue([]),
       });
       const adapter = new FileHistoryAdapter(vault);
 
@@ -168,10 +159,8 @@ describe('FileHistoryAdapter', () => {
 
     it('파일 내용이 잘못된 JSON이면 빈 배열로 처리한다', async () => {
       const vault = createMockVault({
-        listNotes: vi.fn().mockResolvedValue([np('f.json')]),
-        readNote: vi.fn().mockResolvedValue(
-          createTestNote({ content: 'not-json{{{' }),
-        ),
+        listFiles: vi.fn().mockResolvedValue(['f.json']),
+        readFileRaw: vi.fn().mockResolvedValue('not-json{{{'),
       });
       const adapter = new FileHistoryAdapter(vault);
 
@@ -184,10 +173,8 @@ describe('FileHistoryAdapter', () => {
     it('previousContent가 있으면 노트를 복원한다', async () => {
       const entries = [makeEntry({ id: 'entry-1', previousContent: 'old content' })];
       const vault = createMockVault({
-        listNotes: vi.fn().mockResolvedValue([np('f.json')]),
-        readNote: vi.fn().mockResolvedValue(
-          createTestNote({ content: JSON.stringify(entries) }),
-        ),
+        listFiles: vi.fn().mockResolvedValue(['f.json']),
+        readFileRaw: vi.fn().mockResolvedValue(JSON.stringify(entries)),
       });
       const adapter = new FileHistoryAdapter(vault);
 
@@ -198,10 +185,8 @@ describe('FileHistoryAdapter', () => {
 
     it('해당 ID가 없으면 HistoryEntryNotFoundError를 던진다', async () => {
       const vault = createMockVault({
-        listNotes: vi.fn().mockResolvedValue([np('f.json')]),
-        readNote: vi.fn().mockResolvedValue(
-          createTestNote({ content: JSON.stringify([makeEntry()]) }),
-        ),
+        listFiles: vi.fn().mockResolvedValue(['f.json']),
+        readFileRaw: vi.fn().mockResolvedValue(JSON.stringify([makeEntry()])),
       });
       const adapter = new FileHistoryAdapter(vault);
 
