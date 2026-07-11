@@ -78,6 +78,13 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
     return filtered.map(f => createNotePath(f.path));
   }
 
+  async listFiles(folder: string, extension: string): Promise<ReadonlyArray<string>> {
+    const allFiles = this.app.vault.getFiles();
+    return allFiles
+      .filter(f => f.extension === extension && f.path.startsWith(folder + '/'))
+      .map(f => f.path);
+  }
+
   async updateFrontmatter(path: NotePath, updates: Record<string, unknown>): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(path as string);
     if (!(file instanceof TFile)) {

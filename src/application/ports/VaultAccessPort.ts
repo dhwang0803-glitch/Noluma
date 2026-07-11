@@ -20,6 +20,9 @@ export interface VaultAccessPort {
   /** 특정 폴더(또는 전체)의 노트 경로 목록 반환. */
   listNotes(folder?: string): Promise<ReadonlyArray<NotePath>>;
 
+  /** 특정 폴더의 파일 경로 목록을 확장자로 필터링하여 반환. */
+  listFiles(folder: string, extension: string): Promise<ReadonlyArray<string>>;
+
   /** 노트의 프론트매터를 부분 갱신. */
   updateFrontmatter(path: NotePath, updates: Record<string, unknown>): Promise<void>;
 

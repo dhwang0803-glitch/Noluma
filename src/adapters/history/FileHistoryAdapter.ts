@@ -30,11 +30,11 @@ export class FileHistoryAdapter implements HistoryPort {
 
   async list(filter?: HistoryFilter): Promise<ReadonlyArray<HistoryEntry>> {
     // Load all history files and apply filter
-    const historyFiles = await this.vault.listNotes(FileHistoryAdapter.HISTORY_FOLDER);
+    const historyFiles = await this.vault.listFiles(FileHistoryAdapter.HISTORY_FOLDER, 'json');
     let allEntries: HistoryEntry[] = [];
 
     for (const filePath of historyFiles) {
-      const entries = await this.loadMonthEntries(filePath);
+      const entries = await this.loadMonthEntries(filePath as NotePath);
       allEntries = allEntries.concat(entries);
     }
 
@@ -62,10 +62,10 @@ export class FileHistoryAdapter implements HistoryPort {
 
   async undo(entryId: string): Promise<void> {
     // Revert using previousContent from the entry
-    const historyFiles = await this.vault.listNotes(FileHistoryAdapter.HISTORY_FOLDER);
+    const historyFiles = await this.vault.listFiles(FileHistoryAdapter.HISTORY_FOLDER, 'json');
 
     for (const filePath of historyFiles) {
-      const entries = await this.loadMonthEntries(filePath);
+      const entries = await this.loadMonthEntries(filePath as NotePath);
       const target = entries.find(e => e.id === entryId);
 
       if (target && target.previousContent !== undefined) {
@@ -78,13 +78,13 @@ export class FileHistoryAdapter implements HistoryPort {
   }
 
   private async loadMonthEntries(filePath: NotePath): Promise<HistoryEntry[]> {
-    const note = await this.vault.readNote(filePath);
-    if (!note) return [];
+    const raw = await this.vault.readFileRaw(filePath as string);
+    if (!raw) return [];
 
     try {
-      return JSON.parse(note.content) as HistoryEntry[];
+      return JSON.parse(raw) as HistoryEntry[];
     } catch {
-      console.warn(`[Knowledge Maintenance] 이력 파일 파싱 실패: ${filePath}`);
+      console.warn(`[Knowledge Maintenance] History file parse failed: ${filePath}`);
       return [];
     }
   }
