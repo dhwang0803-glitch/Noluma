@@ -141,6 +141,25 @@ const ko: { [K in keyof typeof en]: string } = {
   'quickAsk.cost': '비용: ${{amount}}',
   'quickAsk.tags': '태그: {{tags}}',
 
+  // ─── Organize Result Modal ───
+  'organize.title': '노트 정리',
+  'organize.category': '분류',
+  'organize.summary': '요약',
+  'organize.suggestedTags': '제안 태그',
+  'organize.suggestedLinks': '제안 링크',
+  'organize.suggestedMove': '제안 폴더',
+  'organize.noTags': '제안된 태그가 없습니다.',
+  'organize.noLinks': '제안된 링크가 없습니다.',
+  'organize.noMove': '폴더 이동이 제안되지 않았습니다.',
+  'organize.applyTags': '태그 적용',
+  'organize.addLinks': '링크 추가',
+  'organize.moveNote': '노트 이동',
+  'organize.moveTo': '이동 대상',
+  'organize.tagsApplied': '{{count}}개 태그 적용됨',
+  'organize.linksAdded': '{{count}}개 링크 추가됨',
+  'organize.noteMoved': '{{folder}}/로 이동됨',
+  'organize.analyzing': 'AI로 노트를 분석 중...',
+
   // ─── Settings ───
   'settings.title': 'Knowledge Maintenance 설정',
 
