@@ -1,5 +1,6 @@
-import { ItemView, WorkspaceLeaf } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Setting, Notice } from 'obsidian';
 import { GetHistoryUseCase } from '../application/usecases/GetHistoryUseCase';
+import { HistoryPort } from '../application/ports/HistoryPort';
 import { MAINTENANCE_LOG_VIEW_TYPE } from '../constants';
 import { t, formatDate } from '../i18n';
 
@@ -9,6 +10,7 @@ export class MaintenanceLogView extends ItemView {
   constructor(
     leaf: WorkspaceLeaf,
     private readonly getHistory: GetHistoryUseCase,
+    private readonly historyPort: HistoryPort,
   ) {
     super(leaf);
   }
@@ -45,13 +47,28 @@ export class MaintenanceLogView extends ItemView {
       return;
     }
 
-    const listEl = contentEl.createEl('ul', { cls: 'knowledge-maintenance-log-list' });
     for (const entry of entries) {
-      const li = listEl.createEl('li');
+      const setting = new Setting(contentEl);
       const time = formatDate(entry.timestamp as number);
-      li.createEl('span', { text: `[${time}] `, cls: 'log-timestamp' });
-      li.createEl('span', { text: `${entry.action}: `, cls: 'log-action' });
-      li.createEl('span', { text: entry.description, cls: 'log-description' });
+      setting.setName(`[${time}] ${entry.action}`);
+      setting.setDesc(entry.description);
+
+      if (entry.previousContent !== undefined) {
+        setting.addButton(btn => btn
+          .setButtonText(t('log.undo'))
+          .setWarning()
+          .onClick(async () => {
+            try {
+              await this.historyPort.undo(entry.id);
+              new Notice(t('undo.success'));
+              await this.refresh();
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              new Notice(t('undo.failed', { error: msg }));
+            }
+          }),
+        );
+      }
     }
   }
 

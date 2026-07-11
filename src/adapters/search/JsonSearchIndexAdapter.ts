@@ -92,12 +92,15 @@ export class JsonSearchIndexAdapter implements SearchIndexPort {
   private async ensureLoaded(): Promise<void> {
     if (this.indexCache.size > 0) return;
 
-    const indexPath = JsonSearchIndexAdapter.INDEX_PATH as NotePath;
-    const note = await this.vault.readNote(indexPath);
-    if (note) {
-      const data: Record<string, IndexEntry[]> = JSON.parse(note.content);
-      for (const [key, entries] of Object.entries(data)) {
-        this.indexCache.set(key, entries);
+    const raw = await this.vault.readFileRaw(JsonSearchIndexAdapter.INDEX_PATH);
+    if (raw) {
+      try {
+        const data: Record<string, IndexEntry[]> = JSON.parse(raw);
+        for (const [key, entries] of Object.entries(data)) {
+          this.indexCache.set(key, entries);
+        }
+      } catch {
+        // Corrupted index — will rebuild on next index() call
       }
     }
   }
@@ -110,8 +113,7 @@ export class JsonSearchIndexAdapter implements SearchIndexPort {
       data[key] = entries;
     }
 
-    const indexPath = JsonSearchIndexAdapter.INDEX_PATH as NotePath;
-    await this.vault.writeNote(indexPath, JSON.stringify(data, null, 2));
+    await this.vault.writeFileRaw(JsonSearchIndexAdapter.INDEX_PATH, JSON.stringify(data, null, 2));
     this.dirty = false;
   }
 }

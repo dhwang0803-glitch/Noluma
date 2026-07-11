@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { JsonSearchIndexAdapter } from '../JsonSearchIndexAdapter';
 import { createMockVault } from '../../../test-utils/mock-ports';
-import { createTestNote } from '../../../test-utils/fixtures';
 import type { NotePath } from '../../../domain/values/NotePath';
 import type { NoteChunk } from '../../../domain/models/NoteChunk';
 import type { ChunkText } from '../../../domain/values/ChunkText';
@@ -132,14 +131,14 @@ describe('JsonSearchIndexAdapter', () => {
   describe('persistence', () => {
     it('index 시 JSON 파일로 flush한다', async () => {
       const vault = createMockVault({
-        readNote: vi.fn().mockResolvedValue(null),
+        readFileRaw: vi.fn().mockResolvedValue(null),
       });
       const adapter = new JsonSearchIndexAdapter(vault);
 
       await adapter.index(np('note.md'), [makeChunk('content')]);
 
-      expect(vault.writeNote).toHaveBeenCalledWith(
-        np('.knowledge-maintenance/search-index.json'),
+      expect(vault.writeFileRaw).toHaveBeenCalledWith(
+        '.knowledge-maintenance/search-index.json',
         expect.any(String),
       );
     });
@@ -156,9 +155,7 @@ describe('JsonSearchIndexAdapter', () => {
         }],
       };
       const vault = createMockVault({
-        readNote: vi.fn().mockResolvedValue(
-          createTestNote({ content: JSON.stringify(indexData) }),
-        ),
+        readFileRaw: vi.fn().mockResolvedValue(JSON.stringify(indexData)),
       });
       const adapter = new JsonSearchIndexAdapter(vault);
 
