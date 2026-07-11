@@ -7,6 +7,7 @@ import { NotePath } from '../domain/values/NotePath';
 import type { SeverityLevel } from '../domain/values/Severity';
 import { ISSUE_SEVERITY, getSeverity } from '../domain/values/Severity';
 import type { ConfigPort } from '../application/ports/ConfigPort';
+import type { HistoryPort } from '../application/ports/HistoryPort';
 import { MAINTENANCE_RESULT_VIEW_TYPE } from '../constants';
 import { t, formatDate } from '../i18n';
 
@@ -24,6 +25,11 @@ interface BatchEntry {
   identifier: string;
 }
 
+interface UndoRecord {
+  type: 'dismiss';
+  dismissKey: string;
+}
+
 interface FilterState {
   issueTypes: Set<MaintenanceIssueType>;
   severityLevels: Set<SeverityLevel>;
@@ -34,6 +40,8 @@ export class MaintenanceResultView extends ItemView {
   private currentPlan: MaintenancePlan | null = null;
   private scanInProgress = false;
   private readonly dismissedIds = new Set<string>();
+  private readonly undoStack: UndoRecord[] = [];
+  private readonly redoStack: UndoRecord[] = [];
   private filterState: FilterState = {
     issueTypes: new Set(ALL_ISSUE_TYPES),
     severityLevels: new Set<SeverityLevel>(['critical', 'warning', 'info']),
@@ -45,6 +53,7 @@ export class MaintenanceResultView extends ItemView {
     private readonly runMaintenance: RunMaintenanceUseCase,
     private readonly applyAction: ApplyMaintenanceActionUseCase,
     private readonly configPort: ConfigPort,
+    private readonly historyPort: HistoryPort,
     private readonly openFile: (path: string) => void,
     private readonly openFileSplit: (pathA: string, pathB: string) => void,
   ) {
@@ -149,6 +158,18 @@ export class MaintenanceResultView extends ItemView {
     new Setting(contentEl)
       .setName(t('maintenance.rescan'))
       .setDesc(t('maintenance.lastScan', { time: formatDate(plan.timestamp as number) }))
+      .addExtraButton(btn => btn
+        .setIcon('undo')
+        .setTooltip(t('undo.tooltip'))
+        .setDisabled(this.undoStack.length === 0)
+        .onClick(() => this.undo()),
+      )
+      .addExtraButton(btn => btn
+        .setIcon('redo')
+        .setTooltip(t('redo.tooltip'))
+        .setDisabled(this.redoStack.length === 0)
+        .onClick(() => this.redo()),
+      )
       .addButton(btn => btn
         .setButtonText(t('maintenance.rescan'))
         .onClick(() => this.triggerScan()),
@@ -615,9 +636,12 @@ export class MaintenanceResultView extends ItemView {
           issueType: issueType as MaintenanceIssueType,
           identifier,
         });
-        this.dismissedIds.add(`${issueType}:${identifier}`);
-        setting.settingEl.remove();
+        const dismissKey = `${issueType}:${identifier}`;
+        this.dismissedIds.add(dismissKey);
+        this.undoStack.push({ type: 'dismiss', dismissKey });
+        this.redoStack.length = 0;
         new Notice(t('notice.dismissed'));
+        this.render();
       }),
     );
   }
@@ -687,6 +711,7 @@ export class MaintenanceResultView extends ItemView {
       new Notice(t('notice.noSelection'));
       return;
     }
+    this.redoStack.length = 0;
     let success = 0;
     let failed = 0;
     const dismissed = new Set<BatchEntry>();
@@ -697,8 +722,9 @@ export class MaintenanceResultView extends ItemView {
           issueType: entry.issueType,
           identifier: entry.identifier,
         });
-        this.dismissedIds.add(`${entry.issueType}:${entry.identifier}`);
-        entry.setting.settingEl.remove();
+        const dismissKey = `${entry.issueType}:${entry.identifier}`;
+        this.dismissedIds.add(dismissKey);
+        this.undoStack.push({ type: 'dismiss', dismissKey });
         dismissed.add(entry);
         success++;
       } catch {
@@ -712,6 +738,31 @@ export class MaintenanceResultView extends ItemView {
       ? t('notice.batchResult', { success, failed })
       : t('notice.batchDismissed', { count: success });
     new Notice(msg);
+    if (success > 0) this.render();
+  }
+
+  private undo(): void {
+    const record = this.undoStack.pop();
+    if (!record) return;
+
+    if (record.type === 'dismiss') {
+      this.dismissedIds.delete(record.dismissKey);
+      this.redoStack.push(record);
+      new Notice(t('undo.success'));
+      this.render();
+    }
+  }
+
+  private redo(): void {
+    const record = this.redoStack.pop();
+    if (!record) return;
+
+    if (record.type === 'dismiss') {
+      this.dismissedIds.add(record.dismissKey);
+      this.undoStack.push(record);
+      new Notice(t('redo.success'));
+      this.render();
+    }
   }
 
   private async getArchiveFolder(): Promise<string> {

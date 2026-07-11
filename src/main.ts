@@ -245,6 +245,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         this.runMaintenanceUseCase,
         this.applyMaintenanceActionUseCase,
         this.configPort,
+        this.historyAdapter,
         (path: string) => {
           const file = this.app.vault.getAbstractFileByPath(path);
           if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);

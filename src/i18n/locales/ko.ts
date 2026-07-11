@@ -105,6 +105,13 @@ const ko: { [K in keyof typeof en]: string } = {
   'duplicate.tagSuggestion': '{{tags}} 추가 제안',
   'duplicate.similarity': '유사도 {{score}}%',
 
+  // Undo / Redo
+  'undo.tooltip': '실행 취소',
+  'redo.tooltip': '다시 실행',
+  'undo.success': '실행 취소됨',
+  'redo.success': '다시 실행됨',
+  'undo.failed': '실행 취소 실패: {{error}}',
+
   // Filter
   'filter.searchPlaceholder': '경로로 필터...',
 
