@@ -89,6 +89,7 @@ export class OrganizeNoteUseCase {
       suggestedLinks,
       suggestedMoveTarget: suggestedFolder,
       summary: classification.summary,
+      tokenUsage: classification.tokenUsage,
     };
 
     // Apply changes if auto-apply mode is enabled

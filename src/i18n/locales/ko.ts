@@ -165,6 +165,8 @@ const ko: { [K in keyof typeof en]: string } = {
   'organize.keepCurrent': '— 현재 위치 유지 —',
   'organize.applyAll': '전체 적용',
   'organize.nothingToApply': '적용할 항목이 없습니다.',
+  'organize.tokens': '토큰: {{count}}',
+  'organize.cost': '비용: ${{amount}}',
 
   // ─── Settings ───
   'settings.title': 'Knowledge Maintenance 설정',

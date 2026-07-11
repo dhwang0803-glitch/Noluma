@@ -163,6 +163,8 @@ const en = {
   'organize.keepCurrent': '— Keep current location —',
   'organize.applyAll': 'Apply All',
   'organize.nothingToApply': 'Nothing to apply.',
+  'organize.tokens': 'Tokens: {{count}}',
+  'organize.cost': 'Cost: ${{amount}}',
 
   // ─── Settings ───
   'settings.title': 'Knowledge Maintenance Settings',

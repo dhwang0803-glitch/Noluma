@@ -410,6 +410,14 @@
   font-style: italic;
 }
 
+.organize-token-info {
+  margin: 0;
+  padding: 0 4px;
+  color: var(--text-muted);
+  font-size: var(--font-smallest);
+  text-align: right;
+}
+
 .organize-footer {
   display: flex;
   justify-content: flex-end;

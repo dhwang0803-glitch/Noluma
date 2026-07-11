@@ -201,7 +201,17 @@ export class OrganizeResultModal extends Modal {
     });
   }
 
+  private renderTokenUsage(container: HTMLElement): void {
+    const usage = this.result.tokenUsage;
+    const parts = [
+      t('organize.tokens', { count: usage.totalTokens.toLocaleString() }),
+      t('organize.cost', { amount: usage.estimatedCostUsd.toFixed(4) }),
+    ];
+    container.createEl('p', { text: parts.join(' · '), cls: 'organize-token-info' });
+  }
+
   private renderFooter(container: HTMLElement): void {
+    this.renderTokenUsage(container);
     const footer = container.createDiv('organize-footer');
 
     new ButtonComponent(footer)
