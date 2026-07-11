@@ -14,6 +14,8 @@
 | Step 3: 심각도 뱃지 | Severity.ts 도메인 VO + UI 뱃지 + CSS + 섹션 순서 변경 | ✅ 완료 — 계획 100% 이행 | ✅ |
 | Step 4: 결과 필터 | 칩 필터(심각도+타입) + 텍스트 검색 | ✅ 완료 — 계획 100% 이행 | ✅ |
 | 검증 | 빌드 + 린트 + 테스트 | ✅ 빌드 통과, 테스트 15건 추가 | ✅ |
+| 추가: Codex P2 수정 | 교차 검증 지적 5건 수정 | ✅ innerHTML XSS, 포커스 복원, dismissBatch 에러 처리, aria-pressed, locale 설명 | ✅ |
+| 추가: 설정 즉시 적용 | locale 변경 시 뷰 즉시 리프레시 + AI 설정 즉시 적용 | ✅ refreshOpenViews + DynamicAIAdapter | ✅ |
 
 ### 누락 항목
 
@@ -25,12 +27,12 @@
 
 | 지표 | 값 |
 |------|-----|
-| 계획 이행률 | 93% (DomainErrors 1건 누락) |
+| 계획 이행률 | 96% (DomainErrors 1건 누락, 추가 작업 2건 완료) |
 | 자기 편향 발생 | 0회 |
 | 아키텍처 드리프트 | 없음 (Clean Architecture 준수) |
-| 신규 파일 | 6개 (i18n 3, Severity 1, 테스트 2) |
-| 수정 파일 | 11개 |
-| 코드 증감 | +447 / -188 |
+| 신규 파일 | 7개 (i18n 3, Severity 1, 테스트 2, DynamicAIAdapter 1) |
+| 수정 파일 | 12개 |
+| Codex 교차 검증 | 5건 지적, 5건 수정 (오탐 0%) |
 
 ---
 
@@ -40,6 +42,8 @@
 - **Vault Inspector 경쟁 분석 선행**: 유사 플러그인의 UX 패턴을 먼저 조사하고 차용+차별화 지점을 명확히 한 후 구현. 사용자 이질감 최소화.
 - **타입 안전 i18n**: `ko: { [K in keyof typeof en]: string }` 패턴으로 빌드타임 키 누락 검출. 런타임 에러 예방.
 - **도메인 VO로 심각도 분리**: Severity를 UI가 아닌 domain/values에 배치하여 Clean Architecture 준수.
+- **DynamicAIAdapter Proxy 패턴**: ConfigPort 참조 + 캐싱으로 설정 즉시 적용과 안정성 양립.
+- **Codex 교차 검증 100% 수용**: 5건 지적 모두 유효, 즉시 수정. innerHTML XSS 등 실제 보안 이슈 사전 차단.
 
 ### Drop
 - 해당 없음

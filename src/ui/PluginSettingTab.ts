@@ -2,6 +2,7 @@ import { App, Plugin, PluginSettingTab as ObsidianSettingTab, Setting } from 'ob
 import { ConfigPort, PluginSettings } from '../application/ports/ConfigPort';
 import { PrivacyRule, PrivacyRuleType } from '../domain/models/PrivacyRule';
 import { t, setLocale, detectObsidianLocale, type SupportedLocale } from '../i18n';
+import { MAINTENANCE_RESULT_VIEW_TYPE, MAINTENANCE_LOG_VIEW_TYPE, INBOX_STATUS_VIEW_TYPE } from '../constants';
 
 export class PluginSettingTab extends ObsidianSettingTab {
   private settings: PluginSettings | null = null;
@@ -38,6 +39,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
             await this.config.updateSettings({ locale: value as 'auto' | 'en' | 'ko' });
             const resolved = value === 'auto' ? detectObsidianLocale() : value as SupportedLocale;
             setLocale(resolved);
+            this.refreshOpenViews();
             this.display();
           });
       });
@@ -317,6 +319,21 @@ export class PluginSettingTab extends ObsidianSettingTab {
       setting.setName(t('settings.ruleNumber', { number: index + 1 }));
     } else {
       setting.setName(rule.name);
+    }
+  }
+
+  private refreshOpenViews(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE)) {
+      const view = leaf.view as { refreshLocale?: () => void };
+      view.refreshLocale?.();
+    }
+    for (const leaf of this.app.workspace.getLeavesOfType(MAINTENANCE_LOG_VIEW_TYPE)) {
+      const view = leaf.view as { refresh?: () => Promise<void> };
+      view.refresh?.();
+    }
+    for (const leaf of this.app.workspace.getLeavesOfType(INBOX_STATUS_VIEW_TYPE)) {
+      const view = leaf.view as { refresh?: () => Promise<void> };
+      view.refresh?.();
     }
   }
 }

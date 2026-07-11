@@ -67,6 +67,14 @@ export class MaintenanceResultView extends ItemView {
     this.renderEmpty();
   }
 
+  refreshLocale(): void {
+    if (this.currentPlan) {
+      this.render();
+    } else {
+      this.renderEmpty();
+    }
+  }
+
   async triggerScan(): Promise<void> {
     if (this.scanInProgress) return;
     this.scanInProgress = true;

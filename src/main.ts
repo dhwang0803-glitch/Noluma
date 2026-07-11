@@ -3,8 +3,7 @@ import { PluginSettings } from './application/ports/ConfigPort';
 
 // Adapters
 import { ObsidianVaultAdapter } from './adapters/vault/ObsidianVaultAdapter';
-import { OpenAIAdapter } from './adapters/ai/OpenAIAdapter';
-import { GeminiAdapter } from './adapters/ai/GeminiAdapter';
+import { DynamicAIAdapter } from './adapters/ai/DynamicAIAdapter';
 import { JsonSearchIndexAdapter } from './adapters/search/JsonSearchIndexAdapter';
 import { FileHistoryAdapter } from './adapters/history/FileHistoryAdapter';
 import { ObsidianClipboardAdapter } from './adapters/clipboard/ObsidianClipboardAdapter';
@@ -181,9 +180,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.clipboardAdapter = new ObsidianClipboardAdapter();
     this.clockAdapter = new SystemClockAdapter();
 
-    // AI 어댑터는 설정에 따라 동적 선택
-    this.aiAdapter = this.createAIAdapter();
-
     // ConfigPort — 단일 인스턴스로 모든 계층에 공유
     this.configPort = {
       getSettings: async () => this.settings,
@@ -193,17 +189,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         await this.saveData(this.settings);
       },
     };
-  }
 
-  private createAIAdapter(): AIProviderPort {
-    switch (this.settings.aiProvider) {
-      case 'openai':
-        return new OpenAIAdapter(this.settings.aiApiKey, this.settings.aiModel);
-      case 'gemini':
-        return new GeminiAdapter(this.settings.aiApiKey, this.settings.aiModel);
-      default:
-        return new OpenAIAdapter(this.settings.aiApiKey, this.settings.aiModel);
-    }
+    // AI 어댑터 — 매 호출마다 ConfigPort에서 최신 설정을 읽어 적절한 공급자에 위임
+    this.aiAdapter = new DynamicAIAdapter(this.configPort);
   }
 
   private wireUseCases(): void {

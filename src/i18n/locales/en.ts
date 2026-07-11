@@ -135,7 +135,7 @@ const en = {
 
   'settings.language': 'Language',
   'settings.locale': 'Display Language',
-  'settings.localeDesc': 'Select the language for the plugin interface. Restart the plugin to fully apply.',
+  'settings.localeDesc': 'Select the language for the plugin interface. Command palette names update after restart.',
   'settings.localeAuto': 'Auto (follow Obsidian)',
 
   'settings.aiProvider': 'AI Provider',

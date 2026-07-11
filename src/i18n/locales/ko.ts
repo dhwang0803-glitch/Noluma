@@ -137,7 +137,7 @@ const ko: { [K in keyof typeof en]: string } = {
 
   'settings.language': '언어',
   'settings.locale': '표시 언어',
-  'settings.localeDesc': '플러그인 인터페이스 언어를 선택합니다. 완전 적용을 위해 플러그인 재시작이 필요합니다.',
+  'settings.localeDesc': '플러그인 인터페이스 언어를 선택합니다. 명령 팔레트 이름은 재시작 후 적용됩니다.',
   'settings.localeAuto': '자동 (Obsidian 설정 따름)',
 
   'settings.aiProvider': 'AI 공급자',
