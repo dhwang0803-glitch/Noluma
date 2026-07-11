@@ -1,130 +1,202 @@
 # Knowledge Maintenance — Obsidian Plugin
 
-AI를 활용하여 Obsidian Vault를 자동으로 분류, 태깅, 연결, 유지보수하는 플러그인입니다.
+An AI-powered knowledge maintenance engine for Obsidian. Automatically classify, tag, link, and maintain your vault.
 
-노트를 쓰는 데 집중하세요. 정리는 AI가 합니다.
+Focus on writing. Let AI handle the organization.
 
 ---
 
-## 핵심 기능
+## Features
 
 ### Quick Ask
 
-Command Palette에서 `Quick Ask`을 실행하면 Vault의 기존 노트를 컨텍스트로 활용하여 AI에게 질문할 수 있습니다.
+Ask AI questions using your vault as context — right from the Command Palette.
 
-- Vault 내 관련 노트를 자동으로 검색하여 AI 프롬프트에 포함
-- 답변을 새 노트 또는 Daily Note에 자동 저장
-- 응답에서 `[[wikilink]]`를 추출하여 링크 제안
-- 토큰 사용량과 비용을 실시간으로 표시
+- Automatically searches relevant notes and includes them in the AI prompt
+- Saves answers to new notes or Daily Notes (configurable)
+- Extracts `[[wikilinks]]` from responses for link suggestions
+- Displays token usage and cost in real-time
+- Markdown rendering for formatted AI responses
+- Date-based folder structure (`QuickAsk/YYYY-MM-DD/`)
+- Ctrl+Enter keyboard shortcut to send
 
-### 노트 자동 정리
+### Note Organizer
 
-`현재 노트 정리` 명령으로 열려 있는 노트를 AI가 분석합니다.
+Run `Organize Current Note` to let AI analyze the active note.
 
-- 카테고리 분류 (technology, personal, work 등)
-- 태그 자동 제안 및 추가
-- Vault 내 다른 노트와의 연결 링크 제안
-- 폴더 이동 제안 (분류 기반)
+- Category classification (technology, personal, work, etc.)
+- Automatic tag suggestions
+- Link suggestions to related notes in your vault
+- Folder move suggestions based on classification
 
-### Inbox 자동 처리
+### Inbox Processing
 
-지정된 Inbox 폴더에 새 노트가 들어오면 자동으로 감지하고 처리합니다.
+Automatically detects and processes new notes in your designated Inbox folder.
 
-- 파일 생성/수정 이벤트 실시간 감시 (2초 디바운싱)
-- `Inbox 처리` 명령으로 수동 실행도 가능
-- 앱 시작 시 미처리 노트를 자동으로 catch-up
+- Real-time file creation/modification monitoring (2-second debounce)
+- Manual trigger via `Process Inbox` command
+- Catches up on unprocessed notes at app startup
+- Configurable auto-apply or manual approval
 
-### Vault 유지보수
+### Vault Maintenance
 
-`유지보수 실행` 명령으로 Vault 전체를 스캔합니다.
+Run `Run Maintenance` to scan your entire vault for issues — or right-click a folder to scan just that section.
 
-- **고아 노트 탐지**: 어디에서도 링크되지 않은 노트
-- **중복 후보 감지**: Jaccard 유사도 기반 유사 노트 쌍
-- **깨진 링크 발견**: 존재하지 않는 노트를 가리키는 `[[wikilink]]`
-- **태그 제안**: 콘텐츠 기반으로 누락된 태그 추천
-- 자동 스케줄링 (설정한 주기마다 백그라운드 실행)
+- **Orphan notes**: Notes not linked from anywhere (with canvas reference awareness)
+- **Duplicate candidates**: Jaccard similarity-based detection with side-by-side comparison
+- **Broken links**: `[[wikilinks]]` pointing to non-existent notes (including heading/block fragment validation)
+- **Missing tags**: AI-powered tag suggestions based on content
+- **Untagged notes**: Notes without any tags
+- **Empty notes**: Zero-content notes (with backlink impact preview)
+- Automatic scheduling (configurable interval for background execution)
+- **Folder-scoped scan**: Right-click any folder to scan only that subtree
 
-### 프라이버시 보호
+#### Severity Badges
 
-AI에게 전송되는 내용을 세밀하게 제어합니다.
+Each issue category is assigned a severity level for quick visual triage:
 
-| 규칙 타입 | 동작 |
-|-----------|------|
-| 폴더 제외 | 지정 폴더의 노트를 AI 컨텍스트에서 완전히 제외 |
-| 태그 제외 | 특정 태그가 달린 노트를 제외 |
-| Frontmatter 제외 | 특정 frontmatter 키가 있는 노트를 제외 |
-| 내용 마스킹 | 정규식 패턴에 매칭되는 텍스트를 `[REDACTED]`로 치환 후 전송 |
+| Severity | Issues | Visual |
+|----------|--------|--------|
+| Critical | Broken links, Empty notes | Red badge |
+| Warning | Orphan notes, Duplicates | Orange badge |
+| Info | Untagged notes, Missing tags | Blue badge |
 
-**내용 마스킹 예시**: 패턴 `password:\S+`를 설정하면 노트 안의 `password:abc123`이 `[REDACTED]`로 바뀌어 AI에게 전송됩니다. 원본 노트는 변경되지 않습니다.
+Results are sorted by severity (critical first) so you always see the most urgent issues at the top.
 
-### 클립보드 캡처
+#### Filtering
 
-클립보드의 텍스트를 바로 노트로 저장합니다.
+Quickly narrow down results in large vaults:
 
-### 이력 관리
+- **Severity chips**: Toggle Critical / Warning / Info categories
+- **Type chips**: Toggle individual issue types
+- **Text search**: Real-time path-based filtering — type a folder name or note title to instantly find relevant issues
 
-모든 작업(분류, 정리, Quick Ask 저장 등)의 이력을 기록하고, `유지보수 로그 열기` 명령으로 사이드 패널에서 확인할 수 있습니다.
+#### Batch Actions
+
+Select multiple items and apply actions in bulk:
+
+- Archive, Delete, Dismiss, Remove Links, Apply Tags — all in one click
+- Select All / Deselect All toggle
+
+### Privacy Protection
+
+Fine-grained control over what gets sent to AI.
+
+| Rule Type | Behavior |
+|-----------|----------|
+| Folder exclude | Completely exclude notes in specified folders from AI context |
+| Tag exclude | Exclude notes with specific tags |
+| Frontmatter exclude | Exclude notes with specific frontmatter keys |
+| Content redact | Replace regex-matched text with `[REDACTED]` before sending |
+
+**Content redaction example**: Setting the pattern `password:\S+` will replace `password:abc123` with `[REDACTED]` before sending to AI. The original note is never modified.
+
+### Clipboard Capture
+
+Save clipboard text as a new note instantly.
+
+### Activity Log
+
+Track all actions (classification, organization, Quick Ask saves, maintenance actions) in the Activity Log sidebar panel.
 
 ---
 
-## 명령어 목록
+## Internationalization
 
-| 명령어 | 설명 |
-|--------|------|
-| Quick Ask | AI에게 질문 (Vault 컨텍스트 활용) |
-| 현재 노트 정리 | 열린 노트를 AI로 분류·태깅 |
-| Inbox 처리 | Inbox 폴더의 노트를 일괄 처리 |
-| 유지보수 실행 | Vault 전체 스캔 (고아·중복·깨진 링크) |
-| 클립보드 캡처 | 클립보드 내용을 노트로 저장 |
-| 유지보수 로그 열기 | 작업 이력 사이드 패널 표시 |
-| Inbox 상태 열기 | Inbox 폴더 현황 사이드 패널 표시 |
+The plugin supports multiple languages:
+
+- **English** (default)
+- **Korean** (한국어)
+- **Auto** — follows your Obsidian language setting
+
+Change the language in Settings. Views update immediately; command palette names update after restart.
 
 ---
 
-## 설정
+## Settings
 
-### AI 공급자
+### Language
 
-| 항목 | 설명 | 기본값 |
-|------|------|--------|
-| AI 공급자 | OpenAI 또는 Google Gemini | OpenAI |
-| API 키 | 선택한 공급자의 API 키 | — |
-| 모델 | 사용할 모델명 | gpt-4o |
-| Max Tokens | AI 응답 최대 토큰 수 | 2048 |
-| Temperature | 응답 창의성 (0.0~1.0) | 0.3 |
+| Setting | Description | Default |
+|---------|-------------|---------|
+| Display Language | Plugin interface language | Auto (follows Obsidian) |
+
+### AI Provider
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| AI Provider | OpenAI or Google Gemini | OpenAI |
+| API Key | Your provider's API key | — |
+| Model | Model name to use | gpt-4o |
+
+> AI settings (provider, API key, model) apply immediately — no restart needed.
 
 ### Inbox
 
-| 항목 | 설명 | 기본값 |
-|------|------|--------|
-| Inbox 폴더 | 미처리 노트가 수집되는 폴더 | Inbox |
-| 자동 적용 | 처리 결과를 자동으로 적용 | false |
+| Setting | Description | Default |
+|---------|-------------|---------|
+| Inbox Folder | Folder for unprocessed notes | Inbox |
+| Auto Apply | Automatically apply processing results | false |
 
-### 유지보수
+### Quick Ask
 
-| 항목 | 설명 | 기본값 |
-|------|------|--------|
-| 자동 유지보수 | 주기적 백그라운드 실행 | false |
-| 주기 (분) | 자동 실행 간격 | 60 |
+| Setting | Description | Default |
+|---------|-------------|---------|
+| Save Mode | Timestamp (separate file per question) or Daily Note (append to one daily file) | Timestamp |
+| Daily Note Size Limit | Create new file when Daily Note exceeds this size (KB) | 200 |
 
-### 프라이버시 규칙
+### Maintenance
 
-설정 탭 하단에서 규칙을 추가/삭제/활성화할 수 있습니다. 각 규칙에는 이름, 타입, 패턴, 활성화 토글이 있습니다.
+| Setting | Description | Default |
+|---------|-------------|---------|
+| Auto Maintenance | Run vault maintenance periodically | false |
+| Interval (min) | Automatic maintenance interval | 60 |
+| Exclude Folders | Folders to skip during scans (comma-separated) | — |
+| Exclude File Patterns | Glob patterns for files to skip (comma-separated) | — |
+| Exclude Tags | Notes with these tags are skipped (comma-separated) | — |
+| Archive Folder | Target folder for archived notes | Archive |
+
+### Privacy Rules
+
+Add, remove, and toggle privacy rules in the Settings tab. Each rule has a name, type, pattern, and enabled toggle.
 
 ---
 
-## 설치
+## Commands
 
-### 수동 설치
+| Command | Description |
+|---------|-------------|
+| Quick Ask | Ask AI a question (vault context included) |
+| Organize Current Note | Classify and tag the active note with AI |
+| Process Inbox | Batch-process notes in the Inbox folder |
+| Run Maintenance | Scan the entire vault for issues |
+| Scan this folder for maintenance | Scan only the right-clicked folder |
+| Capture Clipboard | Save clipboard content as a new note |
+| Open Maintenance Log | Show activity log in sidebar |
+| Open Inbox Status | Show Inbox folder status in sidebar |
 
-1. [Releases](https://github.com/dhwang0803-glitch/Noluma/releases)에서 최신 버전의 `main.js`, `manifest.json`, `styles.css`를 다운로드합니다.
-2. Vault 폴더 내 `.obsidian/plugins/knowledge-maintenance/` 디렉터리를 생성합니다.
-3. 다운로드한 3개 파일을 해당 디렉터리에 복사합니다.
-4. Obsidian을 재시작하거나 **설정 → 커뮤니티 플러그인**에서 새로고침합니다.
-5. **Knowledge Maintenance** 플러그인을 활성화합니다.
-6. 설정 탭에서 AI 공급자와 API 키를 설정합니다.
+---
 
-### 소스에서 빌드
+## Installation
+
+### BRAT (Recommended for beta testing)
+
+1. Install the [BRAT](https://github.com/TfTHacker/obsidian42-brat) plugin.
+2. In BRAT settings, click **Add Beta Plugin**.
+3. Enter: `dhwang0803-glitch/Noluma`
+4. Enable **Knowledge Maintenance** in Community Plugins.
+5. Configure your AI provider and API key in Settings.
+
+### Manual Installation
+
+1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/dhwang0803-glitch/Noluma/releases).
+2. Create `.obsidian/plugins/knowledge-maintenance/` in your vault folder.
+3. Copy the 3 files into that directory.
+4. Restart Obsidian or refresh in **Settings → Community Plugins**.
+5. Enable **Knowledge Maintenance**.
+6. Configure your AI provider and API key in Settings.
+
+### Build from Source
 
 ```bash
 git clone https://github.com/dhwang0803-glitch/Noluma.git
@@ -133,98 +205,100 @@ npm install
 npm run build
 ```
 
-빌드 후 생성되는 `main.js`, `manifest.json`, `styles.css`를 Vault의 플러그인 디렉터리에 복사합니다.
+Copy the generated `main.js`, `manifest.json`, and `styles.css` to your vault's plugin directory.
 
-### 모바일 설치
+### Mobile
 
-데스크톱과 동일한 3개 파일을 모바일 Vault의 `.obsidian/plugins/knowledge-maintenance/`에 배치합니다.
+The same 3 files go in `.obsidian/plugins/knowledge-maintenance/` on mobile.
 
-- **Obsidian Sync 사용 시**: 데스크톱에서 플러그인을 설치하면 모바일로 자동 동기화됩니다.
-- **수동 복사 시**: 파일 관리자 또는 USB로 아래 경로에 파일을 복사합니다.
-  - Android: `내부 저장소/Documents/Obsidian/[Vault명]/.obsidian/plugins/knowledge-maintenance/`
-  - iOS: Files 앱 → Obsidian → [Vault명] → `.obsidian/plugins/knowledge-maintenance/`
+- **With Obsidian Sync**: Install on desktop and it syncs automatically.
+- **Manual**: Copy via file manager or USB.
+  - Android: `Internal Storage/Documents/Obsidian/[Vault]/.obsidian/plugins/knowledge-maintenance/`
+  - iOS: Files app → Obsidian → [Vault] → `.obsidian/plugins/knowledge-maintenance/`
 
 ---
 
-## 아키텍처
+## Architecture
 
-Clean Architecture 기반으로 설계되었습니다. 의존성은 항상 안쪽(도메인)을 향합니다.
+Built on Clean Architecture principles. Dependencies always point inward (toward the domain).
 
 ```
-domain/          ← 순수 비즈니스 로직 (외부 의존 없음)
-  models/        ← Note, PrivacyRule, OrganizeResult 등
-  values/        ← NotePath, TagName, Timestamp 등 (branded types)
-  errors/        ← NoteNotFoundError 등 도메인 에러
+domain/          ← Pure business logic (no external dependencies)
+  models/        ← Note, PrivacyRule, OrganizeResult, MaintenanceAction
+  values/        ← NotePath, TagName, Timestamp, Severity (branded types)
+  errors/        ← Domain-specific error classes
 
-application/     ← 유스케이스 + 포트 인터페이스
-  usecases/      ← QuickAskUseCase, OrganizeNoteUseCase 등
-  ports/         ← AIProviderPort, VaultAccessPort 등 7개 포트
+application/     ← Use cases + port interfaces
+  usecases/      ← QuickAskUseCase, RunMaintenanceUseCase, etc.
+  ports/         ← AIProviderPort, VaultAccessPort, ConfigPort, etc.
 
-adapters/        ← 포트 구현체 (외부 라이브러리 의존)
-  ai/            ← OpenAIAdapter, GeminiAdapter
+adapters/        ← Port implementations (external library dependencies)
+  ai/            ← OpenAIAdapter, GeminiAdapter, DynamicAIAdapter
   vault/         ← ObsidianVaultAdapter
   history/       ← FileHistoryAdapter
   search/        ← JsonSearchIndexAdapter
 
-ui/              ← Obsidian UI 컴포넌트
-  QuickAskModal, PluginSettingTab, InboxStatusView, MaintenanceLogView
+ui/              ← Obsidian UI components
+  QuickAskModal, MaintenanceResultView, PluginSettingTab, etc.
 
-main.ts          ← Composition Root (모든 의존성 조립)
+i18n/            ← Internationalization (en, ko)
+
+main.ts          ← Composition Root (wires all dependencies)
 ```
 
 ---
 
-## 지원 환경
+## Compatibility
 
-- Obsidian **1.7.2** 이상
-- 데스크톱 (Windows, macOS, Linux)
-- 모바일 (Android, iOS)
-- AI 공급자: OpenAI API, Google Gemini API
-
----
-
-## 알려진 한계
-
-### AI 의존성
-
-- **API 키 필수**: 플러그인의 핵심 기능(Quick Ask, 노트 정리, Inbox 처리)은 OpenAI 또는 Gemini API 키가 있어야 동작합니다. API 키 없이는 유지보수(고아 노트, 깨진 링크 탐지) 기능만 사용할 수 있습니다.
-- **API 비용 발생**: 모든 AI 호출에 토큰 비용이 발생합니다. 대량의 노트를 처리하거나 자동 유지보수를 짧은 주기로 설정하면 비용이 누적될 수 있습니다.
-- **네트워크 필요**: AI 기능은 인터넷 연결이 필요합니다. 오프라인 환경에서는 유지보수 스캔만 가능합니다.
-
-### 검색 인덱스
-
-- 현재 JSON 기반의 단순 검색 인덱스를 사용합니다. 대규모 Vault(1000개 이상 노트)에서는 검색 속도가 느려질 수 있습니다.
-- 의미 기반 검색(semantic search)은 지원하지 않으며, 키워드 매칭 기반입니다.
-
-### 중복 탐지
-
-- Jaccard 유사도 기반으로 동작하여 내용이 비슷하지만 표현이 다른 노트는 감지하지 못할 수 있습니다.
-- 매우 짧은 노트(몇 단어)는 유사도 계산이 부정확할 수 있습니다.
-
-### 모바일
-
-- 모바일 환경에서 백그라운드 전환 시 진행 중인 AI 호출이 중단될 수 있습니다.
-- 클립보드 캡처는 모바일 OS의 클립보드 권한 정책에 따라 동작이 제한될 수 있습니다.
-
-### 프라이버시
-
-- 프라이버시 규칙은 플러그인이 AI에게 보내는 데이터를 제어합니다. API 공급자(OpenAI, Google)의 데이터 처리 정책은 각 공급자의 약관을 확인하세요.
-- 내용 마스킹은 정규식 기반이므로 복잡한 패턴의 민감 정보는 별도로 규칙을 추가해야 합니다.
+- Obsidian **1.7.2** or later
+- Desktop (Windows, macOS, Linux)
+- Mobile (Android, iOS)
+- AI Providers: OpenAI API, Google Gemini API
 
 ---
 
-## 개발
+## Known Limitations
+
+### AI Dependency
+
+- **API key required**: Core features (Quick Ask, Note Organizer, Inbox Processing) require an OpenAI or Gemini API key. Without one, only maintenance scanning (orphan notes, broken links) is available.
+- **API costs**: All AI calls consume tokens. High-frequency auto-maintenance or large batch processing may accumulate costs.
+- **Network required**: AI features need internet connectivity. Maintenance scans work offline.
+
+### Search Index
+
+- Uses a JSON-based keyword index. Very large vaults (1000+ notes) may experience slower search.
+- Semantic search is not supported — matching is keyword-based.
+
+### Duplicate Detection
+
+- Jaccard similarity may miss notes with similar meaning but different wording.
+- Very short notes (a few words) may produce inaccurate similarity scores.
+
+### Mobile
+
+- Background switching may interrupt in-progress AI calls.
+- Clipboard capture is subject to mobile OS clipboard permission policies.
+
+### Privacy
+
+- Privacy rules control data sent by the plugin. Review your AI provider's (OpenAI, Google) data handling policies separately.
+- Content redaction is regex-based — complex sensitive patterns need explicit rules.
+
+---
+
+## Development
 
 ```bash
-npm run dev        # 개발 모드 (watch)
-npm run build      # 프로덕션 빌드
-npm run lint       # ESLint 검사
-npm run test       # 테스트 실행 (vitest)
-npm run test:watch # 테스트 감시 모드
+npm run dev        # Development mode (watch)
+npm run build      # Production build
+npm run lint       # ESLint check
+npm run test       # Run tests (vitest)
+npm run test:watch # Watch mode tests
 ```
 
 ---
 
-## 라이선스
+## License
 
-Copyright © 2026 Noluma for Obsidian. All rights reserved.
+MIT License. See [LICENSE](LICENSE) for details.
