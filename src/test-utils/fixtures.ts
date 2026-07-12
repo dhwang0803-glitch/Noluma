@@ -72,8 +72,8 @@ export function createDefaultSettings(overrides?: Partial<PluginSettings>): Plug
     trackTokenUsage: false,
     embeddingsEnabled: false,
     embeddingsModel: 'text-embedding-3-small',
-    rrfEmbeddingWeight: 2.0,
-    rrfK: 60,
+    rrfEmbeddingWeight: 4.0,
+    rrfK: 20,
     ...overrides,
   };
 }
