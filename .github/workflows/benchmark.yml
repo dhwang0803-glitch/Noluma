@@ -156,8 +156,8 @@ jobs:
             --embed \
             --provider gemini \
             --model gemini-embedding-001 \
-            --weight 2.0 \
-            --k 60 2>&1) || true
+            --weight 4.0 \
+            --k 20 2>&1) || true
           echo "$OUTPUT"
 
           echo '```' >> $GITHUB_STEP_SUMMARY

@@ -212,9 +212,9 @@ const en = {
 
   'settings.search': 'Search (Advanced)',
   'settings.rrfEmbeddingWeight': 'Embedding weight',
-  'settings.rrfEmbeddingWeightDesc': 'Weight multiplier for embedding results in hybrid search (default: 2.0). Higher values favor semantic similarity over keyword match.',
+  'settings.rrfEmbeddingWeightDesc': 'Weight multiplier for embedding results in hybrid search (default: 4.0). Higher values favor semantic similarity over keyword match.',
   'settings.rrfK': 'RRF K parameter',
-  'settings.rrfKDesc': 'Reciprocal Rank Fusion smoothing parameter (default: 60). Lower values make rank differences more dramatic.',
+  'settings.rrfKDesc': 'Reciprocal Rank Fusion smoothing parameter (default: 20). Lower values make rank differences more dramatic.',
 
   // ─── Domain Errors ───
   'error.noteNotFound': 'Note not found: {{id}}',

@@ -214,9 +214,9 @@ const ko: { [K in keyof typeof en]: string } = {
 
   'settings.search': '검색 (고급)',
   'settings.rrfEmbeddingWeight': '임베딩 가중치',
-  'settings.rrfEmbeddingWeightDesc': '하이브리드 검색에서 임베딩 결과의 가중치 배율 (기본: 2.0). 높을수록 의미적 유사성을 우선합니다.',
+  'settings.rrfEmbeddingWeightDesc': '하이브리드 검색에서 임베딩 결과의 가중치 배율 (기본: 4.0). 높을수록 의미적 유사성을 우선합니다.',
   'settings.rrfK': 'RRF K 파라미터',
-  'settings.rrfKDesc': 'Reciprocal Rank Fusion 스무딩 파라미터 (기본: 60). 낮을수록 순위 차이가 극적으로 반영됩니다.',
+  'settings.rrfKDesc': 'Reciprocal Rank Fusion 스무딩 파라미터 (기본: 20). 낮을수록 순위 차이가 극적으로 반영됩니다.',
 
   // ─── Domain Errors ───
   'error.noteNotFound': '노트를 찾을 수 없습니다: {{id}}',
