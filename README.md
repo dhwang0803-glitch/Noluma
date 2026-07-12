@@ -72,7 +72,7 @@ Ask AI questions using your vault as context — directly from the Command Palet
 
 | Feature | Description |
 |---------|-------------|
-| Vault-aware context | Automatically searches relevant notes and includes them in the prompt |
+| Vault-aware context | BM25 keyword search + optional semantic embedding search (Hybrid RRF) |
 | Save to file | Answers saved to timestamped files or Daily Notes (configurable) |
 | Wikilink extraction | Detects `[[links]]` in responses for navigation |
 | Token & cost display | Real-time usage info shown after each response |
@@ -329,6 +329,17 @@ Access via **Settings → Community Plugins → Knowledge Maintenance**.
 | Exclude Tags | Notes with these tags are skipped | — |
 | Archive Folder | Destination for archived notes | Archive |
 
+### Search (Advanced)
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| Embeddings Enabled | Enable semantic search via Gemini Embeddings | Off |
+| Embeddings Model | Gemini embedding model | gemini-embedding-001 |
+| RRF Embedding Weight | How much to weight embedding results vs BM25 | 4.0 |
+| RRF K | Rank smoothing parameter (lower = sharper ranking) | 20 |
+
+> When embeddings are enabled, Quick Ask uses Hybrid search: BM25 keywords + semantic embeddings merged via Reciprocal Rank Fusion (RRF).
+
 ### Privacy Rules
 
 Add rules in the Privacy section. Each rule has:
@@ -405,20 +416,26 @@ Clean Architecture — dependencies always point inward toward the domain.
 domain/          ← Pure business logic (zero external deps)
   models/        ← Note, MaintenanceAction, HistoryEntry
   values/        ← NotePath, TagName, Timestamp, Severity
-  errors/        ← Domain-specific errors
+  services/      ← TfIdfCorpus, tokenize
+  errors/        ← Domain-specific errors (i18n)
 
 application/     ← Use cases + port interfaces
-  usecases/      ← QuickAsk, RunMaintenance, ApplyAction, etc.
-  ports/         ← AIProviderPort, VaultAccessPort, HistoryPort, etc.
+  usecases/      ← QuickAsk, RunMaintenance, OrganizeNote, SyncEmbeddings, etc.
+  ports/         ← AIProviderPort, VaultAccessPort, EmbeddingPort, VectorStorePort, etc.
 
 adapters/        ← Port implementations (external deps live here)
   ai/            ← OpenAI, Gemini, DynamicAI adapters
   vault/         ← ObsidianVaultAdapter
   history/       ← FileHistoryAdapter
-  search/        ← JsonSearchIndexAdapter
+  search/        ← BM25SearchIndexAdapter
+  embedding/     ← GeminiEmbeddingAdapter
+  vectorstore/   ← JsonVectorStoreAdapter
+  tracking/      ← FileChangeTrackingAdapter
+  corpus/        ← FileCorpusStatsAdapter
 
 ui/              ← Obsidian views, modals, settings tab
 i18n/            ← Localization (en, ko)
+benchmark/       ← Golden set + vault-benchmark CLI
 main.ts          ← Composition Root
 ```
 
@@ -432,7 +449,7 @@ main.ts          ← Composition Root
 | Desktop | Windows, macOS, Linux |
 | Mobile | Android, iOS |
 
-**AI Providers**: OpenAI API, Google Gemini API
+**AI Providers**: OpenAI API, Google Gemini API (including Gemini Embeddings for hybrid search)
 
 ---
 
@@ -443,8 +460,8 @@ main.ts          ← Composition Root
 | AI dependency | Quick Ask, Organizer, Inbox require an API key. Maintenance scan (orphans, broken links) works without AI. |
 | API costs | All AI calls consume tokens. Token usage and cost are shown in every AI feature (Quick Ask, Organizer, Inbox). |
 | Network | AI features need internet. Maintenance scans work offline. |
-| Search index | JSON keyword-based. Very large vaults (1000+ notes) may be slower. No semantic search. |
-| Duplicates | Jaccard similarity — may miss semantically similar but differently worded notes. |
+| Search index | BM25 keyword + optional Gemini embeddings. Very large vaults (5000+ notes) remain performant (P95 < 10ms for BM25). |
+| Duplicates | TF-IDF cosine similarity — may miss very short notes with insufficient term overlap. |
 | Mobile | Background switching may interrupt AI calls. Clipboard subject to OS permissions. |
 | Privacy | Rules control this plugin only. Review your AI provider's data policies separately. |
 
@@ -456,8 +473,9 @@ main.ts          ← Composition Root
 npm run dev        # Watch mode
 npm run build      # Production build
 npm run lint       # ESLint
-npm run test       # Vitest (228 tests)
+npm run test       # Vitest (unit + integration tests)
 npm run test:watch # Watch mode tests
+npm run benchmark  # Embedding benchmark (requires GEMINI_API_KEY)
 ```
 
 ---

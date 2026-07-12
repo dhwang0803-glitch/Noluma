@@ -6,6 +6,139 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased] (development)
+
+### Changed
+- **RRF parameters optimized for bilingual**: Default `rrfK=20`, `rrfEmbeddingWeight=4.0` (was k=60, weight=2.0). Bilingual MRR improved from 92.7% → 96.3%.
+
+### Added
+- **Bilingual benchmark golden set**: 100 documents (47 Korean + 53 English) and 40 queries (20 KO + 20 EN) with 3-tier difficulty (Easy/Medium/Hard).
+- **CI Hybrid benchmark**: GitHub Actions now runs both BM25-only and Hybrid (Gemini embedding) benchmarks with automatic regression detection.
+
+---
+
+## [0.4.0] - 2026-07-12
+
+### Added
+- **Phase 1 Quality Foundation**:
+  - JSON mode for structured AI responses (eliminates parsing failures)
+  - BM25 keyword search engine (replaces naive string matching)
+  - Content-level duplicate detection via trigram Jaccard similarity
+  - Prompt internationalization (bilingual EN/KO system prompts)
+  - Exponential backoff retry with jitter for AI API calls
+- **Phase 2 Differentiation Features**:
+  - Change Tracking with dirty set persistence (`.knowledge-maintenance/dirty-set.json`)
+  - Smart Scheduling — skips maintenance when no files have changed
+  - TF-IDF corpus-based content duplicate detection (replaces trigram for higher precision)
+  - Confidence Gating — low-confidence AI results are flagged, not auto-applied
+  - API Embeddings (Gemini) with Reciprocal Rank Fusion (RRF) hybrid search
+  - Vector store with JSON persistence for semantic search
+- **Embedding benchmark infrastructure**: `vault-benchmark` CLI with `--golden`, `--sweep`, `--model`, `--weight`, `--k` options
+- **Scale test**: 5000-document BM25 performance validation (P95 < 10ms)
+- **QA infrastructure**: Issue templates (`qa_test_run.yml`, `qa_failure.yml`), manual test plan (30 TCs), embedding benchmark guide
+- **CI/CD pipeline**: `ci.yml` (lint + tsc + test + build on PR), `benchmark.yml` (BM25 + Hybrid golden set)
+- **DomainErrors i18n**: All domain error messages support EN/KO
+- **`versions.json`** release history for BRAT compatibility
+
+### Fixed
+- **Embedding-only results lost** (Codex P1): `vault.readNote` fallback when note not in active index
+- **Benchmark sweep caching**: Prevents redundant embedding API calls during parameter sweeps
+- **Model name consistency**: Unified `gemini-embedding-001` reference across codebase
+
+---
+
+## [0.3.11] - 2026-07-12
+
+### Fixed
+- **AI hallucination prevention**: Strengthened prompt to prohibit inventing tags not present in vault's existing tag list.
+- **Per-note unique tag recommendations**: AI now considers each note's specific content when selecting from vault tags, preventing generic tag suggestions.
+
+---
+
+## [0.3.10] - 2026-07-12
+
+### Added
+- **Empty vault tag creation**: When vault has fewer than 3 existing tags, AI prompt instructs creation of 3+ new relevant tags instead of forcing reuse of an insufficient pool.
+
+---
+
+## [0.3.9] - 2026-07-12
+
+### Added
+- **Organize Note token/cost display**: Shows token usage and estimated cost at the bottom of the Organize modal after AI classification.
+
+---
+
+## [0.3.8] - 2026-07-12
+
+### Fixed
+- **Tag reuse enforcement**: AI prompt now strictly requires reusing vault's existing tags (frequency-sorted, up to 200). New tags are only created when no existing tag fits the note's content.
+
+---
+
+## [0.3.7] - 2026-07-12
+
+### Changed
+- **Organize Note modal UX overhaul**: Interactive modal with editable tag chips, link chips, folder dropdown, and "Apply All" button. Results are no longer just a notification.
+
+### Fixed
+- **Codex P1/P2 fixes**: Tag chip removal, folder suggestion validation, modal lifecycle management.
+
+---
+
+## [0.3.6] - 2026-07-12
+
+### Fixed
+- **Organize Note tag deduplication**: Prevents suggesting tags already present on the note.
+- **Non-existent folder suggestion**: Folder suggestions now validate against actual vault folder structure.
+
+---
+
+## [0.3.5] - 2026-07-12
+
+### Added
+- **Organize Note modal**: Dedicated result modal replacing the notification-based display. Shows category, summary, tags, links, and folder suggestion in an interactive UI.
+- **Community submission preparation**: MIT LICENSE, comprehensive README rewrite, `versions.json`.
+
+---
+
+## [0.3.4] - 2026-07-12
+
+### Added
+- **History log refresh button**: Reload latest entries without restarting Obsidian.
+- **Restore action recording**: Undo operations are now recorded in the activity log.
+- **GitHub issue templates**: Bug report and feature request templates.
+
+### Fixed
+- **Clock adapter initialization order** (Codex P1): `clockAdapter` now initializes before `historyAdapter` to prevent timestamp errors.
+- **Select-all control**: Replaced toggle with checkbox for consistent UX in maintenance results.
+
+---
+
+## [0.3.3] - 2026-07-11
+
+### Fixed
+- **Dot-prefix folder I/O**: History and search index adapters now use `vault.adapter` for reading/writing to `.knowledge-maintenance/` folder, fixing permission issues on some platforms.
+
+---
+
+## [0.3.2] - 2026-07-11
+
+### Added
+- **Undo/Redo for dismiss actions**: Dismissed maintenance items can be undone (reappear) and redone (re-dismissed).
+
+### Fixed
+- **History view rendering bug**: Fixed issue where history entries were not displaying correctly after multiple actions.
+
+---
+
+## [0.3.1] - 2026-07-11
+
+### Fixed
+- **Filter chip active state**: Severity filter chips now use their respective severity colors (red/orange/blue) instead of generic accent blue when active.
+
+---
+
 ## [0.3.0] - 2026-07-11
 
 ### Added
