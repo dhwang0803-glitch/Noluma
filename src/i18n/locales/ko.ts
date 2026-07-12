@@ -17,7 +17,7 @@ const ko: { [K in keyof typeof en]: string } = {
   // ─── Notices ───
   'notice.clipboardSaved': '클립보드 내용을 저장했습니다: {{path}}',
   'notice.clipboardFailed': '클립보드 캡처 실패: {{error}}',
-  'notice.organizeResult': '분류: {{category}} | 태그: {{tags}}',
+  'notice.organizeResult': '폴더: {{folder}} | 태그: {{tags}}',
   'notice.organizeFailed': '노트 정리 실패: {{error}}',
   'notice.inboxStarted': 'Inbox 처리를 시작합니다...',
   'notice.inboxComplete': 'Inbox 처리 완료: {{processed}}개 처리, {{skipped}}개 건너뜀, {{errors}}개 오류',

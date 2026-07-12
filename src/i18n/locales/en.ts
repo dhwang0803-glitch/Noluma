@@ -15,7 +15,7 @@ const en = {
   // ─── Notices ───
   'notice.clipboardSaved': 'Clipboard saved: {{path}}',
   'notice.clipboardFailed': 'Clipboard capture failed: {{error}}',
-  'notice.organizeResult': 'Category: {{category}} | Tags: {{tags}}',
+  'notice.organizeResult': 'Folder: {{folder}} | Tags: {{tags}}',
   'notice.organizeFailed': 'Note organize failed: {{error}}',
   'notice.inboxStarted': 'Starting Inbox processing...',
   'notice.inboxComplete': 'Inbox complete: {{processed}} processed, {{skipped}} skipped, {{errors}} errors',
