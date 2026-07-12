@@ -113,6 +113,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: unit-tests
     if: ${{ inputs.run_embedding == true || inputs.run_embedding == '' }}
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -144,9 +146,7 @@ jobs:
 
       - name: Hybrid Benchmark (with Gemini)
         id: hybrid
-        if: ${{ secrets.GEMINI_API_KEY != '' }}
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        if: ${{ env.GEMINI_API_KEY != '' }}
         run: |
           echo "## Hybrid Benchmark (BM25 + Gemini Embedding)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
