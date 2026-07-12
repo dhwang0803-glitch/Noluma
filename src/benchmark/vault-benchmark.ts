@@ -19,6 +19,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {
   GOLDEN_QUERIES,
+  GOLDEN_DOCUMENTS,
   GoldenQuery,
   BenchmarkResult,
   precisionAtK,
@@ -262,10 +263,21 @@ function printReport(label: string, bm25: BenchmarkResult[], emb?: BenchmarkResu
 
 // ─── Main ───
 
+function goldenDocsToVaultDocs(): VaultDocument[] {
+  return GOLDEN_DOCUMENTS.map(gd => ({
+    id: gd.id,
+    title: gd.title,
+    content: gd.content,
+    tags: [...gd.tags],
+    filePath: `(golden-set)/${gd.id}.md`,
+  }));
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const vaultIdx = args.indexOf('--vault');
   const vaultPath = vaultIdx >= 0 ? args[vaultIdx + 1] : null;
+  const useGolden = args.includes('--golden');
   const useEmbed = args.includes('--embed');
   const useSweep = args.includes('--sweep');
   const providerArg = args.includes('--provider') ? args[args.indexOf('--provider') + 1] : 'openai';
@@ -273,23 +285,25 @@ async function main() {
   const kArg = args.includes('--k') ? parseInt(args[args.indexOf('--k') + 1]) : 60;
   const modelArg = args.includes('--model') ? args[args.indexOf('--model') + 1] : 'gemini-embedding-001';
 
-  if (!vaultPath) {
+  if (!vaultPath && !useGolden) {
     console.error('Usage: npx tsx src/benchmark/vault-benchmark.ts --vault <path> [--embed] [--provider openai|gemini] [--model name] [--weight N] [--k N] [--sweep]');
+    console.error('       npx tsx src/benchmark/vault-benchmark.ts --golden [--embed] [--provider gemini] [--sweep]');
     process.exit(1);
   }
 
-  if (!fs.existsSync(vaultPath)) {
+  if (vaultPath && !fs.existsSync(vaultPath)) {
     console.error(`Vault path not found: ${vaultPath}`);
     process.exit(1);
   }
 
-  // 1. Read vault files
+  // 1. Read vault files or use golden set
+  const source = useGolden ? 'Golden Set (in-memory)' : vaultPath!;
   console.log(`\n${'═'.repeat(60)}`);
-  console.log(`  Vault Benchmark — Reading from: ${vaultPath}`);
+  console.log(`  Vault Benchmark — Reading from: ${source}`);
   console.log(`${'═'.repeat(60)}\n`);
 
-  const docs = readVaultFiles(vaultPath);
-  console.log(`[1/4] Read ${docs.length} documents from vault\n`);
+  const docs = useGolden ? goldenDocsToVaultDocs() : readVaultFiles(vaultPath!);
+  console.log(`[1/4] Read ${docs.length} documents${useGolden ? ' (golden set)' : ' from vault'}\n`);
 
   // Verify golden set docs are present
   const docIds = new Set(docs.map(d => d.id));

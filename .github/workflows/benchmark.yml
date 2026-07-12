@@ -129,7 +129,7 @@ jobs:
           echo "## Golden Set Benchmark (BM25)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          OUTPUT=$(npx tsx src/benchmark/vault-benchmark.ts --vault "src/benchmark/fixtures/golden-vault" 2>&1) || true
+          OUTPUT=$(npx tsx src/benchmark/vault-benchmark.ts --golden 2>&1) || true
           echo "$OUTPUT"
 
           echo '```' >> $GITHUB_STEP_SUMMARY
@@ -152,7 +152,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           OUTPUT=$(npx tsx src/benchmark/vault-benchmark.ts \
-            --vault "src/benchmark/fixtures/golden-vault" \
+            --golden \
             --embed \
             --provider gemini \
             --model gemini-embedding-001 \
