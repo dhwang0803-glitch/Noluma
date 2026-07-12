@@ -216,6 +216,15 @@ const en = {
   'settings.rrfK': 'RRF K parameter',
   'settings.rrfKDesc': 'Reciprocal Rank Fusion smoothing parameter (default: 60). Lower values make rank differences more dramatic.',
 
+  // ─── Domain Errors ───
+  'error.noteNotFound': 'Note not found: {{id}}',
+  'error.duplicateNote': 'Note already exists: {{path}}',
+  'error.invalidContent': 'Invalid note content: {{reason}}',
+  'error.aiProvider': 'AI error [{{provider}}] ({{status}}): {{detail}}',
+  'error.privacyViolation': 'Blocked by privacy rule: {{rule}}',
+  'error.rateLimit': 'Rate limit exceeded — retry after {{ms}}ms',
+  'error.historyNotFound': 'History entry not found: {{id}}',
+
   'settings.privacy': 'Privacy',
   'settings.privacyDesc': 'Notes matching these rules will not be sent to AI.',
   'settings.ruleName': 'Rule name',
