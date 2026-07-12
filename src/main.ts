@@ -30,6 +30,7 @@ import { MaintenanceLogView, MAINTENANCE_LOG_VIEW_TYPE } from './ui/MaintenanceL
 import { MaintenanceResultView, MAINTENANCE_RESULT_VIEW_TYPE } from './ui/MaintenanceResultView';
 import { InboxStatusView, INBOX_STATUS_VIEW_TYPE } from './ui/InboxStatusView';
 import { PluginSettingTab } from './ui/PluginSettingTab';
+import { localizeError } from './ui/localizeError';
 
 // Ports
 import { AIProviderPort } from './application/ports/AIProviderPort';
@@ -327,7 +328,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           const path = await this.captureClipboardUseCase.execute();
           new Notice(t('notice.clipboardSaved', { path: String(path) }));
         } catch (err) {
-          new Notice(t('notice.clipboardFailed', { error: err instanceof Error ? err.message : String(err) }));
+          new Notice(t('notice.clipboardFailed', { error: localizeError(err) }));
         }
       },
     });
@@ -391,7 +392,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
             new OrganizeResultModal(this.app, notePath, result, actions, ctx).open();
           })
           .catch(err => {
-            new Notice(t('notice.organizeFailed', { error: err instanceof Error ? err.message : String(err) }));
+            new Notice(t('notice.organizeFailed', { error: localizeError(err) }));
           });
       },
     });
@@ -422,7 +423,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
             errors: result.errors.length,
           }));
         } catch (err) {
-          new Notice(t('notice.inboxFailed', { error: err instanceof Error ? err.message : String(err) }));
+          new Notice(t('notice.inboxFailed', { error: localizeError(err) }));
         }
       },
     });
