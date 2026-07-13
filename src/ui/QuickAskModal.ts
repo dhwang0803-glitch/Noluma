@@ -14,7 +14,7 @@ export class QuickAskModal extends Modal {
   constructor(
     app: App,
     private readonly quickAsk: QuickAskUseCase,
-    private readonly defaultSaveTarget: SaveTarget,
+    private readonly createSaveTarget: () => SaveTarget,
   ) {
     super(app);
   }
@@ -73,7 +73,7 @@ export class QuickAskModal extends Modal {
       const request: QuickAskRequest = {
         question,
         maxContextChunks: 5,
-        saveTarget: this.defaultSaveTarget,
+        saveTarget: this.createSaveTarget(),
         autoTag: true,
         autoLink: true,
       };
