@@ -143,7 +143,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'quickAsk.tags': '태그: {{tags}}',
   'quickAsk.suggestedTags': '제안 태���: {{tags}}',
   'quickAsk.references': '참조된 노트',
-  'quickAsk.truncated': '⚠ 토큰 제한으로 응답이 잘렸습니다. 더 구체적인 질문을 시도해보세요.',
+  'quickAsk.truncated': '⚠ 응답이 토큰 제한으로 잘렸습니다. Settings → Max Response Tokens 값을 늘려보세요.',
 
   // ─── Organize Result Modal ───
   'organize.title': '노트 정리',
