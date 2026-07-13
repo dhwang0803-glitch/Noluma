@@ -8,12 +8,77 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased] (development)
 
+*No unreleased changes.*
+
+---
+
+## [0.4.5] - 2026-07-14
+
 ### Changed
-- **RRF parameters optimized for bilingual**: Default `rrfK=20`, `rrfEmbeddingWeight=4.0` (was k=60, weight=2.0). Bilingual MRR improved from 92.7% → 96.3%.
+- **References unification**: Removed `suggestedLinks` (AI-extracted wikilinks) and unified to `referencedNotes` (context source notes). Quick Ask and Daily Note now show the same References section.
 
 ### Added
-- **Bilingual benchmark golden set**: 100 documents (47 Korean + 53 English) and 40 queries (20 KO + 20 EN) with 3-tier difficulty (Easy/Medium/Hard).
-- **CI Hybrid benchmark**: GitHub Actions now runs both BM25-only and Hybrid (Gemini embedding) benchmarks with automatic regression detection.
+- **Hallucinated wikilink sanitization**: AI-generated `[[wikilinks]]` in response body are validated against vault notes — non-existent links have their brackets removed to prevent broken links.
+- **Inline tags in Daily Notes**: `formatAnswer()` now includes `**Tags:** #tag1 #tag2` in the answer body, so Daily Note append mode also displays tags.
+
+---
+
+## [0.4.4] - 2026-07-14
+
+### Added
+- **Referenced Notes inline preview**: Click a reference in Quick Ask to preview the note's content directly inside the modal.
+
+### Fixed
+- **Truncation warning invisible text**: Changed red-on-red warning text to white for readability.
+- **Hallucinated reference filtering**: References section now filters out note paths that don't actually exist in the vault.
+- **Default max response tokens**: Increased from 4096 to 8192 for longer AI responses.
+
+---
+
+## [0.4.3] - 2026-07-14
+
+### Fixed
+- **Quick Ask re-ask overwrite prevention**: Re-asking a question no longer overwrites the previous Q&A file — each answer gets a unique timestamp.
+- **Duplicate execution guard**: Prevents multiple simultaneous Quick Ask executions from the same modal.
+
+---
+
+## [0.4.2] - 2026-07-14
+
+### Added
+- **AI keyword extraction**: Search queries are now built by AI-extracted keywords instead of raw question text, improving context retrieval quality.
+- **Korean particle stripping**: Fallback tokenizer strips Korean particles (은/는/이/가/을/를 etc.) for better BM25 matching.
+- **Embeddings auto-sync**: Vector store automatically syncs when vault files change (create/modify/delete/rename).
+
+### Fixed
+- **VectorStore metadata compatibility**: Fixed metadata field mismatch between embedding adapter and vector store.
+- **Plugin lifecycle**: Fixed cleanup order for vault event listeners on plugin unload.
+
+---
+
+## [0.4.1] - 2026-07-14
+
+### Added
+- **Inbox Progress Modal**: Real-time progress bar with note counter, current note name, and cancel button during inbox processing.
+- **Max Response Tokens setting**: Configurable token limit for AI responses with slider in settings (default 4096).
+- **Quick Ask UX improvements**:
+  - Referenced notes source display below AI response
+  - Truncation detection with warning banner
+  - Auto-link fallback when no search results
+  - Tag labels in saved notes
+- **Bilingual benchmark golden set**: 100 documents (47 Korean + 53 English) and 40 queries (20 KO + 20 EN) with 3-tier difficulty.
+- **CI Hybrid benchmark**: GitHub Actions runs BM25-only and Hybrid (Gemini embedding) benchmarks with regression detection.
+
+### Changed
+- **RRF parameters optimized**: Default `rrfK=20`, `rrfEmbeddingWeight=4.0` (was k=60, weight=2.0). Bilingual MRR improved from 92.7% → 96.3%.
+- **Organize Note simplified**: Removed redundant `category` field — folder suggestion now serves as the sole organizational axis.
+
+### Fixed
+- **BM25 search index initialization**: Fixed race condition where search index was not built before first query.
+- **Tag whitespace sanitize**: Tag names with leading/trailing whitespace are now trimmed before saving.
+- **Auto Maintenance first run**: Maintenance timer now starts correctly on first plugin load without requiring settings change.
+- **Daily Note broken link prevention**: Wikilinks in daily note entries no longer point to non-existent intermediate paths.
+- **Inbox watcher feedback loop**: Watcher no longer re-triggers on files being processed, eliminating "1 file changes detected" spam.
 
 ---
 

@@ -74,7 +74,8 @@ Ask AI questions using your vault as context — directly from the Command Palet
 |---------|-------------|
 | Vault-aware context | BM25 keyword search + optional semantic embedding search (Hybrid RRF) |
 | Save to file | Answers saved to timestamped files or Daily Notes (configurable) |
-| Wikilink extraction | Detects `[[links]]` in responses for navigation |
+| Referenced Notes | Context source notes shown as references — click to preview content inline |
+| Link validation | AI-generated `[[wikilinks]]` are validated against vault; non-existent links are cleaned |
 | Token & cost display | Real-time usage info shown after each response |
 | Markdown rendering | AI responses render with full Markdown formatting |
 | Keyboard shortcut | `Ctrl+Enter` to send, `Escape` to close |
@@ -134,7 +135,7 @@ Automatically detect and process new notes landing in your Inbox folder. Interna
 
 **Trigger methods**:
 - **Automatic**: Runs on file creation/modification in the Inbox folder
-- **Manual**: `Ctrl/Cmd + P` → "Process Inbox"
+- **Manual**: `Ctrl/Cmd + P` → "Process Inbox" (opens a progress modal with real-time counter, progress bar, and cancel button)
 - **Startup catch-up**: Processes any unprocessed notes when Obsidian launches
 
 **Auto Apply setting**: When enabled, tags and folder moves happen automatically. When disabled, only classification is performed and results are logged.
@@ -317,6 +318,7 @@ Access via **Settings → Community Plugins → Knowledge Maintenance**.
 |---------|-------------|---------|
 | Save Mode | Timestamp (per-file) or Daily Note (append) | Timestamp |
 | Daily Note Size Limit | Max KB before creating new file | 200 |
+| Max Response Tokens | Maximum token limit for AI responses | 8192 |
 
 ### Maintenance
 
