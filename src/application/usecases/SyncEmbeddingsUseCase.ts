@@ -71,7 +71,7 @@ export class SyncEmbeddingsUseCase {
       if (!initialized) return 0;
     }
 
-    await this.vectorStore.clear();
+    await this.vectorStore.clearEntries();
     const allNotes = await this.vault.listNotes();
     let count = 0;
 

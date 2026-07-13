@@ -3,6 +3,7 @@ import { VaultAccessPort } from '../../application/ports/VaultAccessPort';
 import { NotePath, createNotePath } from '../../domain/values/NotePath';
 
 const EMBEDDINGS_PATH = '.knowledge-maintenance/embeddings.json';
+const SCHEMA_VERSION = 1;
 
 interface StoredEntry {
   notePath: string;
@@ -10,9 +11,21 @@ interface StoredEntry {
   vector: string; // base64-encoded Float32Array
 }
 
+export interface VectorStoreMeta {
+  readonly provider: string;
+  readonly dimension: number;
+  readonly version: number;
+}
+
+interface StoredData {
+  meta: VectorStoreMeta;
+  entries: StoredEntry[];
+}
+
 export class JsonVectorStoreAdapter implements VectorStorePort {
   private entries: Map<string, { notePath: NotePath; chunkIndex: number; vector: Float32Array }> = new Map();
   private dirty = false;
+  private meta: VectorStoreMeta | null = null;
 
   constructor(private readonly vault: VaultAccessPort) {}
 
@@ -56,7 +69,12 @@ export class JsonVectorStoreAdapter implements VectorStorePort {
       });
     }
 
-    await this.vault.writeFileRaw(EMBEDDINGS_PATH, JSON.stringify(stored));
+    const data: StoredData = {
+      meta: this.meta ?? { provider: 'unknown', dimension: 0, version: SCHEMA_VERSION },
+      entries: stored,
+    };
+
+    await this.vault.writeFileRaw(EMBEDDINGS_PATH, JSON.stringify(data));
     this.dirty = false;
   }
 
@@ -65,9 +83,21 @@ export class JsonVectorStoreAdapter implements VectorStorePort {
     if (!raw) return;
 
     try {
-      const stored: StoredEntry[] = JSON.parse(raw);
+      const parsed: unknown = JSON.parse(raw);
+
+      let entries: StoredEntry[];
+      if (Array.isArray(parsed)) {
+        // Legacy format: plain array without metadata
+        entries = parsed as StoredEntry[];
+        this.meta = null;
+      } else {
+        const data = parsed as StoredData;
+        entries = data.entries;
+        this.meta = data.meta ?? null;
+      }
+
       this.entries.clear();
-      for (const item of stored) {
+      for (const item of entries) {
         const key = `${item.notePath}::${item.chunkIndex}`;
         this.entries.set(key, {
           notePath: createNotePath(item.notePath),
@@ -84,8 +114,28 @@ export class JsonVectorStoreAdapter implements VectorStorePort {
     return this.entries.size === 0;
   }
 
+  getMeta(): VectorStoreMeta | null {
+    return this.meta;
+  }
+
+  setMeta(meta: Pick<VectorStoreMeta, 'provider' | 'dimension'>): void {
+    this.meta = { ...meta, version: SCHEMA_VERSION };
+    this.dirty = true;
+  }
+
+  isCompatible(provider: string, dimension: number): boolean {
+    if (!this.meta) return false;
+    return this.meta.provider === provider && this.meta.dimension === dimension;
+  }
+
+  async clearEntries(): Promise<void> {
+    this.entries.clear();
+    this.dirty = true;
+  }
+
   async clear(): Promise<void> {
     this.entries.clear();
+    this.meta = null;
     this.dirty = true;
     await this.flush();
   }
