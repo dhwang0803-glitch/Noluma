@@ -53,7 +53,7 @@ export function createDefaultSettings(overrides?: Partial<PluginSettings>): Plug
     aiProvider: 'openai',
     aiApiKey: '',
     aiModel: 'gpt-4o-mini',
-    aiMaxTokens: 4096,
+    aiMaxTokens: 8192,
     aiTemperature: 0.7,
     inboxFolder: 'Inbox',
     autoApplyInbox: false,

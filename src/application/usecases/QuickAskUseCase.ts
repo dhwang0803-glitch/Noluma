@@ -84,6 +84,19 @@ export class QuickAskUseCase {
       ? this.extractLinkSuggestions(aiResponse.content)
       : [];
 
+    const allNotes = request.autoLink ? await this.vault.listNotes() : [];
+
+    if (suggestedLinks.length > 0) {
+      const noteBasenames = new Set(
+        allNotes.map(n => (n as string).split('/').pop()?.replace(/\.md$/, '') ?? ''),
+      );
+      suggestedLinks = suggestedLinks.filter(link => {
+        const withoutFragment = (link as string).split('#')[0];
+        const basename = withoutFragment.split('/').pop()?.replace(/\.md$/, '') ?? '';
+        return noteBasenames.has(basename);
+      });
+    }
+
     // Auto-add reference note links when AI didn't suggest any (#64)
     if (request.autoLink && suggestedLinks.length === 0 && referencedNotes.length > 0) {
       suggestedLinks = [...referencedNotes];
@@ -91,7 +104,6 @@ export class QuickAskUseCase {
 
     // 5. Save note
     const truncated = aiResponse.finishReason === 'length';
-    const allNotes = suggestedLinks.length > 0 ? await this.vault.listNotes() : [];
     const content = this.formatAnswer(request.question, aiResponse.content, [...suggestedTags], suggestedLinks, truncated, allNotes);
     const savedPath = await this.saveNote.execute({
       content,
