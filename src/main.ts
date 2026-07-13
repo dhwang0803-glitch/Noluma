@@ -84,7 +84,7 @@ const DEFAULT_SETTINGS: PluginSettings = {
   maintenanceArchiveFolder: DEFAULT_ARCHIVE_FOLDER,
   inboxConfidenceThreshold: 0,
   embeddingsEnabled: false,
-  embeddingsModel: 'text-embedding-3-small',
+  embeddingsModel: '',
   rrfEmbeddingWeight: 4.0,
   rrfK: 20,
   privacyRules: [],
@@ -167,7 +167,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.app.workspace.onLayoutReady(async () => {
       await this.buildSearchIndex();
 
-      if (this.settings.embeddingsEnabled) {
+      if (this.settings.aiApiKey) {
         await this.vectorStoreAdapter.load();
         await this.embeddingAdapter.initialize();
       }
@@ -236,8 +236,8 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.aiAdapter, this.vaultAdapter, this.searchIndex,
       this.historyAdapter, this.configPort, this.clockAdapter,
       this.saveNoteUseCase,
-      this.settings.embeddingsEnabled ? this.embeddingAdapter : undefined,
-      this.settings.embeddingsEnabled ? this.vectorStoreAdapter : undefined,
+      this.settings.aiApiKey ? this.embeddingAdapter : undefined,
+      this.settings.aiApiKey ? this.vectorStoreAdapter : undefined,
     );
 
     this.organizeNoteUseCase = new OrganizeNoteUseCase(
@@ -579,11 +579,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           indexed++;
         }
       }
-      const totalNotes = notes.length;
-      console.log(`Knowledge Maintenance: search index built (${indexed}/${totalNotes} notes indexed)`);
-      if (indexed < totalNotes) {
-        console.log(`  [KM-DEBUG] Skipped ${totalNotes - indexed} notes (no chunks or read failed)`);
-      }
+      console.log(`Knowledge Maintenance: search index built (${indexed}/${notes.length} notes indexed)`);
     } catch (err) {
       console.error('Knowledge Maintenance: search index build failed', err);
     }
