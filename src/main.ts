@@ -325,19 +325,19 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       id: 'quick-ask',
       name: 'Quick Ask',
       callback: () => {
-        let saveTarget: SaveTarget;
-        if (this.settings.quickAskSaveMode === 'daily-note') {
-          saveTarget = { kind: 'daily-note', position: 'bottom' };
-        } else {
+        const createSaveTarget = (): SaveTarget => {
+          if (this.settings.quickAskSaveMode === 'daily-note') {
+            return { kind: 'daily-note', position: 'bottom' };
+          }
           const { dateFolder, title } = this.generateTimestampParts('Quick Ask');
           const folder = `${this.settings.defaultSaveFolder}/${dateFolder}`;
-          saveTarget = {
+          return {
             kind: 'new-note',
             title: createNoteTitle(title),
             folder: folder as unknown as NotePath,
           };
-        }
-        new QuickAskModal(this.app, this.quickAskUseCase, saveTarget).open();
+        };
+        new QuickAskModal(this.app, this.quickAskUseCase, createSaveTarget).open();
       },
     });
 
