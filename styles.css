@@ -65,12 +65,14 @@
 }
 
 .knowledge-maintenance-quick-ask .quick-ask-truncation-warning {
-  padding: 8px 12px;
+  padding: 10px 14px;
   margin-bottom: 10px;
   background: var(--background-modifier-error);
-  color: var(--text-error);
+  color: var(--text-on-accent);
   border-radius: 4px;
   font-size: var(--font-ui-small);
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .knowledge-maintenance-quick-ask .quick-ask-references {

@@ -141,7 +141,7 @@ const en = {
   'quickAsk.tags': 'Tags: {{tags}}',
   'quickAsk.suggestedTags': 'Suggested Tags: {{tags}}',
   'quickAsk.references': 'Referenced Notes',
-  'quickAsk.truncated': '⚠ Response was truncated due to token limit. Try a more specific question.',
+  'quickAsk.truncated': '⚠ Response was truncated. Increase Max Response Tokens in Settings for longer answers.',
 
   // ─── Organize Result Modal ───
   'organize.title': 'Organize Note',
