@@ -174,6 +174,14 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         await this.embeddingAdapter.initialize();
 
         if (this.embeddingAdapter.isReady()) {
+          const dim = this.embeddingAdapter.getDimension();
+          const provider = this.settings.aiProvider;
+
+          if (!this.vectorStoreAdapter.isEmpty() && !this.vectorStoreAdapter.isCompatible(provider, dim)) {
+            console.log('Knowledge Maintenance: embedding provider/dimension changed, rebuilding index');
+            await this.vectorStoreAdapter.clear();
+          }
+          this.vectorStoreAdapter.setMeta({ provider, dimension: dim });
           this.syncEmbeddingsBackground();
         }
       }
