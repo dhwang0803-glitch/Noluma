@@ -12,5 +12,6 @@ export interface VectorStorePort {
   search(queryVector: Float32Array, topK: number): Promise<ReadonlyArray<VectorSearchResult>>;
   flush(): Promise<void>;
   load(): Promise<void>;
+  clearEntries(): Promise<void>;
   clear(): Promise<void>;
 }

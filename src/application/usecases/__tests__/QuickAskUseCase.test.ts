@@ -235,9 +235,10 @@ describe('QuickAskUseCase', () => {
         autoLink: false,
       });
 
-      const callArgs = (ai.callCompletion as ReturnType<typeof vi.fn>).mock.calls[0][0];
-      expect(callArgs.prompt).toContain('[REDACTED]');
-      expect(callArgs.prompt).not.toContain('password:abc123');
+      const calls = (ai.callCompletion as ReturnType<typeof vi.fn>).mock.calls;
+      const answerCall = calls[calls.length - 1][0];
+      expect(answerCall.prompt).toContain('[REDACTED]');
+      expect(answerCall.prompt).not.toContain('password:abc123');
     });
   });
 
@@ -476,6 +477,143 @@ describe('QuickAskUseCase', () => {
       });
 
       expect(result.suggestedLinks).toHaveLength(0);
+    });
+  });
+
+  describe('buildSearchQuery (keyword extraction)', () => {
+    const defaultRequest = {
+      question: '윤기범에 대해서 알려줘',
+      maxContextChunks: 5,
+      saveTarget: { kind: 'new-note' as const, title: 'Q' as unknown as NoteTitle },
+      autoTag: false,
+      autoLink: false,
+    };
+
+    function createWithAI(completionResponses: Array<{ content: string }>) {
+      let callIndex = 0;
+      const ai = createMockAI({
+        callCompletion: vi.fn().mockImplementation(() => {
+          const resp = completionResponses[callIndex] ?? completionResponses[completionResponses.length - 1];
+          callIndex++;
+          return Promise.resolve({
+            ...resp,
+            tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30, estimatedCostUsd: 0 },
+            finishReason: 'stop' as const,
+          });
+        }),
+      });
+      const search = createMockSearch();
+      const uc = createUseCase({ ai, search });
+      return { ai, search, uc };
+    }
+
+    it('AI가 {"keywords": [...]} 객체를 반환하면 키워드를 검색어로 사용한다', async () => {
+      const { search, uc } = createWithAI([
+        { content: '{"keywords": ["윤기범"]}' },
+        { content: 'AI answer' },
+      ]);
+
+      await uc.execute(defaultRequest);
+
+      const searchCall = (search.search as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(searchCall[0]).toBe('윤기범');
+    });
+
+    it('AI가 배열을 반환하면 키워드를 검색어로 사용한다 (backward compat)', async () => {
+      const { search, uc } = createWithAI([
+        { content: '["Alice", "Bob"]' },
+        { content: 'AI answer' },
+      ]);
+
+      await uc.execute({ ...defaultRequest, question: 'Tell me about Alice and Bob' });
+
+      const searchCall = (search.search as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(searchCall[0]).toBe('Alice Bob');
+    });
+
+    it('키워드에 공백/빈 문자열이 있으면 필터링한다', async () => {
+      const { search, uc } = createWithAI([
+        { content: '{"keywords": ["  valid  ", "", "  ", "keyword"]}' },
+        { content: 'AI answer' },
+      ]);
+
+      await uc.execute({ ...defaultRequest, question: 'test query' });
+
+      const searchCall = (search.search as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(searchCall[0]).toBe('valid keyword');
+    });
+
+    it('키워드가 5개 초과면 상위 5개만 사용한다', async () => {
+      const { search, uc } = createWithAI([
+        { content: '{"keywords": ["a", "b", "c", "d", "e", "f", "g"]}' },
+        { content: 'AI answer' },
+      ]);
+
+      await uc.execute({ ...defaultRequest, question: 'test' });
+
+      const searchCall = (search.search as ReturnType<typeof vi.fn>).mock.calls[0];
+      const words = (searchCall[0] as string).split(' ');
+      expect(words).toHaveLength(5);
+      expect(words).toEqual(['a', 'b', 'c', 'd', 'e']);
+    });
+
+    it('AI가 malformed JSON을 반환하면 particle strip fallback으로 동작한다', async () => {
+      const { search, uc } = createWithAI([
+        { content: 'not valid json' },
+        { content: 'AI answer' },
+      ]);
+
+      await uc.execute(defaultRequest);
+
+      const searchCall = (search.search as ReturnType<typeof vi.fn>).mock.calls[0];
+      const query = searchCall[0] as string;
+      expect(query).toContain('윤기범');
+    });
+
+    it('AI가 빈 배열을 반환하면 particle strip fallback으로 동작한다', async () => {
+      const { search, uc } = createWithAI([
+        { content: '{"keywords": []}' },
+        { content: 'AI answer' },
+      ]);
+
+      await uc.execute(defaultRequest);
+
+      const searchCall = (search.search as ReturnType<typeof vi.fn>).mock.calls[0];
+      const query = searchCall[0] as string;
+      expect(query).toContain('윤기범');
+    });
+
+    it('AI 호출이 실패하면 particle strip fallback으로 동작한다', async () => {
+      const ai = createMockAI({
+        callCompletion: vi.fn()
+          .mockRejectedValueOnce(new Error('API error'))
+          .mockResolvedValue({
+            content: 'AI answer',
+            tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30, estimatedCostUsd: 0 },
+            finishReason: 'stop' as const,
+          }),
+      });
+      const search = createMockSearch();
+      const uc = createUseCase({ ai, search });
+
+      await uc.execute(defaultRequest);
+
+      const searchCall = (search.search as ReturnType<typeof vi.fn>).mock.calls[0];
+      const query = searchCall[0] as string;
+      expect(query).toContain('윤기범');
+    });
+
+    it('AI가 숫자 배열을 반환하면 fallback으로 동작한다', async () => {
+      const { search, uc } = createWithAI([
+        { content: '{"keywords": [1, 2, 3]}' },
+        { content: 'AI answer' },
+      ]);
+
+      await uc.execute(defaultRequest);
+
+      const searchCall = (search.search as ReturnType<typeof vi.fn>).mock.calls[0];
+      const query = searchCall[0] as string;
+      expect(query).toContain('윤기범');
     });
   });
 

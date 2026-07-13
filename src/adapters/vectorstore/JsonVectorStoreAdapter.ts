@@ -3,6 +3,7 @@ import { VaultAccessPort } from '../../application/ports/VaultAccessPort';
 import { NotePath, createNotePath } from '../../domain/values/NotePath';
 
 const EMBEDDINGS_PATH = '.knowledge-maintenance/embeddings.json';
+const SCHEMA_VERSION = 1;
 
 interface StoredEntry {
   notePath: string;
@@ -10,9 +11,21 @@ interface StoredEntry {
   vector: string; // base64-encoded Float32Array
 }
 
+export interface VectorStoreMeta {
+  readonly provider: string;
+  readonly dimension: number;
+  readonly version: number;
+}
+
+interface StoredData {
+  meta: VectorStoreMeta;
+  entries: StoredEntry[];
+}
+
 export class JsonVectorStoreAdapter implements VectorStorePort {
   private entries: Map<string, { notePath: NotePath; chunkIndex: number; vector: Float32Array }> = new Map();
   private dirty = false;
+  private meta: VectorStoreMeta | null = null;
 
   constructor(private readonly vault: VaultAccessPort) {}
 
@@ -56,7 +69,12 @@ export class JsonVectorStoreAdapter implements VectorStorePort {
       });
     }
 
-    await this.vault.writeFileRaw(EMBEDDINGS_PATH, JSON.stringify(stored));
+    const data: StoredData = {
+      meta: this.meta ?? { provider: 'unknown', dimension: 0, version: SCHEMA_VERSION },
+      entries: stored,
+    };
+
+    await this.vault.writeFileRaw(EMBEDDINGS_PATH, JSON.stringify(data));
     this.dirty = false;
   }
 
@@ -65,25 +83,73 @@ export class JsonVectorStoreAdapter implements VectorStorePort {
     if (!raw) return;
 
     try {
-      const stored: StoredEntry[] = JSON.parse(raw);
-      this.entries.clear();
-      for (const item of stored) {
+      const parsed: unknown = JSON.parse(raw);
+
+      let rawEntries: unknown[];
+      let loadedMeta: VectorStoreMeta | null = null;
+
+      if (Array.isArray(parsed)) {
+        rawEntries = parsed;
+      } else if (parsed !== null && typeof parsed === 'object' && Array.isArray((parsed as StoredData).entries)) {
+        const data = parsed as StoredData;
+        rawEntries = data.entries;
+        loadedMeta = data.meta ?? null;
+      } else {
+        return;
+      }
+
+      const temp = new Map<string, { notePath: NotePath; chunkIndex: number; vector: Float32Array }>();
+      for (const item of rawEntries) {
+        if (!this.isStoredEntry(item)) continue;
         const key = `${item.notePath}::${item.chunkIndex}`;
-        this.entries.set(key, {
+        temp.set(key, {
           notePath: createNotePath(item.notePath),
           chunkIndex: item.chunkIndex,
           vector: this.base64ToFloat32(item.vector),
         });
       }
+
+      this.entries = temp;
+      this.meta = loadedMeta;
     } catch {
-      // Corrupted — start fresh
+      // Corrupted — keep existing state
     }
+  }
+
+  isEmpty(): boolean {
+    return this.entries.size === 0;
+  }
+
+  getMeta(): VectorStoreMeta | null {
+    return this.meta;
+  }
+
+  setMeta(meta: Pick<VectorStoreMeta, 'provider' | 'dimension'>): void {
+    this.meta = { ...meta, version: SCHEMA_VERSION };
+    this.dirty = true;
+  }
+
+  isCompatible(provider: string, dimension: number): boolean {
+    if (!this.meta) return false;
+    return this.meta.provider === provider && this.meta.dimension === dimension;
+  }
+
+  async clearEntries(): Promise<void> {
+    this.entries.clear();
+    this.dirty = true;
   }
 
   async clear(): Promise<void> {
     this.entries.clear();
+    this.meta = null;
     this.dirty = true;
     await this.flush();
+  }
+
+  private isStoredEntry(v: unknown): v is StoredEntry {
+    if (v === null || typeof v !== 'object') return false;
+    const o = v as Record<string, unknown>;
+    return typeof o.notePath === 'string' && typeof o.chunkIndex === 'number' && typeof o.vector === 'string';
   }
 
   private cosineSimilarity(a: Float32Array, b: Float32Array): number {
