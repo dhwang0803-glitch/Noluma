@@ -423,7 +423,13 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         new InboxProgressModal(
           this.app,
           this.runInboxProcessUseCase,
-          (v) => { this.isInboxProcessing = v; },
+          (v) => {
+            this.isInboxProcessing = v;
+            if (!v && this.hasQueuedInboxEvents) {
+              this.hasQueuedInboxEvents = false;
+              this.runAutoInboxProcess();
+            }
+          },
         ).open();
       },
     });
@@ -595,12 +601,15 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private async runAutoInboxProcess(): Promise<void> {
     if (this.isInboxProcessing) return;
 
+    const MAX_RERUN = 3;
     this.isInboxProcessing = true;
     try {
+      let runs = 0;
       do {
         this.hasQueuedInboxEvents = false;
         await this.runInboxProcessUseCase.execute();
-      } while (this.hasQueuedInboxEvents);
+        runs++;
+      } while (this.hasQueuedInboxEvents && runs < MAX_RERUN);
     } catch (err) {
       console.error('Knowledge Maintenance: auto inbox processing failed', err);
     } finally {

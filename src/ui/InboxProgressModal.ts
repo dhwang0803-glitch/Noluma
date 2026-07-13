@@ -133,7 +133,7 @@ export class InboxProgressModal extends Modal {
     contentEl.empty();
     contentEl.addClass('knowledge-maintenance-inbox-progress');
 
-    contentEl.createEl('h2', { text: t('inboxProgress.cancelledTitle') });
+    contentEl.createEl('h2', { text: t('inboxProgress.errorTitle') });
     contentEl.createEl('p', {
       text: localizeError(err),
       cls: 'maintenance-result-error',

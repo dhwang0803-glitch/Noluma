@@ -179,6 +179,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'inboxProgress.close': '닫기',
   'inboxProgress.completeTitle': 'Inbox 처리 완료',
   'inboxProgress.cancelledTitle': 'Inbox 처리 취소됨',
+  'inboxProgress.errorTitle': 'Inbox 처리 실패',
   'inboxProgress.processed': '처리됨: {{count}}',
   'inboxProgress.skipped': '건너뜀: {{count}}',
   'inboxProgress.errors': '오류: {{count}}',

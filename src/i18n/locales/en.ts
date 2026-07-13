@@ -177,6 +177,7 @@ const en = {
   'inboxProgress.close': 'Close',
   'inboxProgress.completeTitle': 'Inbox Processing Complete',
   'inboxProgress.cancelledTitle': 'Inbox Processing Cancelled',
+  'inboxProgress.errorTitle': 'Inbox Processing Failed',
   'inboxProgress.processed': 'Processed: {{count}}',
   'inboxProgress.skipped': 'Skipped: {{count}}',
   'inboxProgress.errors': 'Errors: {{count}}',
