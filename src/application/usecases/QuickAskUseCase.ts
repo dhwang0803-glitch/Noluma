@@ -82,7 +82,7 @@ export class QuickAskUseCase {
 
     // 5. Save note
     const truncated = aiResponse.finishReason === 'length';
-    const allNotes = referencedNotes.length > 0 ? await this.vault.listNotes() : [];
+    const allNotes = await this.vault.listNotes();
     const content = this.formatAnswer(request.question, aiResponse.content, [...suggestedTags], referencedNotes, truncated, allNotes);
     const savedPath = await this.saveNote.execute({
       content,
@@ -246,7 +246,20 @@ export class QuickAskUseCase {
     allNotes: ReadonlyArray<NotePath>,
   ): string {
     // Strip markdown URL links from AI response to prevent broken links in vault
-    const cleanedAnswer = answer.replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1');
+    let cleanedAnswer = answer.replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1');
+
+    // Strip wikilinks that don't exist in vault (AI hallucinated/modified names)
+    const noteBasenames = new Set(
+      allNotes.map(n => (n as string).split('/').pop()?.replace(/\.md$/, '') ?? ''),
+    );
+    cleanedAnswer = cleanedAnswer.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_match, target: string, alias?: string) => {
+      const withoutFragment = target.trim().split('#')[0];
+      const basename = withoutFragment.split('/').pop()?.replace(/\.md$/, '') ?? '';
+      if (noteBasenames.has(basename)) {
+        return _match;
+      }
+      return alias ?? target.trim();
+    });
     let result = `## Question\n\n${question}\n\n## Answer\n\n${cleanedAnswer}`;
 
     if (truncated) {

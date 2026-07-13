@@ -752,5 +752,71 @@ describe('QuickAskUseCase', () => {
       const savedContent = writeCall[1] as string;
       expect(savedContent).toContain('[[a/notes/hooks]]');
     });
+
+    it('AI 응답 본문의 vault에 없는 wikilink는 brackets를 제거한다', async () => {
+      const searchResults: SearchResult[] = [
+        makeSearchResult('wiki/이도진.md', 'character info'),
+      ];
+      const search = createMockSearch(searchResults);
+      const ai = createMockAI({
+        callCompletion: vi.fn().mockResolvedValue({
+          content: '[[이도진]]은 중요한 인물이며, [[도진]]에게 정보를 공유합니다. [[윤기범]]도 관련됩니다.',
+          tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30, estimatedCostUsd: 0.001 },
+          finishReason: 'stop' as const,
+        }),
+      });
+      const vault = createMockVault({
+        readNote: vi.fn().mockResolvedValue(createTestNote({ metadata: createTestMetadata() })),
+        listNotes: vi.fn().mockResolvedValue([
+          np('wiki/이도진.md'),
+          np('wiki/윤기범.md'),
+        ]),
+      });
+
+      const uc = createUseCase({ vault, search, ai });
+      await uc.execute({
+        question: 'test',
+        maxContextChunks: 5,
+        saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
+        autoTag: false,
+        autoLink: true,
+      });
+
+      const writeCall = (vault.writeNote as ReturnType<typeof vi.fn>).mock.calls[0];
+      const savedContent = writeCall[1] as string;
+      expect(savedContent).toContain('[[이도진]]');
+      expect(savedContent).toContain('[[윤기범]]');
+      expect(savedContent).not.toContain('[[도진]]');
+      expect(savedContent).toContain('도진에게');
+    });
+
+    it('[[link|alias]] 형식의 vault에 없는 wikilink는 alias 텍스트만 남긴다', async () => {
+      const ai = createMockAI({
+        callCompletion: vi.fn().mockResolvedValue({
+          content: '[[존재하는노트|표시텍스트]]와 [[없는노트|다른텍스트]]를 참조',
+          tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30, estimatedCostUsd: 0.001 },
+          finishReason: 'stop' as const,
+        }),
+      });
+      const vault = createMockVault({
+        readNote: vi.fn().mockResolvedValue(createTestNote({ metadata: createTestMetadata() })),
+        listNotes: vi.fn().mockResolvedValue([np('존재하는노트.md')]),
+      });
+
+      const uc = createUseCase({ vault, ai });
+      await uc.execute({
+        question: 'test',
+        maxContextChunks: 5,
+        saveTarget: { kind: 'new-note', title: 'Q' as unknown as NoteTitle },
+        autoTag: false,
+        autoLink: false,
+      });
+
+      const writeCall = (vault.writeNote as ReturnType<typeof vi.fn>).mock.calls[0];
+      const savedContent = writeCall[1] as string;
+      expect(savedContent).toContain('[[존재하는노트|표시텍스트]]');
+      expect(savedContent).not.toContain('[[없는노트');
+      expect(savedContent).toContain('다른텍스트');
+    });
   });
 });
