@@ -85,28 +85,34 @@ export class JsonVectorStoreAdapter implements VectorStorePort {
     try {
       const parsed: unknown = JSON.parse(raw);
 
-      let entries: StoredEntry[];
+      let rawEntries: unknown[];
+      let loadedMeta: VectorStoreMeta | null = null;
+
       if (Array.isArray(parsed)) {
-        // Legacy format: plain array without metadata
-        entries = parsed as StoredEntry[];
-        this.meta = null;
-      } else {
+        rawEntries = parsed;
+      } else if (parsed !== null && typeof parsed === 'object' && Array.isArray((parsed as StoredData).entries)) {
         const data = parsed as StoredData;
-        entries = data.entries;
-        this.meta = data.meta ?? null;
+        rawEntries = data.entries;
+        loadedMeta = data.meta ?? null;
+      } else {
+        return;
       }
 
-      this.entries.clear();
-      for (const item of entries) {
+      const temp = new Map<string, { notePath: NotePath; chunkIndex: number; vector: Float32Array }>();
+      for (const item of rawEntries) {
+        if (!this.isStoredEntry(item)) continue;
         const key = `${item.notePath}::${item.chunkIndex}`;
-        this.entries.set(key, {
+        temp.set(key, {
           notePath: createNotePath(item.notePath),
           chunkIndex: item.chunkIndex,
           vector: this.base64ToFloat32(item.vector),
         });
       }
+
+      this.entries = temp;
+      this.meta = loadedMeta;
     } catch {
-      // Corrupted — start fresh
+      // Corrupted — keep existing state
     }
   }
 
@@ -138,6 +144,12 @@ export class JsonVectorStoreAdapter implements VectorStorePort {
     this.meta = null;
     this.dirty = true;
     await this.flush();
+  }
+
+  private isStoredEntry(v: unknown): v is StoredEntry {
+    if (v === null || typeof v !== 'object') return false;
+    const o = v as Record<string, unknown>;
+    return typeof o.notePath === 'string' && typeof o.chunkIndex === 'number' && typeof o.vector === 'string';
   }
 
   private cosineSimilarity(a: Float32Array, b: Float32Array): number {
