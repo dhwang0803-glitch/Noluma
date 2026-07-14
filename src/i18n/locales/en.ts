@@ -30,6 +30,7 @@ const en = {
   'notice.batchResult': '{{success}} applied, {{failed}} failed',
   'notice.batchComplete': '{{count}} applied',
   'notice.batchDismissed': '{{count}} dismissed',
+  'notice.batchRestored': '{{count}} restored',
 
   // ─── Maintenance Result View ───
   'maintenance.viewTitle': 'Vault Maintenance',
@@ -44,6 +45,7 @@ const en = {
   'maintenance.lastScan': 'Last scan: {{time}}',
   'maintenance.vaultClean': 'Vault is in good shape.',
   'maintenance.applied': 'Applied',
+  'maintenance.restored': 'Restored',
 
   // Issue type labels
   'issue.emptyNotes': 'Empty Notes ({{count}})',
@@ -91,6 +93,7 @@ const en = {
   'batch.selectedArchive': 'Archive Selected',
   'batch.selectedDelete': 'Delete Selected',
   'batch.selectedDismiss': 'Dismiss Selected',
+  'batch.selectedRestore': 'Restore Selected',
   'batch.selectedRemoveLinks': 'Remove Selected Links',
   'batch.selectedApplyTags': 'Apply Tags to Selected',
 

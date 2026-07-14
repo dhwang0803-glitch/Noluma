@@ -24,11 +24,8 @@ interface BatchEntry {
   setting: Setting;
   issueType: MaintenanceIssueType;
   identifier: string;
+  historyEntryId?: string;
 }
-
-type UndoRecord =
-  | { type: 'dismiss'; dismissKey: string }
-  | { type: 'apply'; historyEntryId: string };
 
 interface FilterState {
   issueTypes: Set<MaintenanceIssueType>;
@@ -39,10 +36,7 @@ interface FilterState {
 export class MaintenanceResultView extends ItemView {
   private currentPlan: MaintenancePlan | null = null;
   private scanInProgress = false;
-  private undoInProgress = false;
   private readonly dismissedIds = new Set<string>();
-  private readonly undoStack: UndoRecord[] = [];
-  private readonly redoStack: UndoRecord[] = [];
   private filterState: FilterState = {
     issueTypes: new Set(ALL_ISSUE_TYPES),
     severityLevels: new Set<SeverityLevel>(['critical', 'warning', 'info']),
@@ -159,18 +153,6 @@ export class MaintenanceResultView extends ItemView {
     new Setting(contentEl)
       .setName(t('maintenance.rescan'))
       .setDesc(t('maintenance.lastScan', { time: formatDate(plan.timestamp as number) }))
-      .addExtraButton(btn => btn
-        .setIcon('undo')
-        .setTooltip(t('undo.tooltip'))
-        .setDisabled(this.undoStack.length === 0)
-        .onClick(() => this.undo()),
-      )
-      .addExtraButton(btn => btn
-        .setIcon('redo')
-        .setTooltip(t('redo.tooltip'))
-        .setDisabled(this.redoStack.length === 0)
-        .onClick(() => this.redo()),
-      )
       .addButton(btn => btn
         .setButtonText(t('maintenance.rescan'))
         .onClick(() => this.triggerScan()),
@@ -620,6 +602,12 @@ export class MaintenanceResultView extends ItemView {
       .setButtonText(t('batch.selectedDismiss'))
       .onClick(() => this.dismissBatch(entries)),
     );
+
+    batchSetting.addButton(btn => btn
+      .setButtonText(t('batch.selectedRestore'))
+      .setWarning()
+      .onClick(() => this.restoreBatch(entries)),
+    );
   }
 
   private prependCheckbox(setting: Setting): HTMLInputElement {
@@ -640,10 +628,7 @@ export class MaintenanceResultView extends ItemView {
           issueType: issueType as MaintenanceIssueType,
           identifier,
         });
-        const dismissKey = `${issueType}:${identifier}`;
-        this.dismissedIds.add(dismissKey);
-        this.undoStack.push({ type: 'dismiss', dismissKey });
-        this.redoStack.length = 0;
+        this.dismissedIds.add(`${issueType}:${identifier}`);
         new Notice(t('notice.dismissed'));
         this.render();
       }),
@@ -665,19 +650,36 @@ export class MaintenanceResultView extends ItemView {
         new Notice(t('notice.noChangeNeeded'));
         return;
       }
-      if (result.undoable) {
-        this.undoStack.push({ type: 'apply', historyEntryId: result.entryId });
-        this.redoStack.length = 0;
-      }
       setting.settingEl.addClass('maintenance-result-applied');
       setting.settingEl.querySelectorAll('button').forEach(btn => btn.remove());
       const cb = setting.settingEl.querySelector('.maintenance-batch-checkbox');
       if (cb) cb.remove();
+      if (result.undoable) {
+        this.addRestoreButton(setting, result.entryId);
+      }
       setting.setDesc(t('maintenance.applied'));
       new Notice(t('notice.actionApplied'));
     } catch (err) {
       new Notice(t('notice.actionFailed', { error: localizeError(err) }));
     }
+  }
+
+  private addRestoreButton(setting: Setting, historyEntryId: string): void {
+    setting.addButton(btn => btn
+      .setButtonText(t('log.undo'))
+      .setWarning()
+      .onClick(async () => {
+        try {
+          await this.historyPort.undo(historyEntryId);
+          setting.settingEl.removeClass('maintenance-result-applied');
+          setting.settingEl.querySelectorAll('button').forEach(b => b.remove());
+          setting.setDesc(t('maintenance.restored'));
+          new Notice(t('undo.success'));
+        } catch (err) {
+          new Notice(t('undo.failed', { error: localizeError(err) }));
+        }
+      }),
+    );
   }
 
   private async executeBatch(entries: BatchEntry[]): Promise<void> {
@@ -690,8 +692,6 @@ export class MaintenanceResultView extends ItemView {
     const archiveFolder = await this.getArchiveFolder();
     let success = 0;
     let failed = 0;
-    const applied = new Set<BatchEntry>();
-    this.redoStack.length = 0;
     for (const entry of selected) {
       try {
         let action = entry.action;
@@ -703,21 +703,19 @@ export class MaintenanceResultView extends ItemView {
           failed++;
           continue;
         }
-        if (result.undoable) {
-          this.undoStack.push({ type: 'apply', historyEntryId: result.entryId });
-        }
         entry.setting.settingEl.addClass('maintenance-result-applied');
         entry.setting.settingEl.querySelectorAll('button').forEach(btn => btn.remove());
-        entry.checkbox.remove();
+        entry.checkbox.checked = false;
+        entry.checkbox.disabled = true;
+        if (result.undoable) {
+          entry.historyEntryId = result.entryId;
+          this.addRestoreButton(entry.setting, result.entryId);
+        }
         entry.setting.setDesc(t('maintenance.applied'));
-        applied.add(entry);
         success++;
       } catch {
         failed++;
       }
-    }
-    for (let i = entries.length - 1; i >= 0; i--) {
-      if (applied.has(entries[i])) entries.splice(i, 1);
     }
     const msg = failed > 0
       ? t('notice.batchResult', { success, failed })
@@ -731,10 +729,8 @@ export class MaintenanceResultView extends ItemView {
       new Notice(t('notice.noSelection'));
       return;
     }
-    this.redoStack.length = 0;
     let success = 0;
     let failed = 0;
-    const dismissed = new Set<BatchEntry>();
     for (const entry of selected) {
       try {
         await this.applyAction.execute({
@@ -742,17 +738,11 @@ export class MaintenanceResultView extends ItemView {
           issueType: entry.issueType,
           identifier: entry.identifier,
         });
-        const dismissKey = `${entry.issueType}:${entry.identifier}`;
-        this.dismissedIds.add(dismissKey);
-        this.undoStack.push({ type: 'dismiss', dismissKey });
-        dismissed.add(entry);
+        this.dismissedIds.add(`${entry.issueType}:${entry.identifier}`);
         success++;
       } catch {
         failed++;
       }
-    }
-    for (let i = entries.length - 1; i >= 0; i--) {
-      if (dismissed.has(entries[i])) entries.splice(i, 1);
     }
     const msg = failed > 0
       ? t('notice.batchResult', { success, failed })
@@ -761,41 +751,32 @@ export class MaintenanceResultView extends ItemView {
     if (success > 0) this.render();
   }
 
-  private async undo(): Promise<void> {
-    if (this.undoInProgress) return;
-    const record = this.undoStack.pop();
-    if (!record) return;
-
-    if (record.type === 'dismiss') {
-      this.dismissedIds.delete(record.dismissKey);
-      this.redoStack.push(record);
-      new Notice(t('undo.success'));
-      this.render();
-    } else if (record.type === 'apply') {
-      this.undoInProgress = true;
+  private async restoreBatch(entries: BatchEntry[]): Promise<void> {
+    const restorable = entries.filter(e => e.checkbox.checked && e.historyEntryId);
+    if (restorable.length === 0) {
+      new Notice(t('notice.noSelection'));
+      return;
+    }
+    let success = 0;
+    let failed = 0;
+    for (const entry of restorable) {
       try {
-        await this.historyPort.undo(record.historyEntryId);
-        new Notice(t('undo.success'));
-        this.render();
-      } catch (err) {
-        this.undoStack.push(record);
-        new Notice(t('undo.failed', { error: localizeError(err) }));
-      } finally {
-        this.undoInProgress = false;
+        await this.historyPort.undo(entry.historyEntryId!);
+        entry.setting.settingEl.removeClass('maintenance-result-applied');
+        entry.setting.settingEl.querySelectorAll('button').forEach(b => b.remove());
+        entry.setting.setDesc(t('maintenance.restored'));
+        entry.checkbox.checked = false;
+        entry.checkbox.disabled = true;
+        entry.historyEntryId = undefined;
+        success++;
+      } catch {
+        failed++;
       }
     }
-  }
-
-  private redo(): void {
-    const record = this.redoStack.pop();
-    if (!record) return;
-
-    if (record.type === 'dismiss') {
-      this.dismissedIds.add(record.dismissKey);
-      this.undoStack.push(record);
-      new Notice(t('redo.success'));
-      this.render();
-    }
+    const msg = failed > 0
+      ? t('notice.batchResult', { success, failed })
+      : t('notice.batchRestored', { count: success });
+    new Notice(msg);
   }
 
   private async getArchiveFolder(): Promise<string> {
