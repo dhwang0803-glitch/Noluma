@@ -531,7 +531,7 @@ export class MaintenanceResultView extends ItemView {
     this.renderBatchControls(
       container, entries, t('batch.selectedArchive'), false,
       t('batch.selectedDelete'),
-      (e) => this.executeBatch(e),
+      (e) => this.executeBatchWithAction(e, { kind: 'delete-orphan' }),
       true,
     );
 
