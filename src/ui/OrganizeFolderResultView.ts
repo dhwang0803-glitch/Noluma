@@ -375,10 +375,8 @@ export class OrganizeFolderResultView extends ItemView {
       this.renderLinkSection(detailsEl, entry);
     }
 
-    // Move section
-    if (result.suggestedMoveTarget) {
-      this.renderMoveSection(detailsEl, entry);
-    }
+    // Move section (always shown — "keep current" when no move suggested)
+    this.renderMoveSection(detailsEl, entry);
 
     // Action buttons
     if (entry.status === 'applied') {
@@ -431,7 +429,12 @@ export class OrganizeFolderResultView extends ItemView {
     const section = container.createDiv({ cls: 'organize-folder-section' });
     section.createEl('span', { text: t('organizeFolder.moveSection'), cls: 'organize-folder-section-label' });
 
-    if (entry.status === 'pending' && !this.autoApplyMode) {
+    if (!entry.result.suggestedMoveTarget) {
+      section.createEl('span', {
+        text: t('organize.keepCurrent'),
+        cls: 'organize-folder-keep-current',
+      });
+    } else if (entry.status === 'pending' && !this.autoApplyMode) {
       section.createEl('span', {
         text: `→ ${entry.selectedFolder}/`,
         cls: 'organize-folder-move-target',
