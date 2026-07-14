@@ -12,6 +12,23 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.4.9] - 2026-07-15
+
+### Fixed
+- **취소선 범위 수정**: `text-decoration: line-through`를 텍스트에만 적용, 복원 버튼은 제외.
+- **복원 버튼 빨간색 복원**: `.setWarning()` 추가로 시각적 구분 강화.
+- **Archive 복원 구현**: `metadata.archivedTo`에 이동 경로 기록 → `moveNote()` 역복원 지원.
+- **Dismiss 복구 지원**: 즉시 숨김 → 취소선+복원 버튼으로 변경, 실수로 dismiss한 항목 복구 가능.
+- **Vault root 폴더 정규화**: Organize Folder에서 root(`/`) 선택 시 전체 vault 대상으로 동작 (Codex P2).
+
+### Changed
+- **Process Inbox → Organize Folder**: 커맨드 팔레트에서 폴더 선택 모달(`FuzzySuggestModal`)로 어떤 폴더든 AI 배치 정리 가능. 폴더 우클릭 컨텍스트 메뉴에서도 실행 가능.
+
+### Removed
+- **Create Note 버튼 제거**: 깨진 링크 섹션에서 빈 노트 생성 버튼 제거 (empty note로 재탐지되는 자기모순 해소).
+
+---
+
 ## [0.4.8] - 2026-07-14
 
 ### Fixed
