@@ -12,6 +12,18 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.4.8] - 2026-07-14
+
+### Fixed
+- **Restore 후 Applied 상태 유실**: 개별/배치 복원 후 re-render 시 Applied 상태가 초기화되던 버그 수정 (`appliedEntries` Map으로 상태 추적).
+- **Restore 버튼 `.setWarning()` 제거**: 복원 버튼의 빨간 경고 스타일을 일반 스타일로 변경 (UX 개선).
+- **Auto Maintenance가 Restore 덮어쓰기**: 복원 중 자동 스캔이 View를 덮어쓰던 버그 수정 (`restoreInProgress` 플래그 도입).
+- **Smart Scheduling 첫 실행 건너뛰기**: 플러그인 로드 후 첫 자동 스캔이 Smart Scheduling에 의해 건너뛰어지던 버그 수정 (`firstRun` 플래그).
+- **Undo 후 재-Undo 방지**: History 복원 후 원본 엔트리의 `previousContent`를 제거하여 이중 복원 방지.
+- **스캔 시작 전 복원 중 체크 추가**: 자동 스캔이 `execute()` 전에 `isRestoreInProgress()`를 확인하도록 수정 (Codex 교차 검증 P2 수정).
+
+---
+
 ## [0.4.7] - 2026-07-14
 
 ### Fixed
