@@ -9,7 +9,6 @@ const en = {
   'command.runMaintenance': 'Run Maintenance',
   'command.organizeFolder': 'Organize Folder',
   'command.openLog': 'Open Maintenance Log',
-  'command.openInbox': 'Open Inbox Status',
   'command.scanFolder': 'Scan this folder for maintenance',
 
   // ─── Notices ───
@@ -127,12 +126,28 @@ const en = {
   'log.refresh': 'Refresh',
   'log.undo': 'Restore',
 
-  // ─── Inbox Status View ───
-  'inbox.viewTitle': 'Inbox Status',
-  'inbox.title': 'Inbox Processing Status',
-  'inbox.total': 'Total notes: {{count}}',
-  'inbox.unprocessed': 'Unprocessed: {{count}}',
-  'inbox.processed': 'Processed: {{count}}',
+  // ─── Organize Folder Result View ───
+  'organizeFolder.viewTitle': 'Organize Folder',
+  'organizeFolder.scanning': 'Analyzing notes with AI...',
+  'organizeFolder.scanFailed': 'Organizing failed: {{error}}',
+  'organizeFolder.startScan': 'Start Organizing',
+  'organizeFolder.selectFolder': 'Select a folder to organize',
+  'organizeFolder.rescan': 'Re-organize',
+  'organizeFolder.summary': '{{processed}} processed, {{skipped}} skipped, {{errors}} errors',
+  'organizeFolder.noResults': 'No notes to organize in this folder.',
+  'organizeFolder.lowConfidence': 'Low Confidence',
+  'organizeFolder.category': 'Category: {{category}}',
+  'organizeFolder.tagsSection': 'Tags',
+  'organizeFolder.linksSection': 'Links',
+  'organizeFolder.moveSection': 'Move to',
+  'organizeFolder.applyNote': 'Apply',
+  'organizeFolder.applySelected': 'Apply Selected',
+  'organizeFolder.skipSelected': 'Skip Selected',
+  'organizeFolder.undoNote': 'Undo',
+  'organizeFolder.applied': 'Applied',
+  'organizeFolder.skipped': 'Skipped',
+  'organizeFolder.noChanges': 'No changes suggested',
+  'organizeFolder.tokenTotal': 'Total tokens: {{count}} · Cost: ${{cost}}',
 
   // ─── Quick Ask Modal ───
   'quickAsk.title': 'Quick Ask',

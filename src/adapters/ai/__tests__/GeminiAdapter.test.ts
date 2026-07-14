@@ -185,6 +185,37 @@ describe('GeminiAdapter', () => {
       expect(result.suggestedTags).toEqual(['#physics']);
       expect(result.suggestedFolder).toBe('Science');
     });
+
+    it('per-tag confidence 형식을 파싱하고 0.7 미만을 필터링한다', async () => {
+      const aiJson = {
+        tags: [
+          { tag: '#physics', confidence: 0.95 },
+          { tag: '#weak-match', confidence: 0.3 },
+          { tag: '#quantum', confidence: 0.82 },
+        ],
+        folder: 'Science',
+        summary: 'Quantum note',
+        confidence: 0.88,
+      };
+      mockRequestUrl.mockResolvedValue({
+        status: 200,
+        json: {
+          candidates: [{ content: { parts: [{ text: JSON.stringify(aiJson) }] }, finishReason: 'STOP' }],
+          usageMetadata: { promptTokenCount: 20, candidatesTokenCount: 15, totalTokenCount: 35 },
+        },
+        headers: {},
+        text: '',
+        arrayBuffer: new ArrayBuffer(0),
+      });
+
+      const result = await adapter.callClassification({
+        text: 'Quantum mechanics basics',
+        task: 'classify-and-tag',
+      });
+
+      expect(result.suggestedTags).toEqual(['#physics', '#quantum']);
+      expect(result.suggestedTags).not.toContain('#weak-match');
+    });
   });
 
   describe('callEmbedding', () => {

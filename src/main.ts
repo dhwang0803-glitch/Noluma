@@ -29,7 +29,7 @@ import { QuickAskModal } from './ui/QuickAskModal';
 import { OrganizeResultModal, OrganizeApplyActions, OrganizeModalContext } from './ui/OrganizeResultModal';
 import { MaintenanceLogView, MAINTENANCE_LOG_VIEW_TYPE } from './ui/MaintenanceLogView';
 import { MaintenanceResultView, MAINTENANCE_RESULT_VIEW_TYPE } from './ui/MaintenanceResultView';
-import { InboxStatusView, INBOX_STATUS_VIEW_TYPE } from './ui/InboxStatusView';
+import { OrganizeFolderResultView, ORGANIZE_FOLDER_VIEW_TYPE } from './ui/OrganizeFolderResultView';
 import { InboxProgressModal } from './ui/InboxProgressModal';
 import { FolderSuggestModal } from './ui/FolderSuggestModal';
 import { PluginSettingTab } from './ui/PluginSettingTab';
@@ -320,8 +320,26 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     );
 
     this.registerView(
-      INBOX_STATUS_VIEW_TYPE,
-      (leaf: WorkspaceLeaf) => new InboxStatusView(leaf, this.vaultAdapter, this.configPort),
+      ORGANIZE_FOLDER_VIEW_TYPE,
+      (leaf: WorkspaceLeaf) => new OrganizeFolderResultView(
+        leaf,
+        this.runInboxProcessUseCase,
+        this.buildOrganizeApplyActions(),
+        this.configPort,
+        this.historyAdapter,
+        this.vaultAdapter,
+        (path: string) => {
+          const file = this.app.vault.getAbstractFileByPath(path);
+          if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
+        },
+        (v: boolean) => {
+          this.isInboxProcessing = v;
+          if (!v && this.hasQueuedInboxEvents) {
+            this.hasQueuedInboxEvents = false;
+            this.runAutoInboxProcess();
+          }
+        },
+      ),
     );
   }
 
@@ -373,38 +391,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         this.organizeNoteUseCase
           .execute(notePath, false)
           .then(async result => {
-            const actions: OrganizeApplyActions = {
-              applyTags: async (path, tags) => {
-                const note = await this.vaultAdapter.readNote(path);
-                if (!note) return;
-                const existing = note.metadata.tags.map(tag => tag as string);
-                const newTags = tags.filter(tag => !existing.includes(tag));
-                if (newTags.length > 0) {
-                  await this.vaultAdapter.updateFrontmatter(path, {
-                    tags: [...existing, ...newTags],
-                  });
-                }
-              },
-              addLinks: async (path, links) => {
-                const note = await this.vaultAdapter.readNote(path);
-                if (!note) return;
-                const linkLines = links.map(link => {
-                  const linkPath = (link as string).replace('.md', '');
-                  return `- [[${linkPath}]]`;
-                });
-                const section = `\n\n## Related Notes\n\n${linkLines.join('\n')}`;
-                await this.vaultAdapter.writeNote(path, note.content + section);
-              },
-              moveNote: async (path, targetFolder) => {
-                const filename = (path as string).split('/').pop() ?? '';
-                const newPath = createNotePath(`${targetFolder}/${filename}`);
-                const existing = await this.vaultAdapter.readNote(newPath);
-                if (existing) {
-                  throw new Error(`Note already exists: ${newPath as string}`);
-                }
-                await this.vaultAdapter.moveNote(path, newPath);
-              },
-            };
+            const actions = this.buildOrganizeApplyActions();
             const allNotes = await this.vaultAdapter.listNotes();
             const folderSet = new Set<string>();
             for (const np of allNotes) {
@@ -439,13 +426,18 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.addCommand({
       id: 'organize-folder',
       name: t('command.organizeFolder'),
-      callback: () => {
+      callback: async () => {
         if (this.isInboxProcessing) {
           new Notice(t('notice.inboxAlreadyRunning'));
           return;
         }
-        new FolderSuggestModal(this.app, (folder) => {
-          this.openOrganizeFolderModal(folder.path);
+        new FolderSuggestModal(this.app, async (folder) => {
+          await this.activateView(ORGANIZE_FOLDER_VIEW_TYPE);
+          const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_FOLDER_VIEW_TYPE);
+          if (leaves.length > 0) {
+            const view = leaves[0].view as OrganizeFolderResultView;
+            view.triggerScan(folder.path);
+          }
         }).open();
       },
     });
@@ -456,11 +448,41 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       callback: () => this.activateView(MAINTENANCE_LOG_VIEW_TYPE),
     });
 
-    this.addCommand({
-      id: 'open-inbox-status',
-      name: t('command.openInbox'),
-      callback: () => this.activateView(INBOX_STATUS_VIEW_TYPE),
-    });
+  }
+
+  private buildOrganizeApplyActions(): OrganizeApplyActions {
+    return {
+      applyTags: async (path, tags) => {
+        const note = await this.vaultAdapter.readNote(path);
+        if (!note) return;
+        const existing = note.metadata.tags.map(tag => tag as string);
+        const newTags = tags.filter(tag => !existing.includes(tag));
+        if (newTags.length > 0) {
+          await this.vaultAdapter.updateFrontmatter(path, {
+            tags: [...existing, ...newTags],
+          });
+        }
+      },
+      addLinks: async (path, links) => {
+        const note = await this.vaultAdapter.readNote(path);
+        if (!note) return;
+        const linkLines = links.map(link => {
+          const linkPath = (link as string).replace('.md', '');
+          return `- [[${linkPath}]]`;
+        });
+        const section = `\n\n## Related Notes\n\n${linkLines.join('\n')}`;
+        await this.vaultAdapter.writeNote(path, note.content + section);
+      },
+      moveNote: async (path, targetFolder) => {
+        const filename = (path as string).split('/').pop() ?? '';
+        const newPath = createNotePath(`${targetFolder}/${filename}`);
+        const existing = await this.vaultAdapter.readNote(newPath);
+        if (existing) {
+          throw new Error(`Note already exists: ${newPath as string}`);
+        }
+        await this.vaultAdapter.moveNote(path, newPath);
+      },
+    };
   }
 
   private registerFolderContextMenu(): void {
@@ -484,7 +506,18 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           item
             .setTitle(t('command.organizeFolder'))
             .setIcon('wand')
-            .onClick(() => this.openOrganizeFolderModal(file.path));
+            .onClick(async () => {
+              if (this.isInboxProcessing) {
+                new Notice(t('notice.inboxAlreadyRunning'));
+                return;
+              }
+              await this.activateView(ORGANIZE_FOLDER_VIEW_TYPE);
+              const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_FOLDER_VIEW_TYPE);
+              if (leaves.length > 0) {
+                const view = leaves[0].view as OrganizeFolderResultView;
+                view.triggerScan(file.path);
+              }
+            });
         });
       }),
     );

@@ -8,6 +8,7 @@ import { AIProviderPort } from '../ports/AIProviderPort';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { HistoryPort } from '../ports/HistoryPort';
 import { ConfigPort } from '../ports/ConfigPort';
+import { PromptTemplates } from '../PromptTemplates';
 
 export class OrganizeNoteUseCase {
   constructor(
@@ -68,6 +69,7 @@ export class OrganizeNoteUseCase {
     if (confidenceThreshold > 0 && classification.confidence < confidenceThreshold) {
       return {
         noteId: note.id,
+        notePath,
         classifiedCategory: classification.category,
         addedTags: [],
         suggestedLinks: [],
@@ -83,8 +85,8 @@ export class OrganizeNoteUseCase {
     const newSuggestedTags = classification.suggestedTags
       .filter(t => !currentTagsLower.has(t.toLowerCase()) && !currentTagsLower.has(`#${t}`.toLowerCase()));
 
-    // Link suggestions — based on other note titles and content
-    const suggestedLinks = this.findRelevantLinks(note.content, allNotes, notePath);
+    // Link suggestions — AI-based with vault existence validation
+    const suggestedLinks = await this.suggestLinksWithAI(redactedContent, allNotes, notePath);
 
     // Folder suggestion — prefer existing folders, allow new folder creation
     const currentFolder = (notePath as string).includes('/')
@@ -103,8 +105,11 @@ export class OrganizeNoteUseCase {
 
     const isNewFolder = suggestedFolder ? !folderSet.has(suggestedFolder) : false;
 
+    let historyEntryId: string | undefined;
+
     const result: OrganizeResult = {
       noteId: note.id,
+      notePath,
       classifiedCategory: classification.category,
       addedTags: uniqueSanitized.map(t => createTagName(t)),
       suggestedLinks,
@@ -114,43 +119,92 @@ export class OrganizeNoteUseCase {
       tokenUsage: classification.tokenUsage,
     };
 
-    // Apply changes if auto-apply mode is enabled
     if (autoApply) {
-      await this.applyOrganization(notePath, result);
+      historyEntryId = await this.applyOrganization(notePath, result);
     }
 
-    return result;
+    return historyEntryId ? { ...result, historyEntryId } : result;
   }
 
-  private findRelevantLinks(
+  private async suggestLinksWithAI(
     content: string,
     allNotes: ReadonlyArray<NotePath>,
     excludePath: NotePath,
-  ): NotePath[] {
-    const contentLower = content.toLowerCase();
-    const results: NotePath[] = [];
+  ): Promise<NotePath[]> {
+    const candidates = allNotes.filter(n => n !== excludePath);
+    if (candidates.length === 0) return [];
 
-    for (const notePath of allNotes) {
-      if (notePath === excludePath) continue;
+    const MAX_NOTES = 200;
+    const noteNames = candidates
+      .map(n => (n as string).replace(/\.md$/, ''))
+      .slice(0, MAX_NOTES);
 
-      const pathStr = notePath as string;
-      const basename = pathStr.split('/').pop()?.replace('.md', '') ?? '';
-      if (basename.length < 3) continue;
-
-      if (contentLower.includes(basename.toLowerCase())) {
-        results.push(notePath);
+    const basenameToPath = new Map<string, NotePath>();
+    for (const n of candidates) {
+      const basename = ((n as string).split('/').pop()?.replace(/\.md$/, '') ?? '').toLowerCase();
+      if (basename.length >= 3 && !basenameToPath.has(basename)) {
+        basenameToPath.set(basename, n);
       }
     }
+    const fullPathToNote = new Map<string, NotePath>();
+    for (const n of candidates) {
+      fullPathToNote.set((n as string).replace(/\.md$/, '').toLowerCase(), n);
+    }
 
-    return results;
+    try {
+      const prompt = PromptTemplates.suggestLinks(content, noteNames);
+      const response = await this.aiProvider.callCompletion({
+        prompt,
+        maxTokens: 300,
+        temperature: 0.3,
+        jsonMode: true,
+      });
+
+      let suggested: unknown;
+      try {
+        suggested = JSON.parse(response.content);
+      } catch {
+        return [];
+      }
+
+      if (!Array.isArray(suggested)) return [];
+
+      const validated: NotePath[] = [];
+      const seen = new Set<string>();
+
+      for (const name of suggested) {
+        if (typeof name !== 'string') continue;
+        const normalized = name.replace(/\.md$/, '').toLowerCase();
+
+        if (seen.has(normalized)) continue;
+        seen.add(normalized);
+
+        const byFullPath = fullPathToNote.get(normalized);
+        if (byFullPath) {
+          validated.push(byFullPath);
+          continue;
+        }
+
+        const basenameOnly = normalized.split('/').pop() ?? '';
+        const byBasename = basenameToPath.get(basenameOnly);
+        if (byBasename) {
+          validated.push(byBasename);
+        }
+      }
+
+      return validated;
+    } catch {
+      return [];
+    }
   }
 
   private async applyOrganization(
     notePath: NotePath,
     result: OrganizeResult,
-  ): Promise<void> {
+  ): Promise<string> {
     const note = await this.vault.readNote(notePath);
-    if (!note) return;
+    if (!note) return '';
+    const previousContent = note.content;
 
     if (result.addedTags.length > 0) {
       const existingTags = note.metadata.tags.map(t => t as string);
@@ -187,12 +241,20 @@ export class OrganizeNoteUseCase {
       }
     }
 
+    const entryId = crypto.randomUUID();
     await this.history.record({
-      id: crypto.randomUUID(),
+      id: entryId,
       action: 'classify',
       notePath,
       timestamp: createTimestamp(Date.now()),
       description: `Organized: folder=${result.suggestedMoveTarget ?? 'keep'}, tags=${result.addedTags.length}`,
+      previousContent,
+      metadata: {
+        tags: result.addedTags.map(t => t as string),
+        links: result.suggestedLinks.map(l => l as string),
+        moveTarget: result.suggestedMoveTarget,
+      },
     });
+    return entryId;
   }
 }
