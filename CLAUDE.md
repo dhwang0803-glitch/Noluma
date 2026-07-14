@@ -1,11 +1,11 @@
-# Obsidian Knowledge Maintenance Plugin — Claude Code 지침
+# Vaultend — Claude Code 지침
 
 > 이 파일은 AI_Native_Kit가 생성한 골격입니다. 프로젝트 도메인에 맞게 채우세요.
 > TODO 표시는 프로젝트별로 작성이 필요한 부분입니다.
 
 ## 프로젝트 개요
 
-**Noluma** — Obsidian vault를 위한 Knowledge Maintenance Engine 플러그인. 원샷 AI 질의·자동 저장(Quick Ask), inbox 자동 정리(AI 분류/태깅/이동), vault 유지보수 자동화(고아 노트/중복/깨진 링크 탐지)를 제공한다. TypeScript + Clean Architecture, Obsidian Plugin API 기반. 상세 PRD: `docs/specs/prd.md`
+**Vaultend** — Obsidian vault를 위한 AI-powered maintenance 플러그인. 원샷 AI 질의·자동 저장(Quick Ask), inbox 자동 정리(AI 분류/태깅/이동), vault 유지보수 자동화(고아 노트/중복/깨진 링크 탐지)를 제공한다. TypeScript + Clean Architecture, Obsidian Plugin API 기반. 상세 PRD: `docs/specs/prd.md`
 
 ---
 

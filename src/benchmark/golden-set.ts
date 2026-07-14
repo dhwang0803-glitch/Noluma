@@ -467,7 +467,7 @@ Obsidian에서는 Spaced Repetition 플러그인으로 노트를 플래시카드
 Periodic Notes: Daily/Weekly/Monthly/Yearly 노트 자동 생성.
 Linter: 마크다운 포맷 자동 정리 (YAML, 헤딩, 공백 등).
 Tasks: 전체 vault에서 할 일 항목을 수집/필터/정렬.
-Vaultend(Noluma): AI 기반 태그/분류 + 유지보수 자동화.
+Vaultend: AI 기반 태그/분류 + 유지보수 자동화.
 자동화의 목표: 반복 작업을 줄여 "생각"에만 집중하기.`,
     tags: ['obsidian', 'automation', 'plugins'],
   },
