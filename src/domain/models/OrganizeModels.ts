@@ -9,6 +9,7 @@ import { TokenUsage } from './QuickAskModels';
  */
 export interface OrganizeResult {
   readonly noteId: NoteId;
+  readonly notePath: NotePath;
   readonly classifiedCategory: string;
   readonly addedTags: ReadonlyArray<TagName>;
   readonly suggestedLinks: ReadonlyArray<NotePath>;
@@ -17,6 +18,7 @@ export interface OrganizeResult {
   readonly summary: string;
   readonly tokenUsage: TokenUsage;
   readonly lowConfidence?: boolean;
+  readonly historyEntryId?: string;
 }
 
 /**

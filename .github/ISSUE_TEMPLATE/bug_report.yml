@@ -12,7 +12,7 @@ body:
     id: version
     attributes:
       label: Plugin Version
-      description: Which version of Noluma are you using?
+      description: Which version of Vaultend are you using?
       placeholder: "e.g. 0.3.3"
     validations:
       required: true

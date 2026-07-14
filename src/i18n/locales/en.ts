@@ -1,15 +1,14 @@
 const en = {
   // ─── Plugin ───
-  'plugin.name': 'Knowledge Maintenance',
+  'plugin.name': 'Vaultend',
 
   // ─── Commands ───
   'command.quickAsk': 'Quick Ask',
   'command.captureClipboard': 'Capture Clipboard',
   'command.organizeNote': 'Organize Current Note',
   'command.runMaintenance': 'Run Maintenance',
-  'command.runInbox': 'Process Inbox',
+  'command.organizeFolder': 'Organize Folder',
   'command.openLog': 'Open Maintenance Log',
-  'command.openInbox': 'Open Inbox Status',
   'command.scanFolder': 'Scan this folder for maintenance',
 
   // ─── Notices ───
@@ -24,11 +23,15 @@ const en = {
   'notice.inboxAlreadyRunning': 'Inbox processing is already running.',
   'notice.dismissed': 'Issue dismissed',
   'notice.actionApplied': 'Action applied',
+  'notice.noChangeNeeded': 'No changes to apply',
   'notice.actionFailed': 'Action failed: {{error}}',
   'notice.noSelection': 'No items selected',
   'notice.batchResult': '{{success}} applied, {{failed}} failed',
   'notice.batchComplete': '{{count}} applied',
   'notice.batchDismissed': '{{count}} dismissed',
+  'notice.batchRestored': '{{count}} restored',
+  'notice.batchRestoreResult': '{{success}} restored, {{failed}} failed',
+  'notice.autoMaintenanceFound': 'Auto Maintenance: {{count}} issues found',
 
   // ─── Maintenance Result View ───
   'maintenance.viewTitle': 'Vault Maintenance',
@@ -43,6 +46,7 @@ const en = {
   'maintenance.lastScan': 'Last scan: {{time}}',
   'maintenance.vaultClean': 'Vault is in good shape.',
   'maintenance.applied': 'Applied',
+  'maintenance.restored': 'Restored',
 
   // Issue type labels
   'issue.emptyNotes': 'Empty Notes ({{count}})',
@@ -90,6 +94,7 @@ const en = {
   'batch.selectedArchive': 'Archive Selected',
   'batch.selectedDelete': 'Delete Selected',
   'batch.selectedDismiss': 'Dismiss Selected',
+  'batch.selectedRestore': 'Restore Selected',
   'batch.selectedRemoveLinks': 'Remove Selected Links',
   'batch.selectedApplyTags': 'Apply Tags to Selected',
 
@@ -121,12 +126,29 @@ const en = {
   'log.refresh': 'Refresh',
   'log.undo': 'Restore',
 
-  // ─── Inbox Status View ───
-  'inbox.viewTitle': 'Inbox Status',
-  'inbox.title': 'Inbox Processing Status',
-  'inbox.total': 'Total notes: {{count}}',
-  'inbox.unprocessed': 'Unprocessed: {{count}}',
-  'inbox.processed': 'Processed: {{count}}',
+  // ─── Organize Folder Result View ───
+  'organizeFolder.viewTitle': 'Organize Folder',
+  'organizeFolder.scanning': 'Analyzing notes with AI...',
+  'organizeFolder.scanFailed': 'Organizing failed: {{error}}',
+  'organizeFolder.startScan': 'Start Organizing',
+  'organizeFolder.selectFolder': 'Select a folder to organize',
+  'organizeFolder.rescan': 'Re-organize',
+  'organizeFolder.summary': '{{processed}} processed, {{skipped}} skipped, {{errors}} errors',
+  'organizeFolder.noResults': 'No notes to organize in this folder.',
+  'organizeFolder.lowConfidence': 'Low Confidence',
+  'organizeFolder.category': 'Category: {{category}}',
+  'organizeFolder.tagsSection': 'Tags',
+  'organizeFolder.linksSection': 'Links',
+  'organizeFolder.moveSection': 'Move to',
+  'organizeFolder.applyNote': 'Apply',
+  'organizeFolder.applySelected': 'Apply Selected',
+  'organizeFolder.skipSelected': 'Skip Selected',
+  'organizeFolder.undoNote': 'Undo',
+  'organizeFolder.applied': 'Applied',
+  'organizeFolder.skipped': 'Skipped',
+  'organizeFolder.noChanges': 'No changes suggested',
+  'organizeFolder.tokenTotal': 'Total tokens: {{count}} · Cost: ${{cost}}',
+  'organizeFolder.tokenNote': '{{count}} tokens · ${{cost}}',
 
   // ─── Quick Ask Modal ───
   'quickAsk.title': 'Quick Ask',
@@ -170,21 +192,25 @@ const en = {
   'organize.tokens': 'Tokens: {{count}}',
   'organize.cost': 'Cost: ${{amount}}',
 
+  // ─── Organize Folder ───
+  'organizeFolder.placeholder': 'Select a folder to organize...',
+
   // ─── Inbox Progress Modal ───
-  'inboxProgress.title': 'Processing Inbox',
+  'inboxProgress.title': 'Organizing Folder',
+  'inboxProgress.folderTitle': 'Organizing: {{folder}}',
   'inboxProgress.counter': '{{current}} / {{total}}',
   'inboxProgress.cancel': 'Cancel',
   'inboxProgress.close': 'Close',
-  'inboxProgress.completeTitle': 'Inbox Processing Complete',
-  'inboxProgress.cancelledTitle': 'Inbox Processing Cancelled',
-  'inboxProgress.errorTitle': 'Inbox Processing Failed',
+  'inboxProgress.completeTitle': 'Folder Organizing Complete',
+  'inboxProgress.cancelledTitle': 'Folder Organizing Cancelled',
+  'inboxProgress.errorTitle': 'Folder Organizing Failed',
   'inboxProgress.processed': 'Processed: {{count}}',
   'inboxProgress.skipped': 'Skipped: {{count}}',
   'inboxProgress.errors': 'Errors: {{count}}',
   'inboxProgress.errorDetail': '{{path}}: {{error}}',
 
   // ─── Settings ───
-  'settings.title': 'Knowledge Maintenance Settings',
+  'settings.title': 'Vaultend Settings',
 
   'settings.language': 'Language',
   'settings.locale': 'Display Language',

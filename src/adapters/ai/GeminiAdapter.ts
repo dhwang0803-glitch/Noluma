@@ -63,10 +63,11 @@ export class GeminiAdapter implements AIProviderPort {
   }
 
   async callClassification(request: ClassificationRequest): Promise<ClassificationResponse> {
-    const prompt = PromptTemplates.classifyAndTag(request.text, request.existingTags ?? [], request.currentNoteTags, request.existingFolders);
+    const lang = request.locale ?? detectContentLanguage(request.text);
+    const prompt = PromptTemplates.classifyAndTag(request.text, request.existingTags ?? [], request.currentNoteTags, request.existingFolders, request.currentFolder, request.locale);
     const completionResponse = await this.callCompletion({
       prompt,
-      systemPrompt: PromptTemplates.classificationSystemPrompt(detectContentLanguage(request.text)),
+      systemPrompt: PromptTemplates.classificationSystemPrompt(lang),
       maxTokens: 500,
       temperature: 0.3,
       jsonMode: true,
@@ -76,7 +77,7 @@ export class GeminiAdapter implements AIProviderPort {
     const folder = (parsed.folder as string) || undefined;
     return {
       category: (parsed.category as string) ?? folder ?? '미분류',
-      suggestedTags: (parsed.tags as string[]) ?? [],
+      suggestedTags: this.parseTagsWithConfidence(parsed.tags),
       suggestedFolder: folder,
       summary: (parsed.summary as string) ?? '',
       confidence: (parsed.confidence as number) ?? 0.5,
@@ -191,6 +192,20 @@ export class GeminiAdapter implements AIProviderPort {
 
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  private parseTagsWithConfidence(rawTags: unknown): string[] {
+    if (!Array.isArray(rawTags)) return [];
+
+    const TAG_CONFIDENCE_THRESHOLD = 0.7;
+
+    if (rawTags.length > 0 && typeof rawTags[0] === 'object' && rawTags[0] !== null) {
+      return (rawTags as Array<{ tag: string; confidence?: number }>)
+        .filter(t => typeof t.tag === 'string' && (t.confidence ?? 1) >= TAG_CONFIDENCE_THRESHOLD)
+        .map(t => t.tag);
+    }
+
+    return rawTags.filter((t): t is string => typeof t === 'string');
   }
 
   private stripCodeBlock(text: string): string {

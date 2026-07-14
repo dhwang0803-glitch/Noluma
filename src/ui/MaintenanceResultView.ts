@@ -1,6 +1,6 @@
 import { ItemView, Notice, Setting, WorkspaceLeaf } from 'obsidian';
 import { RunMaintenanceUseCase } from '../application/usecases/RunMaintenanceUseCase';
-import { ApplyMaintenanceActionUseCase } from '../application/usecases/ApplyMaintenanceActionUseCase';
+import { ApplyMaintenanceActionUseCase, type ApplyResult } from '../application/usecases/ApplyMaintenanceActionUseCase';
 import { MaintenancePlan, BrokenLink, MissingTagSuggestion, DuplicatePair, OrphanNoteEntry, EmptyNoteEntry } from '../domain/models/OrganizeModels';
 import type { MaintenanceAction, MaintenanceIssueType } from '../domain/models/MaintenanceAction';
 import { NotePath } from '../domain/values/NotePath';
@@ -9,7 +9,7 @@ import { ISSUE_SEVERITY, getSeverity } from '../domain/values/Severity';
 import type { ConfigPort } from '../application/ports/ConfigPort';
 import type { HistoryPort } from '../application/ports/HistoryPort';
 import { localizeError } from './localizeError';
-import { MAINTENANCE_RESULT_VIEW_TYPE } from '../constants';
+import { MAINTENANCE_RESULT_VIEW_TYPE, HISTORY_CHANGED_EVENT } from '../constants';
 import { t, formatDate } from '../i18n';
 
 export { MAINTENANCE_RESULT_VIEW_TYPE };
@@ -24,11 +24,8 @@ interface BatchEntry {
   setting: Setting;
   issueType: MaintenanceIssueType;
   identifier: string;
-}
-
-interface UndoRecord {
-  type: 'dismiss';
-  dismissKey: string;
+  historyEntryId?: string;
+  status: 'pending' | 'applied' | 'restored';
 }
 
 interface FilterState {
@@ -41,8 +38,8 @@ export class MaintenanceResultView extends ItemView {
   private currentPlan: MaintenancePlan | null = null;
   private scanInProgress = false;
   private readonly dismissedIds = new Set<string>();
-  private readonly undoStack: UndoRecord[] = [];
-  private readonly redoStack: UndoRecord[] = [];
+  private readonly appliedEntries = new Map<string, string>();
+  private restoreInProgress = false;
   private filterState: FilterState = {
     issueTypes: new Set(ALL_ISSUE_TYPES),
     severityLevels: new Set<SeverityLevel>(['critical', 'warning', 'info']),
@@ -74,7 +71,22 @@ export class MaintenanceResultView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
+    this.registerEvent(
+      this.app.workspace.on(HISTORY_CHANGED_EVENT, (undoneId?: string) =>
+        this.onHistoryChanged(undoneId)),
+    );
     this.renderEmpty();
+  }
+
+  private onHistoryChanged(undoneId?: string): void {
+    if (!undoneId || !this.currentPlan) return;
+    for (const [key, id] of this.appliedEntries) {
+      if (id === undoneId) {
+        this.appliedEntries.delete(key);
+        this.render();
+        return;
+      }
+    }
   }
 
   refreshLocale(): void {
@@ -83,6 +95,21 @@ export class MaintenanceResultView extends ItemView {
     } else {
       this.renderEmpty();
     }
+  }
+
+  isScanInProgress(): boolean {
+    return this.scanInProgress;
+  }
+
+  isRestoreInProgress(): boolean {
+    return this.restoreInProgress;
+  }
+
+  showPlan(plan: MaintenancePlan): void {
+    if (this.restoreInProgress) return;
+    this.currentPlan = plan;
+    this.appliedEntries.clear();
+    this.render();
   }
 
   async triggerScan(): Promise<void> {
@@ -96,6 +123,7 @@ export class MaintenanceResultView extends ItemView {
 
     try {
       this.currentPlan = await this.runMaintenance.execute();
+      this.appliedEntries.clear();
       this.render();
     } catch (err) {
       contentEl.empty();
@@ -120,6 +148,7 @@ export class MaintenanceResultView extends ItemView {
 
     try {
       this.currentPlan = await this.runMaintenance.execute({ folder: folderPath });
+      this.appliedEntries.clear();
       this.render();
     } catch (err) {
       contentEl.empty();
@@ -159,18 +188,6 @@ export class MaintenanceResultView extends ItemView {
     new Setting(contentEl)
       .setName(t('maintenance.rescan'))
       .setDesc(t('maintenance.lastScan', { time: formatDate(plan.timestamp as number) }))
-      .addExtraButton(btn => btn
-        .setIcon('undo')
-        .setTooltip(t('undo.tooltip'))
-        .setDisabled(this.undoStack.length === 0)
-        .onClick(() => this.undo()),
-      )
-      .addExtraButton(btn => btn
-        .setIcon('redo')
-        .setTooltip(t('redo.tooltip'))
-        .setDisabled(this.redoStack.length === 0)
-        .onClick(() => this.redo()),
-      )
       .addButton(btn => btn
         .setButtonText(t('maintenance.rescan'))
         .onClick(() => this.triggerScan()),
@@ -343,7 +360,12 @@ export class MaintenanceResultView extends ItemView {
     this.renderSectionHeading(container, 'empty', t('issue.emptyNotes', { count: filtered.length }));
 
     const entries: BatchEntry[] = [];
-    this.renderBatchControls(container, entries, t('batch.selectedArchive'));
+    this.renderBatchControls(
+      container, entries, t('batch.selectedArchive'), false,
+      t('batch.selectedDelete'),
+      (e) => this.executeBatchWithAction(e, { kind: 'delete-orphan' }),
+      true,
+    );
 
     for (const item of filtered) {
       const settingEl = new Setting(container)
@@ -369,6 +391,7 @@ export class MaintenanceResultView extends ItemView {
         setting: settingEl,
         issueType: 'empty',
         identifier: item.notePath as string,
+        status: 'pending',
       });
 
       settingEl.addButton(btn => btn
@@ -379,7 +402,7 @@ export class MaintenanceResultView extends ItemView {
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.archive'))
         .setCta()
-        .onClick(() => this.archiveWithConfig(item.notePath, settingEl)),
+        .onClick(() => this.archiveWithConfig(item.notePath, settingEl, `empty:${item.notePath as string}`)),
       );
 
       settingEl.addButton(btn => btn
@@ -388,10 +411,12 @@ export class MaintenanceResultView extends ItemView {
         .onClick(() => this.executeAction(
           { kind: 'delete-orphan', notePath: item.notePath },
           settingEl,
+          `empty:${item.notePath as string}`,
         )),
       );
 
       this.addDismissButton(settingEl, 'empty', item.notePath as string);
+      this.applyPersistedState(entries[entries.length - 1]);
     }
   }
 
@@ -416,6 +441,7 @@ export class MaintenanceResultView extends ItemView {
         setting: settingEl,
         issueType: 'untagged',
         identifier: notePath as string,
+        status: 'pending',
       });
 
       settingEl.addButton(btn => btn
@@ -424,6 +450,7 @@ export class MaintenanceResultView extends ItemView {
       );
 
       this.addDismissButton(settingEl, 'untagged', notePath as string);
+      this.applyPersistedState(entries[entries.length - 1]);
     }
   }
 
@@ -448,6 +475,7 @@ export class MaintenanceResultView extends ItemView {
         setting: settingEl,
         issueType: 'missing-tags',
         identifier: item.notePath as string,
+        status: 'pending',
       });
 
       settingEl.addButton(btn => btn
@@ -456,10 +484,12 @@ export class MaintenanceResultView extends ItemView {
         .onClick(() => this.executeAction(
           { kind: 'apply-missing-tags', notePath: item.notePath, tags: item.suggestedTags },
           settingEl,
+          `missing-tags:${item.notePath as string}`,
         )),
       );
 
       this.addDismissButton(settingEl, 'missing-tags', item.notePath as string);
+      this.applyPersistedState(entries[entries.length - 1]);
     }
   }
 
@@ -484,25 +514,22 @@ export class MaintenanceResultView extends ItemView {
         setting: settingEl,
         issueType: 'broken-link',
         identifier: `${item.sourcePath as string}:${item.lineNumber}:${item.targetLink}`,
+        status: 'pending',
       });
+
+      const brokenLinkKey = `broken-link:${item.sourcePath as string}:${item.lineNumber}:${item.targetLink}`;
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.removeLink'))
         .onClick(() => this.executeAction(
           { kind: 'remove-broken-link', sourcePath: item.sourcePath, targetLink: item.targetLink, lineNumber: item.lineNumber },
           settingEl,
-        )),
-      );
-
-      settingEl.addButton(btn => btn
-        .setButtonText(t('btn.createNote'))
-        .onClick(() => this.executeAction(
-          { kind: 'create-missing-note', targetLink: item.targetLink },
-          settingEl,
+          brokenLinkKey,
         )),
       );
 
       this.addDismissButton(settingEl, 'broken-link', `${item.sourcePath as string}:${item.lineNumber}:${item.targetLink}`);
+      this.applyPersistedState(entries[entries.length - 1]);
     }
   }
 
@@ -516,7 +543,12 @@ export class MaintenanceResultView extends ItemView {
     this.renderSectionHeading(container, 'orphan', t('issue.orphanNotes', { count: filtered.length }));
 
     const entries: BatchEntry[] = [];
-    this.renderBatchControls(container, entries, t('batch.selectedDelete'), true);
+    this.renderBatchControls(
+      container, entries, t('batch.selectedArchive'), false,
+      t('batch.selectedDelete'),
+      (e) => this.executeBatchWithAction(e, { kind: 'delete-orphan' }),
+      true,
+    );
 
     for (const entry of filtered) {
       const sizeStr = this.formatFileSize(entry.fileSize);
@@ -526,10 +558,11 @@ export class MaintenanceResultView extends ItemView {
 
       entries.push({
         checkbox: this.prependCheckbox(settingEl),
-        action: { kind: 'delete-orphan', notePath: entry.notePath },
+        action: { kind: 'archive-note', notePath: entry.notePath, targetFolder: '' },
         setting: settingEl,
         issueType: 'orphan',
         identifier: entry.notePath as string,
+        status: 'pending',
       });
 
       settingEl.addButton(btn => btn
@@ -539,7 +572,7 @@ export class MaintenanceResultView extends ItemView {
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.archive'))
-        .onClick(() => this.archiveWithConfig(entry.notePath, settingEl)),
+        .onClick(() => this.archiveWithConfig(entry.notePath, settingEl, `orphan:${entry.notePath as string}`)),
       );
 
       settingEl.addButton(btn => btn
@@ -548,10 +581,12 @@ export class MaintenanceResultView extends ItemView {
         .onClick(() => this.executeAction(
           { kind: 'delete-orphan', notePath: entry.notePath },
           settingEl,
+          `orphan:${entry.notePath as string}`,
         )),
       );
 
       this.addDismissButton(settingEl, 'orphan', entry.notePath as string);
+      this.applyPersistedState(entries[entries.length - 1]);
     }
   }
 
@@ -577,6 +612,7 @@ export class MaintenanceResultView extends ItemView {
         setting: settingEl,
         issueType: 'duplicate',
         identifier: `${pair.noteA as string}|${pair.noteB as string}`,
+        status: 'pending',
       });
 
       settingEl.addButton(btn => btn
@@ -585,6 +621,7 @@ export class MaintenanceResultView extends ItemView {
       );
 
       this.addDismissButton(settingEl, 'duplicate', `${pair.noteA as string}|${pair.noteB as string}`);
+      this.applyPersistedState(entries[entries.length - 1]);
     }
   }
 
@@ -595,6 +632,9 @@ export class MaintenanceResultView extends ItemView {
     entries: BatchEntry[],
     primaryLabel?: string,
     primaryWarning = false,
+    secondaryLabel?: string,
+    secondaryActionOverride?: (entries: BatchEntry[]) => Promise<void>,
+    secondaryWarning = false,
   ): void {
     const batchSetting = new Setting(container)
       .setClass('maintenance-batch-controls')
@@ -616,9 +656,22 @@ export class MaintenanceResultView extends ItemView {
       });
     }
 
+    if (secondaryLabel && secondaryActionOverride) {
+      batchSetting.addButton(btn => {
+        btn.setButtonText(secondaryLabel)
+          .onClick(() => secondaryActionOverride(entries));
+        if (secondaryWarning) btn.setWarning();
+      });
+    }
+
     batchSetting.addButton(btn => btn
       .setButtonText(t('batch.selectedDismiss'))
       .onClick(() => this.dismissBatch(entries)),
+    );
+
+    batchSetting.addButton(btn => btn
+      .setButtonText(t('batch.selectedRestore'))
+      .onClick(() => this.restoreBatch(entries)),
     );
   }
 
@@ -640,40 +693,95 @@ export class MaintenanceResultView extends ItemView {
           issueType: issueType as MaintenanceIssueType,
           identifier,
         });
-        const dismissKey = `${issueType}:${identifier}`;
-        this.dismissedIds.add(dismissKey);
-        this.undoStack.push({ type: 'dismiss', dismissKey });
-        this.redoStack.length = 0;
-        new Notice(t('notice.dismissed'));
-        this.render();
+        this.dismissedIds.add(`${issueType}:${identifier}`);
+
+        setting.settingEl.addClass('maintenance-result-applied');
+        setting.settingEl.querySelectorAll('button').forEach(b => b.remove());
+        setting.settingEl.querySelectorAll('.setting-editor-extra-setting-button').forEach(b => b.remove());
+        const cb = setting.settingEl.querySelector('.maintenance-batch-checkbox');
+        if (cb) cb.remove();
+        setting.setDesc(t('notice.dismissed'));
+
+        setting.addButton(b => b
+          .setButtonText(t('log.undo'))
+          .setWarning()
+          .onClick(() => {
+            this.dismissedIds.delete(`${issueType}:${identifier}`);
+            this.render();
+          }),
+        );
+        this.app.workspace.trigger(HISTORY_CHANGED_EVENT);
       }),
     );
   }
 
-  private async archiveWithConfig(notePath: NotePath, setting: Setting): Promise<void> {
+  private async archiveWithConfig(notePath: NotePath, setting: Setting, appliedKey?: string): Promise<void> {
     const settings = await this.configPort.getSettings();
     await this.executeAction(
       { kind: 'archive-note', notePath, targetFolder: settings.maintenanceArchiveFolder },
       setting,
+      appliedKey,
     );
   }
 
-  private async executeAction(action: MaintenanceAction, setting: Setting): Promise<void> {
+  private async executeAction(action: MaintenanceAction, setting: Setting, appliedKey?: string): Promise<void> {
     try {
-      await this.applyAction.execute(action);
+      const result: ApplyResult | null = await this.applyAction.execute(action);
+      if (!result) {
+        new Notice(t('notice.noChangeNeeded'));
+        return;
+      }
       setting.settingEl.addClass('maintenance-result-applied');
       setting.settingEl.querySelectorAll('button').forEach(btn => btn.remove());
       const cb = setting.settingEl.querySelector('.maintenance-batch-checkbox');
       if (cb) cb.remove();
+      if (result.undoable && appliedKey) {
+        this.appliedEntries.set(appliedKey, result.entryId);
+        this.addRestoreButton(setting, result.entryId, appliedKey);
+      }
       setting.setDesc(t('maintenance.applied'));
       new Notice(t('notice.actionApplied'));
+      this.app.workspace.trigger(HISTORY_CHANGED_EVENT);
     } catch (err) {
       new Notice(t('notice.actionFailed', { error: localizeError(err) }));
     }
   }
 
+  private addRestoreButton(setting: Setting, historyEntryId: string, appliedKey: string): void {
+    setting.addButton(btn => btn
+      .setButtonText(t('log.undo'))
+      .setWarning()
+      .onClick(async () => {
+        btn.setDisabled(true);
+        try {
+          await this.historyPort.undo(historyEntryId);
+          this.appliedEntries.delete(appliedKey);
+          this.render();
+          new Notice(t('undo.success'));
+          this.app.workspace.trigger(HISTORY_CHANGED_EVENT, historyEntryId);
+        } catch (err) {
+          btn.setDisabled(false);
+          new Notice(t('undo.failed', { error: localizeError(err) }));
+        }
+      }),
+    );
+  }
+
+  private applyPersistedState(entry: BatchEntry): void {
+    const key = `${entry.issueType}:${entry.identifier}`;
+    const historyEntryId = this.appliedEntries.get(key);
+    if (!historyEntryId) return;
+    entry.status = 'applied';
+    entry.historyEntryId = historyEntryId;
+    entry.setting.settingEl.addClass('maintenance-result-applied');
+    entry.setting.settingEl.querySelectorAll('button').forEach(btn => btn.remove());
+    entry.checkbox.checked = false;
+    entry.setting.setDesc(t('maintenance.applied'));
+    this.addRestoreButton(entry.setting, historyEntryId, key);
+  }
+
   private async executeBatch(entries: BatchEntry[]): Promise<void> {
-    const selected = entries.filter(e => e.checkbox.checked);
+    const selected = entries.filter(e => e.checkbox.checked && e.status === 'pending');
     if (selected.length === 0) {
       new Notice(t('notice.noSelection'));
       return;
@@ -682,43 +790,69 @@ export class MaintenanceResultView extends ItemView {
     const archiveFolder = await this.getArchiveFolder();
     let success = 0;
     let failed = 0;
-    const applied = new Set<BatchEntry>();
     for (const entry of selected) {
       try {
         let action = entry.action;
         if (action.kind === 'archive-note' && !action.targetFolder) {
           action = { ...action, targetFolder: archiveFolder };
         }
-        await this.applyAction.execute(action);
+        const result = await this.applyAction.execute(action);
+        if (!result) {
+          failed++;
+          continue;
+        }
         entry.setting.settingEl.addClass('maintenance-result-applied');
         entry.setting.settingEl.querySelectorAll('button').forEach(btn => btn.remove());
-        entry.checkbox.remove();
+        entry.checkbox.checked = false;
+        entry.status = 'applied';
+        const appliedKey = `${entry.issueType}:${entry.identifier}`;
+        if (result.undoable) {
+          entry.historyEntryId = result.entryId;
+          this.appliedEntries.set(appliedKey, result.entryId);
+          this.addRestoreButton(entry.setting, result.entryId, appliedKey);
+        } else {
+          entry.checkbox.disabled = true;
+        }
         entry.setting.setDesc(t('maintenance.applied'));
-        applied.add(entry);
         success++;
       } catch {
         failed++;
       }
     }
-    for (let i = entries.length - 1; i >= 0; i--) {
-      if (applied.has(entries[i])) entries.splice(i, 1);
-    }
     const msg = failed > 0
       ? t('notice.batchResult', { success, failed })
       : t('notice.batchComplete', { count: success });
     new Notice(msg);
+    if (success > 0) this.app.workspace.trigger(HISTORY_CHANGED_EVENT);
+  }
+
+  private async executeBatchWithAction(
+    entries: BatchEntry[],
+    actionOverride: { kind: string },
+  ): Promise<void> {
+    const originals = entries.map(e => e.action);
+    for (const e of entries) {
+      const notePath = 'notePath' in e.action ? e.action.notePath : undefined;
+      if (!notePath) continue;
+      e.action = actionOverride.kind === 'delete-orphan'
+        ? { kind: 'delete-orphan' as const, notePath }
+        : { kind: 'archive-note' as const, notePath, targetFolder: '' };
+    }
+    try {
+      await this.executeBatch(entries);
+    } finally {
+      entries.forEach((e, i) => { e.action = originals[i]; });
+    }
   }
 
   private async dismissBatch(entries: BatchEntry[]): Promise<void> {
-    const selected = entries.filter(e => e.checkbox.checked);
+    const selected = entries.filter(e => e.checkbox.checked && e.status !== 'applied');
     if (selected.length === 0) {
       new Notice(t('notice.noSelection'));
       return;
     }
-    this.redoStack.length = 0;
     let success = 0;
     let failed = 0;
-    const dismissed = new Set<BatchEntry>();
     for (const entry of selected) {
       try {
         await this.applyAction.execute({
@@ -728,44 +862,65 @@ export class MaintenanceResultView extends ItemView {
         });
         const dismissKey = `${entry.issueType}:${entry.identifier}`;
         this.dismissedIds.add(dismissKey);
-        this.undoStack.push({ type: 'dismiss', dismissKey });
-        dismissed.add(entry);
+
+        entry.setting.settingEl.addClass('maintenance-result-applied');
+        entry.setting.settingEl.querySelectorAll('button').forEach(b => b.remove());
+        entry.setting.settingEl.querySelectorAll('.setting-editor-extra-setting-button').forEach(b => b.remove());
+        entry.checkbox.remove();
+        entry.status = 'applied';
+        entry.setting.setDesc(t('notice.dismissed'));
+
+        entry.setting.addButton(b => b
+          .setButtonText(t('log.undo'))
+          .setWarning()
+          .onClick(() => {
+            this.dismissedIds.delete(dismissKey);
+            this.render();
+          }),
+        );
         success++;
       } catch {
         failed++;
       }
     }
-    for (let i = entries.length - 1; i >= 0; i--) {
-      if (dismissed.has(entries[i])) entries.splice(i, 1);
-    }
     const msg = failed > 0
       ? t('notice.batchResult', { success, failed })
       : t('notice.batchDismissed', { count: success });
     new Notice(msg);
-    if (success > 0) this.render();
+    if (success > 0) this.app.workspace.trigger(HISTORY_CHANGED_EVENT);
   }
 
-  private undo(): void {
-    const record = this.undoStack.pop();
-    if (!record) return;
-
-    if (record.type === 'dismiss') {
-      this.dismissedIds.delete(record.dismissKey);
-      this.redoStack.push(record);
-      new Notice(t('undo.success'));
-      this.render();
+  private async restoreBatch(entries: BatchEntry[]): Promise<void> {
+    const restorable = entries.filter(e => e.checkbox.checked && e.status === 'applied' && e.historyEntryId);
+    if (restorable.length === 0) {
+      new Notice(t('notice.noSelection'));
+      return;
     }
-  }
-
-  private redo(): void {
-    const record = this.redoStack.pop();
-    if (!record) return;
-
-    if (record.type === 'dismiss') {
-      this.dismissedIds.add(record.dismissKey);
-      this.undoStack.push(record);
-      new Notice(t('redo.success'));
-      this.render();
+    this.restoreInProgress = true;
+    let success = 0;
+    let failed = 0;
+    try {
+      for (const entry of restorable) {
+        try {
+          await this.historyPort.undo(entry.historyEntryId!);
+          const appliedKey = `${entry.issueType}:${entry.identifier}`;
+          this.appliedEntries.delete(appliedKey);
+          entry.status = 'restored';
+          success++;
+        } catch {
+          failed++;
+        }
+      }
+      const msg = failed > 0
+        ? t('notice.batchRestoreResult', { success, failed })
+        : t('notice.batchRestored', { count: success });
+      new Notice(msg);
+      if (success > 0) {
+        this.render();
+        this.app.workspace.trigger(HISTORY_CHANGED_EVENT);
+      }
+    } finally {
+      this.restoreInProgress = false;
     }
   }
 

@@ -1,8 +1,8 @@
-# Knowledge Maintenance — Obsidian Plugin
+# Vaultend — Obsidian Plugin
 
 > Focus on writing. Let AI handle the organization.
 
-An AI-powered knowledge maintenance engine for Obsidian. Automatically classify, tag, link, and maintain your vault — with full privacy control and undo safety.
+An AI-powered vault maintenance plugin for Obsidian. Automatically classify, tag, link, and organize your notes — with full privacy control and undo safety.
 
 ![Obsidian](https://img.shields.io/badge/Obsidian-1.7.2+-purple)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -18,7 +18,7 @@ An AI-powered knowledge maintenance engine for Obsidian. Automatically classify,
   - [Cost Transparency](#cost-transparency)
   - [Quick Ask](#quick-ask)
   - [Note Organizer](#note-organizer)
-  - [Inbox Processing](#inbox-processing)
+  - [Organize Folder](#organize-folder)
   - [Vault Maintenance](#vault-maintenance)
   - [Activity Log](#activity-log)
   - [Clipboard Capture](#clipboard-capture)
@@ -38,7 +38,7 @@ An AI-powered knowledge maintenance engine for Obsidian. Automatically classify,
 ## Quick Start
 
 1. Install the plugin (see [Installation](#installation))
-2. Go to **Settings → Knowledge Maintenance → AI Provider**
+2. Go to **Settings → Vaultend → AI Provider**
 3. Select your provider (OpenAI or Google Gemini) and enter your API key
 4. Open the Command Palette (`Ctrl/Cmd + P`) and try **Quick Ask**
 
@@ -56,7 +56,7 @@ Every AI feature in this plugin shows **token usage and estimated cost** after e
 |---------|-------------------|
 | Quick Ask | Below the AI response |
 | Note Organizer | Bottom of the result modal |
-| Inbox Processing | Per-note in the activity log |
+| Organize Folder | Per-note in the result side panel |
 
 This is a deliberate design choice: AI tools should be transparent about resource consumption.
 
@@ -98,8 +98,8 @@ Analyze the active note with AI — classify, tag, link, and move — all from a
 
 The AI will:
 1. **Classify** the note into a category (technology, personal, work, etc.)
-2. **Suggest tags** from your vault's existing tags (frequency-sorted, up to 200 tags). New tags are only created when no existing tag fits.
-3. **Propose links** to related notes found in your vault
+2. **Suggest tags** using a hybrid strategy — strongly-matching existing tags are preferred (per-tag confidence ≥ 0.7), and new tags are freely created when no strong match exists. New tags never semantically overlap with existing ones.
+3. **Propose links** via AI analysis with vault existence validation — only notes that actually exist in your vault are suggested, preventing broken links
 4. **Suggest a folder** from your vault's actual folder structure
 
 Results open in an **interactive modal** where you can review and edit everything before applying:
@@ -116,31 +116,45 @@ Results open in an **interactive modal** where you can review and edit everythin
 
 ---
 
-### Inbox Processing
+### Organize Folder
 
-Automatically detect and process new notes landing in your Inbox folder. Internally runs the same AI classification as Note Organizer, but in batch mode with auto-apply.
+Batch-organize any folder in your vault with AI. Pick a folder, and the plugin classifies, tags, links, and moves each note — with full per-note review in a side panel.
 
-<!-- TODO: screenshot of Inbox Status view -->
+<!-- TODO: screenshot of Organize Folder result panel -->
+
+**How to use**:
+- **Command Palette**: `Ctrl/Cmd + P` → "Organize Folder" → select a folder from the fuzzy search modal
+- **Context menu**: Right-click a folder → "Organize Folder"
 
 **How it works**:
-1. Drop notes into your Inbox folder (default: `Inbox/`)
-2. The plugin watches for new files (2-second debounce)
-3. Each note gets sent to AI for classification
-4. AI returns: category, suggested tags, and target folder
-5. Tags are written to frontmatter, note is moved to the suggested folder
+1. Select a target folder (any folder in your vault)
+2. The plugin scans all notes in that folder (progress shown in a side panel with progress bar, counter, and cancel button)
+3. Each note gets sent to AI for classification, tagging, linking, and folder suggestion
+4. Results open in a **side panel** with per-note detail
 
-**How AI decides tags and folders**:
-- **Tags**: AI reads the note content and references your vault's existing tags (collected dynamically from the metadata cache, sorted by frequency). It strongly prefers reusing existing tags to keep your vault consistent.
-- **Folder**: AI classifies the note's category (technology, personal, work, etc.) and maps it to an appropriate folder path. The mapping is inferred from your vault's existing folder structure.
+**Result panel features**:
 
-**Trigger methods**:
-- **Automatic**: Runs on file creation/modification in the Inbox folder
-- **Manual**: `Ctrl/Cmd + P` → "Process Inbox" (opens a progress modal with real-time counter, progress bar, and cancel button)
-- **Startup catch-up**: Processes any unprocessed notes when Obsidian launches
+| Feature | Description |
+|---------|-------------|
+| Per-note detail | Category badge, summary, suggested tags/links/folder for each note |
+| Tag/link chips | View suggested tags and links as removable chips |
+| Folder suggestion | Proposed destination folder with "(New)" badge for non-existing folders |
+| Apply / Skip | Apply changes per-note or skip individual notes (autoApply=off) |
+| Batch operations | Select All checkbox + "Apply Selected" / "Skip Selected" buttons |
+| Undo | Revert any applied change (tags, links, folder move) via Undo button |
+| Open note | Click to open any note directly from the result panel |
+| Token & cost | Per-note token usage and estimated cost (classification + link suggestion combined) |
 
-**Auto Apply setting**: When enabled, tags and folder moves happen automatically. When disabled, only classification is performed and results are logged.
+**Two modes**:
+- **autoApply=off** (default): Review each note's suggestions, check/uncheck, then Apply Selected
+- **autoApply=on**: Changes are applied automatically; use Undo to revert any unwanted change
 
-**Status view**: Open with "Open Inbox Status" command — shows total/processed/unprocessed counts.
+**How AI decides tags, links, and folders**:
+- **Tags**: Hybrid strategy — strongly-matching existing tags are preferred (per-tag confidence ≥ 0.7), new tags are created when no strong match exists. New tags never semantically overlap with existing ones.
+- **Links**: AI analyzes note content and selects related notes from your vault. Every suggested link is validated against actual vault notes — hallucinated links are filtered out.
+- **Folder**: AI classifies the note's category and maps it to an appropriate folder path, inferred from your vault's existing folder structure.
+
+**Auto-watch**: When Auto Apply is enabled in Settings, notes created or modified in the configured Inbox folder are automatically processed in the background.
 
 ---
 
@@ -184,13 +198,12 @@ Each issue has contextual action buttons:
 | Action | Available for | Effect |
 |--------|--------------|--------|
 | Open | All | Open the note in editor |
-| Archive | Empty, Orphan | Move to archive folder |
+| Archive | Empty, Orphan | Move to archive folder (with restore support) |
 | Delete | Empty, Orphan | Delete permanently (with undo) |
 | Apply Tags | Missing Tags | Write suggested tags to frontmatter |
 | Remove Link | Broken Links | Convert `[[broken]]` to plain text |
-| Create Note | Broken Links | Create the missing target note |
 | Open Side by Side | Duplicates | Compare two notes in split view |
-| Dismiss | All | Hide from results (session-scoped) |
+| Dismiss | All | Strikethrough + Undo button (recoverable) |
 
 #### Batch Operations
 
@@ -199,13 +212,13 @@ Select multiple items and act on them at once:
 1. Check the **Select All** checkbox at the top of a section (or check individual items)
 2. Click an action button: **Archive Selected**, **Delete Selected**, **Dismiss Selected**, etc.
 
-#### Undo / Redo
+#### Undo & Restore
 
-Made a mistake? Use the **Undo** (↶) and **Redo** (↷) buttons in the toolbar.
+Made a mistake? Every action is recoverable:
 
-- Undo reverts the last dismiss action (items reappear)
-- Redo re-applies the dismissed state
-- Destructive actions (delete, archive) are recorded in the [Activity Log](#activity-log) with full content backup for restoration
+- **Dismiss**: Shows strikethrough text with an inline Undo button — click to restore the item immediately
+- **Delete**: Recorded in the [Activity Log](#activity-log) with full content backup. Click Restore in the log to bring the note back.
+- **Archive**: Recorded with the destination path. Click Restore in the log to move the note back to its original location.
 
 #### Automatic Scheduling
 
@@ -223,17 +236,16 @@ Track every action the plugin takes — and restore previous states.
 
 **What gets recorded**:
 - Note deletions (with previous content for restore)
-- Note archival
+- Note archival (with destination path for restore)
 - Tag additions
 - Link removals
-- Note creation (for broken link fixes)
 - Issue dismissals
 - Clipboard captures
 - Quick Ask saves
 - Note classifications
 - **Restorations** (when you use the Restore button)
 
-**Restore button**: Entries that modified or deleted content show a **Restore** button. Click it to revert the note to its state before the action. The restoration itself is also logged.
+**Restore button**: Entries that modified or deleted content show a red **Restore** button. Click it to revert the note to its state before the action. Archived notes are moved back to their original location. The restoration itself is also logged.
 
 **Refresh**: Click the ↻ button to reload the latest entries without restarting Obsidian.
 
@@ -274,12 +286,12 @@ All commands are accessible via `Ctrl/Cmd + P` (Command Palette).
 |---------|-------------|:-----------:|
 | Quick Ask | Ask AI with vault context | Yes |
 | Organize Current Note | Classify and tag the active note | Yes |
-| Process Inbox | Batch-process Inbox folder | Yes |
+| Organize Folder | Select a folder and batch-organize its notes | Yes |
 | Run Maintenance | Scan entire vault for issues | Partial |
 | Scan this folder for maintenance | Right-click context menu | Partial |
+| Organize Folder (context menu) | Right-click a folder to organize it | Yes |
 | Capture Clipboard | Save clipboard as note | No |
 | Open Maintenance Log | Show activity log sidebar | No |
-| Open Inbox Status | Show Inbox status sidebar | No |
 
 > "Partial" means orphan/broken-link/empty/duplicate detection works offline, but missing-tag suggestions require AI.
 
@@ -287,7 +299,7 @@ All commands are accessible via `Ctrl/Cmd + P` (Command Palette).
 
 ## Settings
 
-Access via **Settings → Community Plugins → Knowledge Maintenance**.
+Access via **Settings → Community Plugins → Vaultend**.
 
 ### Language
 
@@ -356,7 +368,7 @@ Add rules in the Privacy section. Each rule has:
 ### From Community Plugins (coming soon)
 
 1. Open **Settings → Community Plugins → Browse**
-2. Search "Knowledge Maintenance"
+2. Search "Vaultend"
 3. Click **Install**, then **Enable**
 4. Configure your AI provider in Settings
 
@@ -364,14 +376,14 @@ Add rules in the Privacy section. Each rule has:
 
 1. Install [BRAT](https://github.com/TfTHacker/obsidian42-brat)
 2. BRAT settings → **Add Beta Plugin**
-3. Enter: `dhwang0803-glitch/Noluma`
-4. Enable **Knowledge Maintenance** in Community Plugins
+3. Enter: `dhwang0803-glitch/Vaultend`
+4. Enable **Vaultend** in Community Plugins
 5. Configure AI provider and API key
 
 ### Manual
 
-1. Download `main.js`, `manifest.json`, `styles.css` from the [latest release](https://github.com/dhwang0803-glitch/Noluma/releases)
-2. Create `.obsidian/plugins/knowledge-maintenance/` in your vault
+1. Download `main.js`, `manifest.json`, `styles.css` from the [latest release](https://github.com/dhwang0803-glitch/Vaultend/releases)
+2. Create `.obsidian/plugins/vaultend/` in your vault
 3. Copy the 3 files into that directory
 4. Restart Obsidian → enable the plugin
 5. Configure AI provider and API key
@@ -379,8 +391,8 @@ Add rules in the Privacy section. Each rule has:
 ### Build from Source
 
 ```bash
-git clone https://github.com/dhwang0803-glitch/Noluma.git
-cd Noluma
+git clone https://github.com/dhwang0803-glitch/Vaultend.git
+cd Vaultend
 npm install
 npm run build
 ```
@@ -389,11 +401,11 @@ Copy `main.js`, `manifest.json`, `styles.css` to your vault's plugin directory.
 
 ### Mobile
 
-The same 3 files go in `.obsidian/plugins/knowledge-maintenance/`.
+The same 3 files go in `.obsidian/plugins/vaultend/`.
 
 - **With Obsidian Sync**: Install on desktop — it syncs automatically
-- **Android**: `Internal Storage/Documents/Obsidian/[Vault]/.obsidian/plugins/knowledge-maintenance/`
-- **iOS**: Files app → Obsidian → [Vault] → `.obsidian/plugins/knowledge-maintenance/`
+- **Android**: `Internal Storage/Documents/Obsidian/[Vault]/.obsidian/plugins/vaultend/`
+- **iOS**: Files app → Obsidian → [Vault] → `.obsidian/plugins/vaultend/`
 
 ---
 
@@ -459,8 +471,8 @@ main.ts          ← Composition Root
 
 | Area | Limitation |
 |------|-----------|
-| AI dependency | Quick Ask, Organizer, Inbox require an API key. Maintenance scan (orphans, broken links) works without AI. |
-| API costs | All AI calls consume tokens. Token usage and cost are shown in every AI feature (Quick Ask, Organizer, Inbox). |
+| AI dependency | Quick Ask, Organizer, Organize Folder require an API key. Maintenance scan (orphans, broken links) works without AI. |
+| API costs | All AI calls consume tokens. Token usage and cost are shown in every AI feature (Quick Ask, Organizer, Organize Folder). |
 | Network | AI features need internet. Maintenance scans work offline. |
 | Search index | BM25 keyword + optional Gemini embeddings. Very large vaults (5000+ notes) remain performant (P95 < 10ms for BM25). |
 | Duplicates | TF-IDF cosine similarity — may miss very short notes with insufficient term overlap. |

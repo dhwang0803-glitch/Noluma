@@ -29,8 +29,9 @@ import { QuickAskModal } from './ui/QuickAskModal';
 import { OrganizeResultModal, OrganizeApplyActions, OrganizeModalContext } from './ui/OrganizeResultModal';
 import { MaintenanceLogView, MAINTENANCE_LOG_VIEW_TYPE } from './ui/MaintenanceLogView';
 import { MaintenanceResultView, MAINTENANCE_RESULT_VIEW_TYPE } from './ui/MaintenanceResultView';
-import { InboxStatusView, INBOX_STATUS_VIEW_TYPE } from './ui/InboxStatusView';
+import { OrganizeFolderResultView, ORGANIZE_FOLDER_VIEW_TYPE } from './ui/OrganizeFolderResultView';
 import { InboxProgressModal } from './ui/InboxProgressModal';
+import { FolderSuggestModal } from './ui/FolderSuggestModal';
 import { PluginSettingTab } from './ui/PluginSettingTab';
 import { localizeError } from './ui/localizeError';
 
@@ -39,6 +40,7 @@ import { AIProviderPort } from './application/ports/AIProviderPort';
 import { ConfigPort } from './application/ports/ConfigPort';
 import { VaultEvent } from './application/ports/VaultAccessPort';
 import { NotePath, createNotePath } from './domain/values/NotePath';
+import type { MaintenancePlan } from './domain/models/OrganizeModels';
 import { SaveTarget } from './domain/models/SaveTarget';
 import { createNoteTitle } from './domain/values/NoteTitle';
 import {
@@ -126,11 +128,12 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   // Event unsubscribe functions
   private unsubscribeVaultEvents: (() => void) | null = null;
   private maintenanceInterval: number | null = null;
+  private isMaintenanceRunning = false;
   private isInboxProcessing = false;
   private hasQueuedInboxEvents = false;
 
   async onload(): Promise<void> {
-    console.log('Knowledge Maintenance Plugin: loading');
+    console.log('Vaultend Plugin: loading');
 
     // 1. Load settings
     await this.loadSettings();
@@ -154,7 +157,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.registerCommands();
 
     // 6. Register settings tab
-    this.addSettingTab(new PluginSettingTab(this.app, this, this.configPort));
+    this.addSettingTab(new PluginSettingTab(this.app, this, this.configPort, () => {
+      this.scheduleMaintenanceIfEnabled();
+    }));
 
     // 7. Register folder context menu
     this.registerFolderContextMenu();
@@ -178,7 +183,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           const provider = this.settings.aiProvider;
 
           if (!this.vectorStoreAdapter.isEmpty() && !this.vectorStoreAdapter.isCompatible(provider, dim)) {
-            console.log('Knowledge Maintenance: embedding provider/dimension changed, rebuilding index');
+            console.log('Vaultend: embedding provider/dimension changed, rebuilding index');
             await this.vectorStoreAdapter.clear();
           }
           this.vectorStoreAdapter.setMeta({ provider, dimension: dim });
@@ -191,7 +196,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   }
 
   onunload(): void {
-    console.log('Knowledge Maintenance Plugin: unloading');
+    console.log('Vaultend Plugin: unloading');
 
     // Persist dirty set before shutdown
     this.changeTracker.persist();
@@ -315,8 +320,26 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     );
 
     this.registerView(
-      INBOX_STATUS_VIEW_TYPE,
-      (leaf: WorkspaceLeaf) => new InboxStatusView(leaf, this.vaultAdapter, this.configPort),
+      ORGANIZE_FOLDER_VIEW_TYPE,
+      (leaf: WorkspaceLeaf) => new OrganizeFolderResultView(
+        leaf,
+        this.runInboxProcessUseCase,
+        this.buildOrganizeApplyActions(),
+        this.configPort,
+        this.historyAdapter,
+        this.vaultAdapter,
+        (path: string) => {
+          const file = this.app.vault.getAbstractFileByPath(path);
+          if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
+        },
+        (v: boolean) => {
+          this.isInboxProcessing = v;
+          if (!v && this.hasQueuedInboxEvents) {
+            this.hasQueuedInboxEvents = false;
+            this.runAutoInboxProcess();
+          }
+        },
+      ),
     );
   }
 
@@ -368,38 +391,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         this.organizeNoteUseCase
           .execute(notePath, false)
           .then(async result => {
-            const actions: OrganizeApplyActions = {
-              applyTags: async (path, tags) => {
-                const note = await this.vaultAdapter.readNote(path);
-                if (!note) return;
-                const existing = note.metadata.tags.map(tag => tag as string);
-                const newTags = tags.filter(tag => !existing.includes(tag));
-                if (newTags.length > 0) {
-                  await this.vaultAdapter.updateFrontmatter(path, {
-                    tags: [...existing, ...newTags],
-                  });
-                }
-              },
-              addLinks: async (path, links) => {
-                const note = await this.vaultAdapter.readNote(path);
-                if (!note) return;
-                const linkLines = links.map(link => {
-                  const linkPath = (link as string).replace('.md', '');
-                  return `- [[${linkPath}]]`;
-                });
-                const section = `\n\n## Related Notes\n\n${linkLines.join('\n')}`;
-                await this.vaultAdapter.writeNote(path, note.content + section);
-              },
-              moveNote: async (path, targetFolder) => {
-                const filename = (path as string).split('/').pop() ?? '';
-                const newPath = createNotePath(`${targetFolder}/${filename}`);
-                const existing = await this.vaultAdapter.readNote(newPath);
-                if (existing) {
-                  throw new Error(`Note already exists: ${newPath as string}`);
-                }
-                await this.vaultAdapter.moveNote(path, newPath);
-              },
-            };
+            const actions = this.buildOrganizeApplyActions();
             const allNotes = await this.vaultAdapter.listNotes();
             const folderSet = new Set<string>();
             for (const np of allNotes) {
@@ -432,24 +424,21 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     });
 
     this.addCommand({
-      id: 'run-inbox-process',
-      name: t('command.runInbox'),
-      callback: () => {
+      id: 'organize-folder',
+      name: t('command.organizeFolder'),
+      callback: async () => {
         if (this.isInboxProcessing) {
           new Notice(t('notice.inboxAlreadyRunning'));
           return;
         }
-        new InboxProgressModal(
-          this.app,
-          this.runInboxProcessUseCase,
-          (v) => {
-            this.isInboxProcessing = v;
-            if (!v && this.hasQueuedInboxEvents) {
-              this.hasQueuedInboxEvents = false;
-              this.runAutoInboxProcess();
-            }
-          },
-        ).open();
+        new FolderSuggestModal(this.app, async (folder) => {
+          await this.activateView(ORGANIZE_FOLDER_VIEW_TYPE);
+          const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_FOLDER_VIEW_TYPE);
+          if (leaves.length > 0) {
+            const view = leaves[0].view as OrganizeFolderResultView;
+            view.triggerScan(folder.path);
+          }
+        }).open();
       },
     });
 
@@ -459,11 +448,41 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       callback: () => this.activateView(MAINTENANCE_LOG_VIEW_TYPE),
     });
 
-    this.addCommand({
-      id: 'open-inbox-status',
-      name: t('command.openInbox'),
-      callback: () => this.activateView(INBOX_STATUS_VIEW_TYPE),
-    });
+  }
+
+  private buildOrganizeApplyActions(): OrganizeApplyActions {
+    return {
+      applyTags: async (path, tags) => {
+        const note = await this.vaultAdapter.readNote(path);
+        if (!note) return;
+        const existing = note.metadata.tags.map(tag => tag as string);
+        const newTags = tags.filter(tag => !existing.includes(tag));
+        if (newTags.length > 0) {
+          await this.vaultAdapter.updateFrontmatter(path, {
+            tags: [...existing, ...newTags],
+          });
+        }
+      },
+      addLinks: async (path, links) => {
+        const note = await this.vaultAdapter.readNote(path);
+        if (!note) return;
+        const linkLines = links.map(link => {
+          const linkPath = (link as string).replace('.md', '');
+          return `- [[${linkPath}]]`;
+        });
+        const section = `\n\n## Related Notes\n\n${linkLines.join('\n')}`;
+        await this.vaultAdapter.writeNote(path, note.content + section);
+      },
+      moveNote: async (path, targetFolder) => {
+        const filename = (path as string).split('/').pop() ?? '';
+        const newPath = createNotePath(`${targetFolder}/${filename}`);
+        const existing = await this.vaultAdapter.readNote(newPath);
+        if (existing) {
+          throw new Error(`Note already exists: ${newPath as string}`);
+        }
+        await this.vaultAdapter.moveNote(path, newPath);
+      },
+    };
   }
 
   private registerFolderContextMenu(): void {
@@ -483,6 +502,23 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
               }
             });
         });
+        menu.addItem(item => {
+          item
+            .setTitle(t('command.organizeFolder'))
+            .setIcon('wand')
+            .onClick(async () => {
+              if (this.isInboxProcessing) {
+                new Notice(t('notice.inboxAlreadyRunning'));
+                return;
+              }
+              await this.activateView(ORGANIZE_FOLDER_VIEW_TYPE);
+              const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_FOLDER_VIEW_TYPE);
+              if (leaves.length > 0) {
+                const view = leaves[0].view as OrganizeFolderResultView;
+                view.triggerScan(file.path);
+              }
+            });
+        });
       }),
     );
   }
@@ -499,6 +535,25 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       await leaf.setViewState({ type: viewType, active: true });
       this.app.workspace.revealLeaf(leaf);
     }
+  }
+
+  private openOrganizeFolderModal(folderPath: string): void {
+    if (this.isInboxProcessing) {
+      new Notice(t('notice.inboxAlreadyRunning'));
+      return;
+    }
+    new InboxProgressModal(
+      this.app,
+      this.runInboxProcessUseCase,
+      (v) => {
+        this.isInboxProcessing = v;
+        if (!v && this.hasQueuedInboxEvents) {
+          this.hasQueuedInboxEvents = false;
+          this.runAutoInboxProcess();
+        }
+      },
+      folderPath,
+    ).open();
   }
 
   private startInboxWatcher(): void {
@@ -558,24 +613,60 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   }
 
   private scheduleMaintenanceIfEnabled(): void {
+    if (this.maintenanceInterval !== null) {
+      window.clearInterval(this.maintenanceInterval);
+      this.maintenanceInterval = null;
+    }
+
     if (!this.settings.maintenanceEnabled) return;
 
     const ms = this.settings.maintenanceIntervalMinutes * 60 * 1000;
+    let firstRun = true;
     this.maintenanceInterval = window.setInterval(async () => {
+      if (this.isMaintenanceRunning) return;
+      const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
+      if (leaves.length > 0) {
+        const view = leaves[0].view as MaintenanceResultView;
+        if (view.isRestoreInProgress()) return;
+      }
+      this.isMaintenanceRunning = true;
       try {
-        if (this.settings.smartScheduling) {
+        if (this.settings.smartScheduling && !firstRun) {
           const lastScan = await this.changeTracker.getLastScanTimestamp();
           if (lastScan !== null) {
             const dirtySet = await this.changeTracker.getDirtySet();
             if (dirtySet.size === 0) return;
           }
         }
-        await this.runMaintenanceUseCase.execute();
+        firstRun = false;
+        const plan = await this.runMaintenanceUseCase.execute();
+        this.showMaintenancePlanIfNeeded(plan);
       } catch (err) {
-        console.error('Knowledge Maintenance: scheduled maintenance failed', err);
+        console.error('Vaultend: scheduled maintenance failed', err);
+      } finally {
+        this.isMaintenanceRunning = false;
       }
     }, ms);
     this.registerInterval(this.maintenanceInterval);
+  }
+
+  private showMaintenancePlanIfNeeded(plan: MaintenancePlan): void {
+    const totalIssues = plan.orphanNotes.length
+      + plan.duplicateCandidates.length
+      + plan.brokenLinks.length
+      + plan.missingTags.length
+      + plan.emptyNotes.length
+      + plan.untaggedNotes.length;
+    if (totalIssues === 0) return;
+
+    const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
+    if (leaves.length > 0) {
+      const view = leaves[0].view as MaintenanceResultView;
+      if (view.isScanInProgress()) return;
+      if (view.isRestoreInProgress()) return;
+      view.showPlan(plan);
+    }
+    new Notice(t('notice.autoMaintenanceFound', { count: totalIssues }));
   }
 
   private generateTimestampParts(prefix: string): { dateFolder: string; title: string } {
@@ -596,11 +687,11 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     try {
       if (this.vectorStoreAdapter.isEmpty()) {
         const count = await this.syncEmbeddingsUseCase.rebuildAll();
-        console.log(`Knowledge Maintenance: embedding index built (${count} notes)`);
+        console.log(`Vaultend: embedding index built (${count} notes)`);
       } else {
         const result = await this.syncEmbeddingsUseCase.execute();
         if (result.indexed > 0) {
-          console.log(`Knowledge Maintenance: embedding sync (${result.indexed} indexed, ${result.skipped} skipped)`);
+          console.log(`Vaultend: embedding sync (${result.indexed} indexed, ${result.skipped} skipped)`);
         }
       }
     } catch {
@@ -620,9 +711,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           indexed++;
         }
       }
-      console.log(`Knowledge Maintenance: search index built (${indexed}/${notes.length} notes indexed)`);
+      console.log(`Vaultend: search index built (${indexed}/${notes.length} notes indexed)`);
     } catch (err) {
-      console.error('Knowledge Maintenance: search index build failed', err);
+      console.error('Vaultend: search index build failed', err);
     }
   }
 
@@ -652,7 +743,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         runs++;
       } while (this.hasQueuedInboxEvents && runs < MAX_RERUN);
     } catch (err) {
-      console.error('Knowledge Maintenance: auto inbox processing failed', err);
+      console.error('Vaultend: auto inbox processing failed', err);
     } finally {
       this.isInboxProcessing = false;
     }

@@ -2,7 +2,7 @@ import { HistoryPort, HistoryFilter } from '../../application/ports/HistoryPort'
 import { HistoryEntry } from '../../domain/models/HistoryEntry';
 import { VaultAccessPort } from '../../application/ports/VaultAccessPort';
 import { ClockPort } from '../../application/ports/ClockPort';
-import { NotePath } from '../../domain/values/NotePath';
+import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { Timestamp } from '../../domain/values/Timestamp';
 import { HistoryEntryNotFoundError } from '../../domain/errors/DomainErrors';
 
@@ -10,10 +10,10 @@ import { HistoryEntryNotFoundError } from '../../domain/errors/DomainErrors';
  * 파일 기반 변경 이력 어댑터.
  *
  * 이력을 Vault 내 JSON 파일로 관리한다.
- * 경로: .knowledge-maintenance/history/YYYY-MM.json (월별 분할)
+ * 경로: .vaultend/history/YYYY-MM.json (월별 분할)
  */
 export class FileHistoryAdapter implements HistoryPort {
-  private static readonly HISTORY_FOLDER = '.knowledge-maintenance/history';
+  private static readonly HISTORY_FOLDER = '.vaultend/history';
 
   constructor(
     private readonly vault: VaultAccessPort,
@@ -68,17 +68,55 @@ export class FileHistoryAdapter implements HistoryPort {
     for (const filePath of historyFiles) {
       const entries = await this.loadMonthEntries(filePath as NotePath);
       const target = entries.find(e => e.id === entryId);
+      if (!target) continue;
 
-      if (target && target.previousContent !== undefined) {
-        await this.vault.writeNote(target.notePath, target.previousContent);
+      if (target.action === 'archive' && target.metadata?.archivedTo) {
+        const archivedPath = createNotePath(target.metadata.archivedTo as string);
+        await this.vault.moveNote(archivedPath, target.notePath);
 
-        await this.record({
+        const idx = entries.indexOf(target);
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { metadata: _cleared, ...rest } = target;
+        entries[idx] = rest as HistoryEntry;
+
+        entries.push({
           id: crypto.randomUUID(),
-          action: 'restore',
+          action: 'restore' as const,
           notePath: target.notePath,
           timestamp: this.clock.now(),
           description: `복원: ${target.notePath as string} (${target.action} 취소)`,
         });
+
+        await this.vault.writeFileRaw(filePath as string, JSON.stringify(entries, null, 2));
+        return;
+      }
+
+      if (target.previousContent !== undefined) {
+        await this.vault.writeNote(target.notePath, target.previousContent);
+
+        if (target.action === 'classify' && target.metadata?.moveTarget) {
+          const movedBasename = (target.notePath as string).split('/').pop() ?? '';
+          const movedPath = createNotePath(`${target.metadata.moveTarget as string}/${movedBasename}`);
+          const movedExists = await this.vault.exists(movedPath);
+          if (movedExists) {
+            await this.vault.deleteNote(movedPath);
+          }
+        }
+
+        const idx = entries.indexOf(target);
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { previousContent: _cleared, ...rest } = target;
+        entries[idx] = rest as HistoryEntry;
+
+        entries.push({
+          id: crypto.randomUUID(),
+          action: 'restore' as const,
+          notePath: target.notePath,
+          timestamp: this.clock.now(),
+          description: `복원: ${target.notePath as string} (${target.action} 취소)`,
+        });
+
+        await this.vault.writeFileRaw(filePath as string, JSON.stringify(entries, null, 2));
         return;
       }
     }
@@ -93,7 +131,7 @@ export class FileHistoryAdapter implements HistoryPort {
     try {
       return JSON.parse(raw) as HistoryEntry[];
     } catch {
-      console.warn(`[Knowledge Maintenance] History file parse failed: ${filePath}`);
+      console.warn(`[Vaultend] History file parse failed: ${filePath}`);
       return [];
     }
   }

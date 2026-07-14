@@ -2,16 +2,15 @@ import type en from './en';
 
 const ko: { [K in keyof typeof en]: string } = {
   // ─── Plugin ───
-  'plugin.name': 'Knowledge Maintenance',
+  'plugin.name': 'Vaultend',
 
   // ─── Commands ───
   'command.quickAsk': 'Quick Ask',
   'command.captureClipboard': '클립보드 캡처',
   'command.organizeNote': '현재 노트 정리',
   'command.runMaintenance': '유지보수 실행',
-  'command.runInbox': 'Inbox 처리',
+  'command.organizeFolder': '폴더 정리',
   'command.openLog': '유지보수 로그 열기',
-  'command.openInbox': 'Inbox 상태 열기',
   'command.scanFolder': '이 폴더 유지보수 스캔',
 
   // ─── Notices ───
@@ -26,11 +25,15 @@ const ko: { [K in keyof typeof en]: string } = {
   'notice.inboxAlreadyRunning': 'Inbox 처리가 이미 실행 중입니다.',
   'notice.dismissed': '이슈를 무시했습니다',
   'notice.actionApplied': '액션을 적용했습니다',
+  'notice.noChangeNeeded': '적용할 변경이 없습니다',
   'notice.actionFailed': '적용 실패: {{error}}',
   'notice.noSelection': '선택된 항목이 없습니다',
   'notice.batchResult': '{{success}}건 적용, {{failed}}건 실패',
   'notice.batchComplete': '{{count}}건 적용 완료',
   'notice.batchDismissed': '{{count}}건 무시 처리',
+  'notice.batchRestored': '{{count}}건 복원 완료',
+  'notice.batchRestoreResult': '{{success}}건 복원, {{failed}}건 실패',
+  'notice.autoMaintenanceFound': '자동 유지보수: {{count}}건 발견',
 
   // ─── Maintenance Result View ───
   'maintenance.viewTitle': 'Vault 유지보수',
@@ -45,6 +48,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'maintenance.lastScan': '마지막 스캔: {{time}}',
   'maintenance.vaultClean': 'Vault 상태가 양호합니다.',
   'maintenance.applied': '적용됨',
+  'maintenance.restored': '복원됨',
 
   // Issue type labels
   'issue.emptyNotes': '빈 노트 ({{count}})',
@@ -92,6 +96,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'batch.selectedArchive': '선택 아카이브',
   'batch.selectedDelete': '선택 삭제',
   'batch.selectedDismiss': '선택 무시',
+  'batch.selectedRestore': '선택 복원',
   'batch.selectedRemoveLinks': '선택 링크 제거',
   'batch.selectedApplyTags': '선택 태그 적용',
 
@@ -123,12 +128,29 @@ const ko: { [K in keyof typeof en]: string } = {
   'log.refresh': '새로고침',
   'log.undo': '복원',
 
-  // ─── Inbox Status View ───
-  'inbox.viewTitle': 'Inbox Status',
-  'inbox.title': 'Inbox 처리 현황',
-  'inbox.total': '총 노트: {{count}}',
-  'inbox.unprocessed': '미처리: {{count}}',
-  'inbox.processed': '처리완료: {{count}}',
+  // ─── Organize Folder Result View ───
+  'organizeFolder.viewTitle': '폴더 정리',
+  'organizeFolder.scanning': 'AI로 노트를 분석하는 중...',
+  'organizeFolder.scanFailed': '폴더 정리 실패: {{error}}',
+  'organizeFolder.startScan': '정리 시작',
+  'organizeFolder.selectFolder': '정리할 폴더를 선택하세요',
+  'organizeFolder.rescan': '다시 정리',
+  'organizeFolder.summary': '{{processed}}개 처리, {{skipped}}개 건너뜀, {{errors}}개 오류',
+  'organizeFolder.noResults': '이 폴더에 정리할 노트가 없습니다.',
+  'organizeFolder.lowConfidence': '낮은 신뢰도',
+  'organizeFolder.category': '분류: {{category}}',
+  'organizeFolder.tagsSection': '태그',
+  'organizeFolder.linksSection': '링크',
+  'organizeFolder.moveSection': '이동 대상',
+  'organizeFolder.applyNote': '적용',
+  'organizeFolder.applySelected': '선택 적용',
+  'organizeFolder.skipSelected': '선택 건너뛰기',
+  'organizeFolder.undoNote': '실행 취소',
+  'organizeFolder.applied': '적용됨',
+  'organizeFolder.skipped': '건너뜀',
+  'organizeFolder.noChanges': '제안된 변경이 없습니다',
+  'organizeFolder.tokenTotal': '총 토큰: {{count}} · 비용: ${{cost}}',
+  'organizeFolder.tokenNote': '{{count}} 토큰 · ${{cost}}',
 
   // ─── Quick Ask Modal ───
   'quickAsk.title': 'Quick Ask',
@@ -173,20 +195,23 @@ const ko: { [K in keyof typeof en]: string } = {
   'organize.cost': '비용: ${{amount}}',
 
   // ─── Inbox Progress Modal ───
-  'inboxProgress.title': 'Inbox 처리 중',
+  'organizeFolder.placeholder': '정리할 폴더를 선택하세요...',
+
+  'inboxProgress.title': '폴더 정리 중',
+  'inboxProgress.folderTitle': '정리 중: {{folder}}',
   'inboxProgress.counter': '{{current}} / {{total}}',
   'inboxProgress.cancel': '취소',
   'inboxProgress.close': '닫기',
-  'inboxProgress.completeTitle': 'Inbox 처리 완료',
-  'inboxProgress.cancelledTitle': 'Inbox 처리 취소됨',
-  'inboxProgress.errorTitle': 'Inbox 처리 실패',
+  'inboxProgress.completeTitle': '폴더 정리 완료',
+  'inboxProgress.cancelledTitle': '폴더 정리 취소됨',
+  'inboxProgress.errorTitle': '폴더 정리 실패',
   'inboxProgress.processed': '처리됨: {{count}}',
   'inboxProgress.skipped': '건너뜀: {{count}}',
   'inboxProgress.errors': '오류: {{count}}',
   'inboxProgress.errorDetail': '{{path}}: {{error}}',
 
   // ─── Settings ───
-  'settings.title': 'Knowledge Maintenance 설정',
+  'settings.title': 'Vaultend 설정',
 
   'settings.language': '언어',
   'settings.locale': '표시 언어',

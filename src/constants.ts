@@ -2,13 +2,16 @@
  * 플러그인 전역 상수 정의.
  */
 
+/** Workspace 이벤트 */
+export const HISTORY_CHANGED_EVENT = 'vaultend:history-changed';
+
 /** 사이드바 뷰 타입 ID */
-export const MAINTENANCE_LOG_VIEW_TYPE = 'knowledge-maintenance-log';
-export const MAINTENANCE_RESULT_VIEW_TYPE = 'knowledge-maintenance-result';
-export const INBOX_STATUS_VIEW_TYPE = 'knowledge-maintenance-inbox-status';
+export const MAINTENANCE_LOG_VIEW_TYPE = 'vaultend-log';
+export const MAINTENANCE_RESULT_VIEW_TYPE = 'vaultend-result';
+export const ORGANIZE_FOLDER_VIEW_TYPE = 'vaultend-organize-folder';
 
 /** 플러그인 내부 데이터 폴더 경로 */
-export const PLUGIN_DATA_FOLDER = '.knowledge-maintenance';
+export const PLUGIN_DATA_FOLDER = '.vaultend';
 export const SEARCH_INDEX_PATH = `${PLUGIN_DATA_FOLDER}/search-index.json`;
 export const DIRTY_SET_PATH = `${PLUGIN_DATA_FOLDER}/dirty-set.json`;
 export const TFIDF_CORPUS_PATH = `${PLUGIN_DATA_FOLDER}/tfidf-corpus.json`;
@@ -38,6 +41,5 @@ export const COMMAND_QUICK_ASK = 'quick-ask';
 export const COMMAND_CAPTURE_CLIPBOARD = 'capture-clipboard';
 export const COMMAND_ORGANIZE_CURRENT_NOTE = 'organize-current-note';
 export const COMMAND_RUN_MAINTENANCE = 'run-maintenance';
-export const COMMAND_RUN_INBOX_PROCESS = 'run-inbox-process';
+export const COMMAND_ORGANIZE_FOLDER = 'organize-folder';
 export const COMMAND_OPEN_MAINTENANCE_LOG = 'open-maintenance-log';
-export const COMMAND_OPEN_INBOX_STATUS = 'open-inbox-status';

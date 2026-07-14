@@ -2,7 +2,7 @@ import { App, Plugin, PluginSettingTab as ObsidianSettingTab, Setting } from 'ob
 import { ConfigPort, PluginSettings } from '../application/ports/ConfigPort';
 import { PrivacyRule, PrivacyRuleType } from '../domain/models/PrivacyRule';
 import { t, setLocale, detectObsidianLocale, type SupportedLocale } from '../i18n';
-import { MAINTENANCE_RESULT_VIEW_TYPE, MAINTENANCE_LOG_VIEW_TYPE, INBOX_STATUS_VIEW_TYPE } from '../constants';
+import { MAINTENANCE_RESULT_VIEW_TYPE, MAINTENANCE_LOG_VIEW_TYPE, ORGANIZE_FOLDER_VIEW_TYPE } from '../constants';
 
 export class PluginSettingTab extends ObsidianSettingTab {
   private settings: PluginSettings | null = null;
@@ -11,6 +11,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
     app: App,
     private readonly plugin: Plugin,
     private readonly config: ConfigPort,
+    private readonly onMaintenanceSettingsChanged?: () => void,
   ) {
     super(app, plugin);
   }
@@ -170,6 +171,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
           .setValue(this.settings!.maintenanceEnabled)
           .onChange(async (value) => {
             await this.config.updateSettings({ maintenanceEnabled: value });
+            this.onMaintenanceSettingsChanged?.();
           });
       });
 
@@ -184,6 +186,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
             const parsed = parseInt(value, 10);
             if (!isNaN(parsed) && parsed > 0) {
               await this.config.updateSettings({ maintenanceIntervalMinutes: parsed });
+              this.onMaintenanceSettingsChanged?.();
             }
           });
       });
@@ -344,7 +347,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
       const view = leaf.view as { refresh?: () => Promise<void> };
       view.refresh?.();
     }
-    for (const leaf of this.app.workspace.getLeavesOfType(INBOX_STATUS_VIEW_TYPE)) {
+    for (const leaf of this.app.workspace.getLeavesOfType(ORGANIZE_FOLDER_VIEW_TYPE)) {
       const view = leaf.view as { refresh?: () => Promise<void> };
       view.refresh?.();
     }
