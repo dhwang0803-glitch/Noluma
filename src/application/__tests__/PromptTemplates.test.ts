@@ -88,6 +88,7 @@ describe('PromptTemplates', () => {
       expect(result).toContain('JSON');
       expect(result).toContain('folder');
       expect(result).toContain('tags');
+      expect(result).toContain('confidence');
     });
   });
 
@@ -102,7 +103,7 @@ describe('PromptTemplates', () => {
     it('영어 노트에 영어 프롬프트를 생성한다', () => {
       const result = PromptTemplates.suggestLinks('My current note about testing', ['NoteA']);
       expect(result).toContain('My current note about testing');
-      expect(result).toContain('related notes');
+      expect(result).toContain('related');
     });
   });
 

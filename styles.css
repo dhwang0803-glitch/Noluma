@@ -143,14 +143,168 @@
   font-size: var(--font-ui-small);
 }
 
-/* Inbox Status View */
-.inbox-stats {
-  padding: 8px 0;
+/* Organize Folder Result View */
+.organize-folder-header {
+  margin: 0 0 8px;
 }
 
-.inbox-stats p {
+.organize-folder-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  background: var(--background-secondary);
+  border-radius: var(--radius-s);
+  font-size: var(--font-ui-small);
+}
+
+.organize-folder-token-info {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.organize-folder-progress {
+  padding: 12px;
+  background: var(--background-secondary);
+  border-radius: var(--radius-s);
+  margin-bottom: 12px;
+}
+
+.organize-folder-scanning {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.organize-folder-current-note {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.organize-folder-counter {
+  text-align: center;
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
+}
+
+.organize-folder-error {
+  color: var(--text-error);
+}
+
+.organize-folder-error-list {
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  background: rgba(var(--color-red-rgb), 0.1);
+  border-left: 3px solid var(--text-error);
+  border-radius: var(--radius-s);
+}
+
+.organize-folder-error-list ul {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.organize-folder-error-list li {
+  font-size: var(--font-ui-small);
+  color: var(--text-error);
+}
+
+.organize-folder-empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.organize-folder-batch-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  margin-bottom: 8px;
+  background: var(--background-secondary);
+  border-radius: var(--radius-s);
+}
+
+.organize-folder-entry {
+  padding: 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.organize-folder-entry .setting-item {
+  border-top: none;
+  padding-top: 4px;
+}
+
+.organize-folder-entry-applied {
+  opacity: 0.5;
+}
+
+.organize-folder-entry-applied .setting-item-name,
+.organize-folder-entry-applied .setting-item-description {
+  text-decoration: line-through;
+}
+
+.organize-folder-note-details {
+  padding: 4px 8px 8px;
+}
+
+.organize-folder-category-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-s);
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+  margin-right: 6px;
+}
+
+.organize-folder-low-confidence {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-s);
+  background: rgba(var(--color-yellow-rgb), 0.2);
+  color: var(--text-warning);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+}
+
+.organize-folder-summary-text {
   margin: 4px 0;
   font-size: var(--font-ui-small);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.organize-folder-no-changes {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: var(--font-ui-small);
+}
+
+.organize-folder-section {
+  margin: 4px 0;
+}
+
+.organize-folder-section-label {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-right: 8px;
+}
+
+.organize-folder-move-target {
+  font-weight: var(--font-semibold);
+  font-size: var(--font-ui-small);
+}
+
+.organize-folder-actions {
+  padding: 4px 0;
 }
 
 /* Maintenance Log View */
