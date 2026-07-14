@@ -710,6 +710,7 @@ export class MaintenanceResultView extends ItemView {
             this.render();
           }),
         );
+        this.app.workspace.trigger(HISTORY_CHANGED_EVENT);
       }),
     );
   }
