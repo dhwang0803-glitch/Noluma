@@ -2,6 +2,7 @@ import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { createTagName, sanitizeTagName } from '../../domain/values/TagName';
 import { createTimestamp } from '../../domain/values/Timestamp';
 import { OrganizeResult } from '../../domain/models/OrganizeModels';
+import { TokenUsage } from '../../domain/models/QuickAskModels';
 import { NoteNotFoundError } from '../../domain/errors/DomainErrors';
 import { applyContentRedaction } from '../../domain/models/PrivacyRule';
 import { AIProviderPort } from '../ports/AIProviderPort';
@@ -86,7 +87,8 @@ export class OrganizeNoteUseCase {
       .filter(t => !currentTagsLower.has(t.toLowerCase()) && !currentTagsLower.has(`#${t}`.toLowerCase()));
 
     // Link suggestions — AI-based with vault existence validation
-    const suggestedLinks = await this.suggestLinksWithAI(redactedContent, allNotes, notePath);
+    const linkResult = await this.suggestLinksWithAI(redactedContent, allNotes, notePath);
+    const suggestedLinks = linkResult.links;
 
     // Folder suggestion — prefer existing folders, allow new folder creation
     const currentFolder = (notePath as string).includes('/')
@@ -116,7 +118,12 @@ export class OrganizeNoteUseCase {
       suggestedMoveTarget: suggestedFolder,
       isNewFolder,
       summary: classification.summary,
-      tokenUsage: classification.tokenUsage,
+      tokenUsage: {
+        promptTokens: classification.tokenUsage.promptTokens + linkResult.tokenUsage.promptTokens,
+        completionTokens: classification.tokenUsage.completionTokens + linkResult.tokenUsage.completionTokens,
+        totalTokens: classification.tokenUsage.totalTokens + linkResult.tokenUsage.totalTokens,
+        estimatedCostUsd: classification.tokenUsage.estimatedCostUsd + linkResult.tokenUsage.estimatedCostUsd,
+      },
     };
 
     if (autoApply) {
@@ -130,9 +137,10 @@ export class OrganizeNoteUseCase {
     content: string,
     allNotes: ReadonlyArray<NotePath>,
     excludePath: NotePath,
-  ): Promise<NotePath[]> {
+  ): Promise<{ links: NotePath[]; tokenUsage: TokenUsage }> {
+    const emptyUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
     const candidates = allNotes.filter(n => n !== excludePath);
-    if (candidates.length === 0) return [];
+    if (candidates.length === 0) return { links: [], tokenUsage: emptyUsage };
 
     const MAX_NOTES = 200;
     const noteNames = candidates
@@ -164,10 +172,10 @@ export class OrganizeNoteUseCase {
       try {
         suggested = JSON.parse(response.content);
       } catch {
-        return [];
+        return { links: [], tokenUsage: response.tokenUsage };
       }
 
-      if (!Array.isArray(suggested)) return [];
+      if (!Array.isArray(suggested)) return { links: [], tokenUsage: response.tokenUsage };
 
       const validated: NotePath[] = [];
       const seen = new Set<string>();
@@ -192,9 +200,9 @@ export class OrganizeNoteUseCase {
         }
       }
 
-      return validated;
+      return { links: validated, tokenUsage: response.tokenUsage };
     } catch {
-      return [];
+      return { links: [], tokenUsage: emptyUsage };
     }
   }
 

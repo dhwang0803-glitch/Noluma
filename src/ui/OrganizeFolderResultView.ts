@@ -25,6 +25,7 @@ interface OrganizeFolderEntry {
   selectedLinks: NotePath[];
   selectedFolder: string | undefined;
   container: HTMLElement;
+  currentPath?: string;
 }
 
 export class OrganizeFolderResultView extends ItemView {
@@ -306,10 +307,13 @@ export class OrganizeFolderResultView extends ItemView {
       checkbox.style.display = 'none';
     }
 
-    // Open button
+    // Open button — uses currentPath after move
     setting.addButton(btn =>
       btn.setButtonText(t('btn.open'))
-        .onClick(() => this.openFile(pathStr)),
+        .onClick(() => {
+          const openPath = entry?.currentPath ?? pathStr;
+          this.openFile(openPath);
+        }),
     );
 
     const entry: OrganizeFolderEntry = {
@@ -429,8 +433,8 @@ export class OrganizeFolderResultView extends ItemView {
     }
   }
 
-  private async applyEntry(entry: OrganizeFolderEntry): Promise<void> {
-    if (entry.status !== 'pending') return;
+  private async applyEntry(entry: OrganizeFolderEntry): Promise<boolean> {
+    if (entry.status !== 'pending') return false;
 
     try {
       const note = await this.vault.readNote(entry.result.notePath);
@@ -459,20 +463,24 @@ export class OrganizeFolderResultView extends ItemView {
       }
       if (entry.selectedFolder) {
         await this.applyActions.moveNote(entry.result.notePath, entry.selectedFolder);
+        entry.currentPath = `${entry.selectedFolder}/${(entry.result.notePath as string).split('/').pop() ?? ''}`;
       }
 
       // Mark as processed
-      const stillExists = await this.vault.exists(entry.result.notePath);
+      const currentNotePath = entry.currentPath ?? (entry.result.notePath as string);
+      const stillExists = await this.vault.exists(currentNotePath as unknown as NotePath);
       if (stillExists) {
-        await this.vault.updateFrontmatter(entry.result.notePath, { processed: true });
+        await this.vault.updateFrontmatter(currentNotePath as unknown as NotePath, { processed: true });
       }
 
       entry.status = 'applied';
       entry.historyEntryId = entryId;
       this.markEntryApplied(entry);
       new Notice(t('notice.actionApplied'));
+      return true;
     } catch (err) {
       new Notice(t('notice.actionFailed', { error: localizeError(err) }));
+      return false;
     }
   }
 
@@ -502,7 +510,17 @@ export class OrganizeFolderResultView extends ItemView {
       await this.historyPort.undo(entry.historyEntryId);
       entry.status = 'pending';
       entry.historyEntryId = undefined;
-      this.render();
+
+      entry.container.removeClass('organize-folder-entry-applied');
+      if (!this.autoApplyMode) {
+        entry.checkbox.style.display = '';
+      }
+
+      const controlEl = entry.setting.controlEl;
+      const undoBtn = controlEl.querySelector('.mod-warning');
+      if (undoBtn) undoBtn.remove();
+
+      entry.setting.setDesc(entry.result.notePath as string);
       new Notice(t('undo.success'));
     } catch (err) {
       new Notice(t('undo.failed', { error: localizeError(err) }));
@@ -519,10 +537,10 @@ export class OrganizeFolderResultView extends ItemView {
     let success = 0;
     let failed = 0;
     for (const entry of selected) {
-      try {
-        await this.applyEntry(entry);
+      const ok = await this.applyEntry(entry);
+      if (ok) {
         success++;
-      } catch {
+      } else {
         failed++;
       }
     }
