@@ -5,7 +5,7 @@
 /** 사이드바 뷰 타입 ID */
 export const MAINTENANCE_LOG_VIEW_TYPE = 'vaultend-log';
 export const MAINTENANCE_RESULT_VIEW_TYPE = 'vaultend-result';
-export const INBOX_STATUS_VIEW_TYPE = 'vaultend-inbox-status';
+export const ORGANIZE_FOLDER_VIEW_TYPE = 'vaultend-organize-folder';
 
 /** 플러그인 내부 데이터 폴더 경로 */
 export const PLUGIN_DATA_FOLDER = '.vaultend';
@@ -40,4 +40,3 @@ export const COMMAND_ORGANIZE_CURRENT_NOTE = 'organize-current-note';
 export const COMMAND_RUN_MAINTENANCE = 'run-maintenance';
 export const COMMAND_ORGANIZE_FOLDER = 'organize-folder';
 export const COMMAND_OPEN_MAINTENANCE_LOG = 'open-maintenance-log';
-export const COMMAND_OPEN_INBOX_STATUS = 'open-inbox-status';

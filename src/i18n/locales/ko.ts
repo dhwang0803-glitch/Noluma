@@ -11,7 +11,6 @@ const ko: { [K in keyof typeof en]: string } = {
   'command.runMaintenance': '유지보수 실행',
   'command.organizeFolder': '폴더 정리',
   'command.openLog': '유지보수 로그 열기',
-  'command.openInbox': 'Inbox 상태 열기',
   'command.scanFolder': '이 폴더 유지보수 스캔',
 
   // ─── Notices ───
@@ -129,12 +128,28 @@ const ko: { [K in keyof typeof en]: string } = {
   'log.refresh': '새로고침',
   'log.undo': '복원',
 
-  // ─── Inbox Status View ───
-  'inbox.viewTitle': 'Inbox Status',
-  'inbox.title': 'Inbox 처리 현황',
-  'inbox.total': '총 노트: {{count}}',
-  'inbox.unprocessed': '미처리: {{count}}',
-  'inbox.processed': '처리완료: {{count}}',
+  // ─── Organize Folder Result View ───
+  'organizeFolder.viewTitle': '폴더 정리',
+  'organizeFolder.scanning': 'AI로 노트를 분석하는 중...',
+  'organizeFolder.scanFailed': '폴더 정리 실패: {{error}}',
+  'organizeFolder.startScan': '정리 시작',
+  'organizeFolder.selectFolder': '정리할 폴더를 선택하세요',
+  'organizeFolder.rescan': '다시 정리',
+  'organizeFolder.summary': '{{processed}}개 처리, {{skipped}}개 건너뜀, {{errors}}개 오류',
+  'organizeFolder.noResults': '이 폴더에 정리할 노트가 없습니다.',
+  'organizeFolder.lowConfidence': '낮은 신뢰도',
+  'organizeFolder.category': '분류: {{category}}',
+  'organizeFolder.tagsSection': '태그',
+  'organizeFolder.linksSection': '링크',
+  'organizeFolder.moveSection': '이동 대상',
+  'organizeFolder.applyNote': '적용',
+  'organizeFolder.applySelected': '선택 적용',
+  'organizeFolder.skipSelected': '선택 건너뛰기',
+  'organizeFolder.undoNote': '실행 취소',
+  'organizeFolder.applied': '적용됨',
+  'organizeFolder.skipped': '건너뜀',
+  'organizeFolder.noChanges': '제안된 변경이 없습니다',
+  'organizeFolder.tokenTotal': '총 토큰: {{count}} · 비용: ${{cost}}',
 
   // ─── Quick Ask Modal ───
   'quickAsk.title': 'Quick Ask',

@@ -167,6 +167,37 @@ describe('OpenAIAdapter', () => {
       expect(result.confidence).toBe(0.95);
     });
 
+    it('per-tag confidence 형식을 파싱하고 0.7 미만을 필터링한다', async () => {
+      const aiJson = {
+        tags: [
+          { tag: '#react', confidence: 0.92 },
+          { tag: '#vague-topic', confidence: 0.45 },
+          { tag: '#typescript', confidence: 0.78 },
+        ],
+        folder: 'Tech',
+        summary: 'About TS and React',
+        confidence: 0.9,
+      };
+      mockRequestUrl.mockResolvedValue({
+        status: 200,
+        json: {
+          choices: [{ message: { content: JSON.stringify(aiJson) }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 50, completion_tokens: 30, total_tokens: 80 },
+        },
+        headers: {},
+        text: '',
+        arrayBuffer: new ArrayBuffer(0),
+      });
+
+      const result = await adapter.callClassification({
+        text: 'React and TypeScript code',
+        task: 'classify-and-tag',
+      });
+
+      expect(result.suggestedTags).toEqual(['#react', '#typescript']);
+      expect(result.suggestedTags).not.toContain('#vague-topic');
+    });
+
     it('AI가 부분 JSON을 반환해도 기본값으로 처리한다', async () => {
       mockRequestUrl.mockResolvedValue({
         status: 200,

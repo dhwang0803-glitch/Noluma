@@ -2,7 +2,7 @@ import { App, Plugin, PluginSettingTab as ObsidianSettingTab, Setting } from 'ob
 import { ConfigPort, PluginSettings } from '../application/ports/ConfigPort';
 import { PrivacyRule, PrivacyRuleType } from '../domain/models/PrivacyRule';
 import { t, setLocale, detectObsidianLocale, type SupportedLocale } from '../i18n';
-import { MAINTENANCE_RESULT_VIEW_TYPE, MAINTENANCE_LOG_VIEW_TYPE, INBOX_STATUS_VIEW_TYPE } from '../constants';
+import { MAINTENANCE_RESULT_VIEW_TYPE, MAINTENANCE_LOG_VIEW_TYPE, ORGANIZE_FOLDER_VIEW_TYPE } from '../constants';
 
 export class PluginSettingTab extends ObsidianSettingTab {
   private settings: PluginSettings | null = null;
@@ -347,7 +347,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
       const view = leaf.view as { refresh?: () => Promise<void> };
       view.refresh?.();
     }
-    for (const leaf of this.app.workspace.getLeavesOfType(INBOX_STATUS_VIEW_TYPE)) {
+    for (const leaf of this.app.workspace.getLeavesOfType(ORGANIZE_FOLDER_VIEW_TYPE)) {
       const view = leaf.view as { refresh?: () => Promise<void> };
       view.refresh?.();
     }

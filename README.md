@@ -56,7 +56,7 @@ Every AI feature in this plugin shows **token usage and estimated cost** after e
 |---------|-------------------|
 | Quick Ask | Below the AI response |
 | Note Organizer | Bottom of the result modal |
-| Organize Folder | Per-note in the activity log |
+| Organize Folder | Per-note in the result side panel |
 
 This is a deliberate design choice: AI tools should be transparent about resource consumption.
 
@@ -98,8 +98,8 @@ Analyze the active note with AI — classify, tag, link, and move — all from a
 
 The AI will:
 1. **Classify** the note into a category (technology, personal, work, etc.)
-2. **Suggest tags** from your vault's existing tags (frequency-sorted, up to 200 tags). New tags are only created when no existing tag fits.
-3. **Propose links** to related notes found in your vault
+2. **Suggest tags** using a hybrid strategy — strongly-matching existing tags are preferred (per-tag confidence ≥ 0.7), and new tags are freely created when no strong match exists. New tags never semantically overlap with existing ones.
+3. **Propose links** via AI analysis with vault existence validation — only notes that actually exist in your vault are suggested, preventing broken links
 4. **Suggest a folder** from your vault's actual folder structure
 
 Results open in an **interactive modal** where you can review and edit everything before applying:
@@ -118,9 +118,9 @@ Results open in an **interactive modal** where you can review and edit everythin
 
 ### Organize Folder
 
-Batch-organize any folder in your vault with AI. Pick a folder, and the plugin classifies, tags, and moves each note — just like Note Organizer, but in batch mode.
+Batch-organize any folder in your vault with AI. Pick a folder, and the plugin classifies, tags, links, and moves each note — with full per-note review in a side panel.
 
-<!-- TODO: screenshot of Organize Folder progress modal -->
+<!-- TODO: screenshot of Organize Folder result panel -->
 
 **How to use**:
 - **Command Palette**: `Ctrl/Cmd + P` → "Organize Folder" → select a folder from the fuzzy search modal
@@ -128,20 +128,33 @@ Batch-organize any folder in your vault with AI. Pick a folder, and the plugin c
 
 **How it works**:
 1. Select a target folder (any folder in your vault)
-2. The plugin scans all notes in that folder
-3. Each note gets sent to AI for classification
-4. AI returns: suggested tags and target folder
-5. Tags are written to frontmatter, note is moved to the suggested folder
+2. The plugin scans all notes in that folder (progress shown in a side panel with progress bar, counter, and cancel button)
+3. Each note gets sent to AI for classification, tagging, linking, and folder suggestion
+4. Results open in a **side panel** with per-note detail
 
-**How AI decides tags and folders**:
-- **Tags**: AI reads the note content and references your vault's existing tags (collected dynamically from the metadata cache, sorted by frequency). It strongly prefers reusing existing tags to keep your vault consistent.
-- **Folder**: AI classifies the note's category (technology, personal, work, etc.) and maps it to an appropriate folder path. The mapping is inferred from your vault's existing folder structure.
+**Result panel features**:
 
-**Progress modal**: Shows real-time progress bar, note counter, current note name, and cancel button.
+| Feature | Description |
+|---------|-------------|
+| Per-note detail | Category badge, summary, suggested tags/links/folder for each note |
+| Tag/link chips | View suggested tags and links as removable chips |
+| Folder suggestion | Proposed destination folder with "(New)" badge for non-existing folders |
+| Apply / Skip | Apply changes per-note or skip individual notes (autoApply=off) |
+| Batch operations | Select All checkbox + "Apply Selected" / "Skip Selected" buttons |
+| Undo | Revert any applied change (tags, links, folder move) via Undo button |
+| Open note | Click to open any note directly from the result panel |
+| Token & cost | Per-note token usage and estimated cost (classification + link suggestion combined) |
+
+**Two modes**:
+- **autoApply=off** (default): Review each note's suggestions, check/uncheck, then Apply Selected
+- **autoApply=on**: Changes are applied automatically; use Undo to revert any unwanted change
+
+**How AI decides tags, links, and folders**:
+- **Tags**: Hybrid strategy — strongly-matching existing tags are preferred (per-tag confidence ≥ 0.7), new tags are created when no strong match exists. New tags never semantically overlap with existing ones.
+- **Links**: AI analyzes note content and selects related notes from your vault. Every suggested link is validated against actual vault notes — hallucinated links are filtered out.
+- **Folder**: AI classifies the note's category and maps it to an appropriate folder path, inferred from your vault's existing folder structure.
 
 **Auto-watch**: When Auto Apply is enabled in Settings, notes created or modified in the configured Inbox folder are automatically processed in the background.
-
-**Status view**: Open with "Open Inbox Status" command — shows total/processed/unprocessed counts.
 
 ---
 
@@ -279,7 +292,6 @@ All commands are accessible via `Ctrl/Cmd + P` (Command Palette).
 | Organize Folder (context menu) | Right-click a folder to organize it | Yes |
 | Capture Clipboard | Save clipboard as note | No |
 | Open Maintenance Log | Show activity log sidebar | No |
-| Open Inbox Status | Show Inbox status sidebar | No |
 
 > "Partial" means orphan/broken-link/empty/duplicate detection works offline, but missing-tag suggestions require AI.
 
