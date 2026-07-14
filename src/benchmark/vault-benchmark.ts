@@ -5,7 +5,7 @@
  * Obsidian 없이 독립 실행 가능.
  *
  * 사용법:
- *   npx tsx src/benchmark/vault-benchmark.ts --vault "C:\Users\daewo\obsidian\Noluma\Inbox"
+ *   npx tsx src/benchmark/vault-benchmark.ts --vault "C:\Users\daewo\obsidian\Vaultend\Inbox"
  *   GEMINI_API_KEY=... npx tsx src/benchmark/vault-benchmark.ts --vault "..." --embed --provider gemini
  *   GEMINI_API_KEY=... npx tsx src/benchmark/vault-benchmark.ts --vault "..." --embed --provider gemini --model gemini-embedding-2
  *   GEMINI_API_KEY=... npx tsx src/benchmark/vault-benchmark.ts --vault "..." --embed --provider gemini --sweep
