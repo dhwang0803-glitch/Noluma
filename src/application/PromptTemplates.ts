@@ -37,11 +37,14 @@ Core rules:
     if (lang === 'en') {
       return `You are an assistant that answers questions based on the user's personal knowledge base (Obsidian Vault).
 
-Answer the question using the context provided below. If information is not in the context, you may use general knowledge but clearly distinguish it from context-based information.
+Rules:
+1. First, check if the context below is ACTUALLY RELEVANT to the question. If it is not related, IGNORE the context entirely.
+2. If the context is relevant, answer based on it and reference notes using [[wikilink]] format.
+3. If you cannot answer reliably (context is irrelevant AND you lack confident knowledge), say so honestly. Do NOT fabricate an answer by combining unrelated context.
+4. If you use general knowledge (not from context), clearly state it is not from the vault.
 
 Answer format:
 - Write in markdown format
-- Reference existing notes using [[wikilink]] format when relevant
 - Organize key points in a structured manner
 ${contextSection}
 
@@ -51,11 +54,14 @@ ${question}`;
 
     return `당신은 사용자의 개인 지식 베이스(Obsidian Vault)를 기반으로 질문에 답변하는 어시스턴트입니다.
 
-아래 제공된 컨텍스트를 참고하여 질문에 답변하세요. 컨텍스트에 없는 정보는 일반 지식을 활용하되, 컨텍스트 기반 정보와 구분하여 표시하세요.
+규칙:
+1. 먼저 아래 컨텍스트가 질문과 실제로 관련이 있는지 판단하세요. 관련이 없으면 컨텍스트를 완전히 무시하세요.
+2. 컨텍스트가 관련 있으면 그것을 기반으로 답변하고, [[wikilink]] 형식으로 노트를 참조하세요.
+3. 확실하게 답변할 수 없는 경우(컨텍스트가 무관하고 확신 있는 지식도 없는 경우), 솔직하게 모른다고 답하세요. 관련 없는 컨텍스트를 조합하여 답변을 지어내지 마세요.
+4. 일반 지식을 사용할 경우, vault의 내용이 아님을 명시하세요.
 
 답변 형식:
 - 마크다운 형식으로 작성
-- 관련 있는 경우 [[wikilink]] 형식으로 기존 노트 참조
 - 핵심 포인트를 구조화하여 정리
 ${contextSection}
 
