@@ -625,6 +625,63 @@ describe('QuickAskUseCase', () => {
     });
   });
 
+  describe('intent classification (general vs vault)', () => {
+    function createWithAI(completionResponses: Array<{ content: string }>) {
+      let callIndex = 0;
+      const ai = createMockAI({
+        callCompletion: vi.fn().mockImplementation(() => {
+          const resp = completionResponses[callIndex] ?? completionResponses[completionResponses.length - 1];
+          callIndex++;
+          return Promise.resolve({
+            ...resp,
+            tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30, estimatedCostUsd: 0 },
+            finishReason: 'stop' as const,
+          });
+        }),
+      });
+      const search = createMockSearch();
+      const uc = createUseCase({ ai, search });
+      return { ai, search, uc };
+    }
+
+    it('intent=general이면 검색을 건너뛰고 바로 AI 답변한다', async () => {
+      const { search, uc } = createWithAI([
+        { content: '{"intent": "general", "keywords": []}' },
+        { content: '안녕하세요! 무엇을 도와드릴까요?' },
+      ]);
+
+      const result = await uc.execute({
+        question: '안녕',
+        maxContextChunks: 5,
+        saveTarget: { kind: 'new-note' as const, title: 'Q' as unknown as NoteTitle },
+        autoLink: false,
+      });
+
+      expect(search.search).not.toHaveBeenCalled();
+      expect(result.answer).toContain('안녕하세요');
+      expect(result.contextChunksUsed).toHaveLength(0);
+      expect(result.referencedNotes).toHaveLength(0);
+    });
+
+    it('intent=vault이면 검색 파이프라인을 실행한다', async () => {
+      const { search, uc } = createWithAI([
+        { content: '{"intent": "vault", "keywords": ["이도진"]}' },
+        { content: 'AI answer about 이도진' },
+      ]);
+
+      await uc.execute({
+        question: '이도진 문서 요약해줘',
+        maxContextChunks: 5,
+        saveTarget: { kind: 'new-note' as const, title: 'Q' as unknown as NoteTitle },
+        autoLink: false,
+      });
+
+      expect(search.search).toHaveBeenCalled();
+      const searchCall = (search.search as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(searchCall[0]).toBe('이도진');
+    });
+  });
+
   describe('formatAnswer (#64 wikilink)', () => {
     it('저장된 노트에 basename-only wikilink로 References를 포함한다', async () => {
       const searchResults: SearchResult[] = [

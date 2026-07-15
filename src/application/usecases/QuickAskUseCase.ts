@@ -39,25 +39,36 @@ export class QuickAskUseCase {
    * 6. 이력 기록
    */
   async execute(request: QuickAskRequest): Promise<QuickAskResult> {
-    // 1. Search relevant context (hybrid BM25 + vector if available)
-    const contextChunks = await this.hybridSearch(
-      request.question,
-      request.maxContextChunks,
-    );
+    // 1. Classify intent + extract keywords in a single AI call
+    const { intent, keywords } = await this.classifyIntent(request.question);
 
-    // 2. Apply privacy rules
+    let filteredChunks: ReadonlyArray<SearchResult> = [];
     const settings = await this.config.getSettings();
-    const allowedChecks = await Promise.all(
-      contextChunks.map(chunk => this.isChunkAllowed(chunk, [...settings.privacyRules]))
-    );
-    const filteredChunks = contextChunks.filter((_, i) => allowedChecks[i]);
+    let prompt: string;
 
-    // 3. Call AI after content-redact
-    const redactedChunks = filteredChunks.map(sr => ({
-      ...sr,
-      chunk: { ...sr.chunk, text: applyContentRedaction(sr.chunk.text as string, [...settings.privacyRules]) as typeof sr.chunk.text },
-    }));
-    const prompt = this.buildPrompt(request.question, redactedChunks);
+    if (intent === 'vault' && keywords.length > 0) {
+      // 2a. Vault query: search → privacy filter → redact → build prompt
+      const contextChunks = await this.hybridSearch(
+        keywords.join(' '),
+        request.maxContextChunks,
+      );
+
+      const allowedChecks = await Promise.all(
+        contextChunks.map(chunk => this.isChunkAllowed(chunk, [...settings.privacyRules]))
+      );
+      filteredChunks = contextChunks.filter((_, i) => allowedChecks[i]);
+
+      const redactedChunks = filteredChunks.map(sr => ({
+        ...sr,
+        chunk: { ...sr.chunk, text: applyContentRedaction(sr.chunk.text as string, [...settings.privacyRules]) as typeof sr.chunk.text },
+      }));
+      prompt = this.buildPrompt(request.question, redactedChunks);
+    } else {
+      // 2b. General query: skip search, answer directly
+      prompt = PromptTemplates.quickAskGeneral(request.question);
+    }
+
+    // 3. Call AI
     const aiResponse = await this.aiProvider.callCompletion({
       prompt,
       maxTokens: settings.aiMaxTokens,
@@ -110,10 +121,9 @@ export class QuickAskUseCase {
   }
 
   private async hybridSearch(query: string, maxResults: number): Promise<ReadonlyArray<SearchResult>> {
-    const searchQuery = await this.buildSearchQuery(query);
     const FETCH_SIZE = 20;
 
-    const bm25Results = await this.searchIndex.search(searchQuery, FETCH_SIZE);
+    const bm25Results = await this.searchIndex.search(query, FETCH_SIZE);
 
     if (!this.embedding?.isReady() || !this.vectorStore) {
       return bm25Results.slice(0, maxResults);
@@ -181,9 +191,9 @@ export class QuickAskUseCase {
     }
   }
 
-  private async buildSearchQuery(userQuery: string): Promise<string> {
+  private async classifyIntent(userQuery: string): Promise<{ intent: 'vault' | 'general'; keywords: string[] }> {
     try {
-      const prompt = PromptTemplates.extractSearchKeywords(userQuery);
+      const prompt = PromptTemplates.classifyAndExtractKeywords(userQuery);
       const response = await this.aiProvider.callCompletion({
         prompt,
         maxTokens: 100,
@@ -192,26 +202,42 @@ export class QuickAskUseCase {
       });
 
       const parsed: unknown = JSON.parse(response.content);
-      const keywords = Array.isArray(parsed)
-        ? parsed
-        : (parsed && typeof parsed === 'object' && 'keywords' in parsed && Array.isArray((parsed as Record<string, unknown>).keywords))
-          ? (parsed as Record<string, unknown>).keywords as unknown[]
-          : null;
-      if (keywords && keywords.length > 0 && keywords.every(k => typeof k === 'string')) {
-        const cleaned = (keywords as string[])
-          .map(k => k.trim())
-          .filter(k => k.length > 0)
-          .slice(0, 5);
-        if (cleaned.length > 0) {
-          return cleaned.join(' ');
-        }
-      }
-    } catch {
-      // AI unavailable or parse error — fall through to particle strip
-    }
 
-    const tokens = preprocessQueryTokens(userQuery);
-    return tokens.join(' ');
+      let intent: 'vault' | 'general';
+      let rawKeywords: unknown[];
+
+      if (Array.isArray(parsed)) {
+        intent = 'vault';
+        rawKeywords = parsed;
+      } else if (parsed && typeof parsed === 'object') {
+        const obj = parsed as Record<string, unknown>;
+        intent = obj.intent === 'general' ? 'general' : 'vault';
+        rawKeywords = Array.isArray(obj.keywords) ? obj.keywords : [];
+      } else {
+        intent = 'vault';
+        rawKeywords = [];
+      }
+
+      const keywords = rawKeywords
+        .filter((k): k is string => typeof k === 'string')
+        .map(k => k.trim())
+        .filter(k => k.length > 0)
+        .slice(0, 5);
+
+      if (intent === 'general') {
+        return { intent, keywords: [] };
+      }
+
+      if (keywords.length === 0) {
+        const tokens = preprocessQueryTokens(userQuery);
+        return { intent: 'vault', keywords: tokens };
+      }
+
+      return { intent, keywords };
+    } catch {
+      const tokens = preprocessQueryTokens(userQuery);
+      return { intent: 'vault', keywords: tokens };
+    }
   }
 
   private buildPrompt(question: string, chunks: ReadonlyArray<SearchResult>): string {
