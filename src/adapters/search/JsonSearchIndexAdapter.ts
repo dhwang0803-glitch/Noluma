@@ -10,6 +10,7 @@ import { SEARCH_INDEX_PATH } from '../../constants';
 interface IndexedDocument {
   id: string;
   notePath: string;
+  noteName: string;
   headingPath: string;
   text: string;
   originalText: string;
@@ -17,8 +18,10 @@ interface IndexedDocument {
   endLine: number;
 }
 
+const INDEX_VERSION = 2;
+
 const MINISEARCH_OPTIONS = {
-  fields: ['text'],
+  fields: ['text', 'noteName'],
   storeFields: ['notePath', 'headingPath', 'originalText', 'startLine', 'endLine'],
   idField: 'id',
 };
@@ -39,6 +42,7 @@ export class JsonSearchIndexAdapter implements SearchIndexPort {
       searchOptions: {
         prefix: true,
         fuzzy: false,
+        boost: { noteName: 3 },
       },
     });
   }
@@ -46,18 +50,22 @@ export class JsonSearchIndexAdapter implements SearchIndexPort {
   async index(notePath: NotePath, chunks: ReadonlyArray<NoteChunk>): Promise<void> {
     await this.ensureLoaded();
 
-    const existingIds = this.noteDocIds.get(notePath as string) ?? [];
+    const pathStr = notePath as string;
+    const noteName = pathStr.split('/').pop()?.replace(/\.md$/, '') ?? pathStr;
+
+    const existingIds = this.noteDocIds.get(pathStr) ?? [];
     for (const id of existingIds) {
       this.miniSearch.discard(id);
     }
 
     const newIds: string[] = [];
     for (const chunk of chunks) {
-      const id = `${notePath as string}::${chunk.startLine}`;
+      const id = `${pathStr}::${chunk.startLine}`;
       newIds.push(id);
       this.miniSearch.add({
         id,
-        notePath: notePath as string,
+        notePath: pathStr,
+        noteName,
         headingPath: chunk.headingPath as string,
         text: chunk.text as string,
         originalText: chunk.text as string,
@@ -66,7 +74,7 @@ export class JsonSearchIndexAdapter implements SearchIndexPort {
       });
     }
 
-    this.noteDocIds.set(notePath as string, newIds);
+    this.noteDocIds.set(pathStr, newIds);
     this.dirty = true;
     await this.flush();
   }
@@ -76,7 +84,7 @@ export class JsonSearchIndexAdapter implements SearchIndexPort {
 
     if (!query.trim()) return [];
 
-    const results = this.miniSearch.search(query, { prefix: true });
+    const results = this.miniSearch.search(query, { prefix: true, boost: { noteName: 3 } });
 
     return results.slice(0, maxResults).map(result => ({
       notePath: result.notePath as NotePath,
@@ -117,14 +125,13 @@ export class JsonSearchIndexAdapter implements SearchIndexPort {
     if (raw) {
       try {
         const data = JSON.parse(raw);
-        if (data.miniSearchIndex && data.noteDocIds) {
+        if (data.miniSearchIndex && data.noteDocIds && data.version === INDEX_VERSION) {
           this.miniSearch = MiniSearch.loadJSON<IndexedDocument>(
             JSON.stringify(data.miniSearchIndex),
-            { ...MINISEARCH_OPTIONS, searchOptions: { prefix: true, fuzzy: false } },
+            { ...MINISEARCH_OPTIONS, searchOptions: { prefix: true, fuzzy: false, boost: { noteName: 3 } } },
           );
           this.noteDocIds = new Map(Object.entries(data.noteDocIds as Record<string, string[]>));
         } else {
-          // Legacy format detected — trigger full rebuild on next vault scan
           this.dirty = true;
           await this.flush();
         }
@@ -138,6 +145,7 @@ export class JsonSearchIndexAdapter implements SearchIndexPort {
     if (!this.dirty) return;
 
     const serialized = {
+      version: INDEX_VERSION,
       miniSearchIndex: this.miniSearch.toJSON(),
       noteDocIds: Object.fromEntries(this.noteDocIds),
     };

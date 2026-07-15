@@ -123,6 +123,47 @@ describe('JsonSearchIndexAdapter (MiniSearch)', () => {
     });
   });
 
+  describe('noteName search', () => {
+    it('파일 이름으로 검색할 수 있다', async () => {
+      const vault = createMockVault({
+        readNote: vi.fn().mockResolvedValue(null),
+      });
+      const adapter = new JsonSearchIndexAdapter(vault);
+
+      await adapter.index(np('people/이도진.md'), [makeChunk('회의 참석자 목록')]);
+      const results = await adapter.search('이도진', 10);
+
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].notePath).toBe(np('people/이도진.md'));
+    });
+
+    it('파일 이름 매칭이 본문 매칭보다 높은 점수를 받는다', async () => {
+      const vault = createMockVault({
+        readNote: vi.fn().mockResolvedValue(null),
+      });
+      const adapter = new JsonSearchIndexAdapter(vault);
+
+      await adapter.index(np('notes/meeting.md'), [makeChunk('이도진과 미팅 내용')]);
+      await adapter.index(np('people/이도진.md'), [makeChunk('프로필 정보')]);
+
+      const results = await adapter.search('이도진', 10);
+      expect(results[0].notePath).toBe(np('people/이도진.md'));
+    });
+
+    it('폴더 경로가 다른 동명 파일을 모두 찾는다', async () => {
+      const vault = createMockVault({
+        readNote: vi.fn().mockResolvedValue(null),
+      });
+      const adapter = new JsonSearchIndexAdapter(vault);
+
+      await adapter.index(np('work/todo.md'), [makeChunk('업무 할일')]);
+      await adapter.index(np('personal/todo.md'), [makeChunk('개인 할일')]);
+
+      const results = await adapter.search('todo', 10);
+      expect(results.length).toBe(2);
+    });
+  });
+
   describe('re-indexing', () => {
     it('같은 노트를 다시 인덱스하면 이전 항목을 교체한다', async () => {
       const vault = createMockVault({
