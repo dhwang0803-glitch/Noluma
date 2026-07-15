@@ -37,8 +37,8 @@ export type { ClockPort } from './ports/ClockPort';
 // Use Cases
 export { QuickAskUseCase } from './usecases/QuickAskUseCase';
 export { OrganizeNoteUseCase } from './usecases/OrganizeNoteUseCase';
-export { RunInboxProcessUseCase } from './usecases/RunInboxProcessUseCase';
-export type { InboxProcessResult } from './usecases/RunInboxProcessUseCase';
+export { OrganizeFolderUseCase } from './usecases/RunInboxProcessUseCase';
+export type { OrganizeFolderResult } from './usecases/RunInboxProcessUseCase';
 export { RunMaintenanceUseCase } from './usecases/RunMaintenanceUseCase';
 export { SaveNoteUseCase } from './usecases/SaveNoteUseCase';
 export type { SaveNoteRequest } from './usecases/SaveNoteUseCase';

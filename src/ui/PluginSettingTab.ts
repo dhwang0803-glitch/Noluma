@@ -117,18 +117,18 @@ export class PluginSettingTab extends ObsidianSettingTab {
     this.isCustomMode = false;
     this.renderModelSetting(containerEl);
 
-    // --- Inbox ---
-    containerEl.createEl('h3', { text: t('settings.inbox') });
+    // --- Organize ---
+    containerEl.createEl('h3', { text: t('settings.organize') });
 
     new Setting(containerEl)
-      .setName(t('settings.inboxFolder'))
-      .setDesc(t('settings.inboxFolderDesc'))
+      .setName(t('settings.captureFolder'))
+      .setDesc(t('settings.captureFolderDesc'))
       .addText(text => {
         text
           .setPlaceholder('Inbox')
-          .setValue(this.settings!.inboxFolder)
+          .setValue(this.settings!.captureFolder)
           .onChange(async (value) => {
-            await this.config.updateSettings({ inboxFolder: value });
+            await this.config.updateSettings({ captureFolder: value });
           });
       });
 
@@ -137,9 +137,9 @@ export class PluginSettingTab extends ObsidianSettingTab {
       .setDesc(t('settings.autoApplyDesc'))
       .addToggle(toggle => {
         toggle
-          .setValue(this.settings!.autoApplyInbox)
+          .setValue(this.settings!.autoApplyOrganize)
           .onChange(async (value) => {
-            await this.config.updateSettings({ autoApplyInbox: value });
+            await this.config.updateSettings({ autoApplyOrganize: value });
           });
       });
 

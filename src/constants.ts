@@ -19,7 +19,6 @@ export const EMBEDDINGS_PATH = `${PLUGIN_DATA_FOLDER}/embeddings.json`;
 export const HISTORY_FOLDER = `${PLUGIN_DATA_FOLDER}/history`;
 
 /** 기본 설정값 */
-export const DEFAULT_INBOX_FOLDER = 'Inbox';
 export const DEFAULT_SAVE_FOLDER = 'QuickAsk';
 export const DEFAULT_DAILY_NOTE_FOLDER = 'DailyNotes';
 export const DEFAULT_DAILY_NOTE_FORMAT = 'YYYY-MM-DD';
@@ -33,9 +32,6 @@ export const DEFAULT_ARCHIVE_FOLDER = 'Archive';
 
 /** 기본 로캘 */
 export const DEFAULT_LOCALE: 'auto' | 'en' | 'ko' = 'auto';
-
-/** 디바운스 설정 */
-export const INBOX_DEBOUNCE_MS = 2000;
 
 /** 명령 ID */
 export const COMMAND_QUICK_ASK = 'quick-ask';

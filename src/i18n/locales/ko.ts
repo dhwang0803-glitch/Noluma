@@ -18,11 +18,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'notice.clipboardFailed': '클립보드 캡처 실패: {{error}}',
   'notice.organizeResult': '폴더: {{folder}} | 태그: {{tags}}',
   'notice.organizeFailed': '노트 정리 실패: {{error}}',
-  'notice.inboxStarted': 'Inbox 처리를 시작합니다...',
-  'notice.inboxComplete': 'Inbox 처리 완료: {{processed}}개 처리, {{skipped}}개 건너뜀, {{errors}}개 오류',
-  'notice.inboxFailed': 'Inbox 처리 실패: {{error}}',
-  'notice.inboxDetected': 'Inbox: {{count}}개 파일 변경 감지',
-  'notice.inboxAlreadyRunning': 'Inbox 처리가 이미 실행 중입니다.',
+  'notice.organizeAlreadyRunning': '폴더 정리가 이미 실행 중입니다.',
   'notice.dismissed': '이슈를 무시했습니다',
   'notice.actionApplied': '액션을 적용했습니다',
   'notice.noChangeNeeded': '적용할 변경이 없습니다',
@@ -200,21 +196,8 @@ const ko: { [K in keyof typeof en]: string } = {
   'organize.tokens': '토큰: {{count}}',
   'organize.cost': '비용: ${{amount}}',
 
-  // ─── Inbox Progress Modal ───
   'organizeFolder.placeholder': '정리할 폴더를 선택하세요...',
-
-  'inboxProgress.title': '폴더 정리 중',
-  'inboxProgress.folderTitle': '정리 중: {{folder}}',
-  'inboxProgress.counter': '{{current}} / {{total}}',
-  'inboxProgress.cancel': '취소',
-  'inboxProgress.close': '닫기',
-  'inboxProgress.completeTitle': '폴더 정리 완료',
-  'inboxProgress.cancelledTitle': '폴더 정리 취소됨',
-  'inboxProgress.errorTitle': '폴더 정리 실패',
-  'inboxProgress.processed': '처리됨: {{count}}',
-  'inboxProgress.skipped': '건너뜀: {{count}}',
-  'inboxProgress.errors': '오류: {{count}}',
-  'inboxProgress.errorDetail': '{{path}}: {{error}}',
+  'organizeFolder.cancel': '취소',
 
   // ─── Settings ───
   'settings.title': 'Vaultend 설정',
@@ -233,11 +216,11 @@ const ko: { [K in keyof typeof en]: string } = {
   'settings.modelDesc': '사용할 AI 모델을 선택합니다.',
   'settings.modelCustom': '직접 입력',
 
-  'settings.inbox': 'Inbox',
-  'settings.inboxFolder': 'Inbox 폴더',
-  'settings.inboxFolderDesc': '미처리 노트가 수집되는 폴더 경로',
+  'settings.organize': '정리',
+  'settings.captureFolder': '캡처 폴더',
+  'settings.captureFolderDesc': '클립보드 캡처 시 기본 저장 폴더',
   'settings.autoApply': '자동 적용',
-  'settings.autoApplyDesc': 'Inbox 처리 결과를 자동으로 적용합니다.',
+  'settings.autoApplyDesc': '폴더 정리 결과를 자동으로 적용합니다.',
 
   'settings.quickAsk': 'Quick Ask',
   'settings.saveMode': '저장 모드',

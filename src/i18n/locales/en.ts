@@ -16,11 +16,7 @@ const en = {
   'notice.clipboardFailed': 'Clipboard capture failed: {{error}}',
   'notice.organizeResult': 'Folder: {{folder}} | Tags: {{tags}}',
   'notice.organizeFailed': 'Note organize failed: {{error}}',
-  'notice.inboxStarted': 'Starting Inbox processing...',
-  'notice.inboxComplete': 'Inbox complete: {{processed}} processed, {{skipped}} skipped, {{errors}} errors',
-  'notice.inboxFailed': 'Inbox processing failed: {{error}}',
-  'notice.inboxDetected': 'Inbox: {{count}} file changes detected',
-  'notice.inboxAlreadyRunning': 'Inbox processing is already running.',
+  'notice.organizeAlreadyRunning': 'Folder organizing is already running.',
   'notice.dismissed': 'Issue dismissed',
   'notice.actionApplied': 'Action applied',
   'notice.noChangeNeeded': 'No changes to apply',
@@ -201,19 +197,7 @@ const en = {
   // ─── Organize Folder ───
   'organizeFolder.placeholder': 'Select a folder to organize...',
 
-  // ─── Inbox Progress Modal ───
-  'inboxProgress.title': 'Organizing Folder',
-  'inboxProgress.folderTitle': 'Organizing: {{folder}}',
-  'inboxProgress.counter': '{{current}} / {{total}}',
-  'inboxProgress.cancel': 'Cancel',
-  'inboxProgress.close': 'Close',
-  'inboxProgress.completeTitle': 'Folder Organizing Complete',
-  'inboxProgress.cancelledTitle': 'Folder Organizing Cancelled',
-  'inboxProgress.errorTitle': 'Folder Organizing Failed',
-  'inboxProgress.processed': 'Processed: {{count}}',
-  'inboxProgress.skipped': 'Skipped: {{count}}',
-  'inboxProgress.errors': 'Errors: {{count}}',
-  'inboxProgress.errorDetail': '{{path}}: {{error}}',
+  'organizeFolder.cancel': 'Cancel',
 
   // ─── Settings ───
   'settings.title': 'Vaultend Settings',
@@ -232,11 +216,11 @@ const en = {
   'settings.modelDesc': 'Select the AI model to use.',
   'settings.modelCustom': 'Custom',
 
-  'settings.inbox': 'Inbox',
-  'settings.inboxFolder': 'Inbox Folder',
-  'settings.inboxFolderDesc': 'Folder path for unprocessed notes',
+  'settings.organize': 'Organize',
+  'settings.captureFolder': 'Capture Folder',
+  'settings.captureFolderDesc': 'Default folder for clipboard captures',
   'settings.autoApply': 'Auto Apply',
-  'settings.autoApplyDesc': 'Automatically apply Inbox processing results.',
+  'settings.autoApplyDesc': 'Automatically apply folder organizing results.',
 
   'settings.quickAsk': 'Quick Ask',
   'settings.saveMode': 'Save Mode',

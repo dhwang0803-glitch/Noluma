@@ -6,21 +6,21 @@ import { ClockPort } from '../ports/ClockPort';
 import { OrganizeResult } from '../../domain/models/OrganizeModels';
 import { NotePath } from '../../domain/values/NotePath';
 
-export interface InboxProgressInfo {
+export interface OrganizeFolderProgressInfo {
   readonly current: number;
   readonly total: number;
   readonly currentNotePath: NotePath;
 }
 
-export type InboxProgressCallback = (info: InboxProgressInfo) => void;
+export type OrganizeFolderProgressCallback = (info: OrganizeFolderProgressInfo) => void;
 
-export interface InboxProcessOptions {
-  readonly onProgress?: InboxProgressCallback;
+export interface OrganizeFolderOptions {
+  readonly onProgress?: OrganizeFolderProgressCallback;
   readonly signal?: AbortSignal;
   readonly folder?: string;
 }
 
-export interface InboxProcessResult {
+export interface OrganizeFolderResult {
   readonly processedCount: number;
   readonly skippedCount: number;
   readonly results: ReadonlyArray<OrganizeResult>;
@@ -28,7 +28,7 @@ export interface InboxProcessResult {
   readonly cancelled?: boolean;
 }
 
-export class RunInboxProcessUseCase {
+export class OrganizeFolderUseCase {
   constructor(
     private readonly organizeNote: OrganizeNoteUseCase,
     private readonly vault: VaultAccessPort,
@@ -37,23 +37,15 @@ export class RunInboxProcessUseCase {
     private readonly clock: ClockPort,
   ) {}
 
-  /**
-   * Inbox 폴더의 미처리 노트를 일괄 정리한다.
-   *
-   * 1. Inbox 폴더 내 모든 노트 목록 조회
-   * 2. 이미 처리된 노트(frontmatter에 processed: true) 필터링
-   * 3. 각 미처리 노트에 대해 OrganizeNoteUseCase 실행
-   * 4. 처리 결과 집계 및 반환
-   */
-  async execute(options?: InboxProcessOptions): Promise<InboxProcessResult> {
+  async execute(options?: OrganizeFolderOptions): Promise<OrganizeFolderResult> {
     const settings = await this.config.getSettings();
-    const rawFolder = options?.folder ?? settings.inboxFolder;
-    const inboxFolder = rawFolder === '/' ? undefined : rawFolder;
+    const rawFolder = options?.folder ?? settings.captureFolder;
+    const targetFolder = rawFolder === '/' ? undefined : rawFolder;
 
-    const inboxNotes = await this.vault.listNotes(inboxFolder);
+    const allNotes = await this.vault.listNotes(targetFolder);
     const unprocessedNotes = [];
 
-    for (const notePath of inboxNotes) {
+    for (const notePath of allNotes) {
       const note = await this.vault.readNote(notePath);
       if (note && !note.metadata.isProcessed) {
         unprocessedNotes.push(notePath);
@@ -80,7 +72,7 @@ export class RunInboxProcessUseCase {
       try {
         const result = await this.organizeNote.execute(
           notePath,
-          settings.autoApplyInbox,
+          settings.autoApplyOrganize,
         );
         results.push(result);
 
@@ -98,7 +90,7 @@ export class RunInboxProcessUseCase {
 
     return {
       processedCount: results.length,
-      skippedCount: inboxNotes.length - unprocessedNotes.length,
+      skippedCount: allNotes.length - unprocessedNotes.length,
       results,
       errors,
       cancelled,

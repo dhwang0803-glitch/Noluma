@@ -74,7 +74,7 @@ export class OrganizeNoteUseCase {
     });
 
     // Confidence gating — if below threshold, return minimal result
-    const confidenceThreshold = settings.inboxConfidenceThreshold ?? 0;
+    const confidenceThreshold = settings.organizeConfidenceThreshold ?? 0;
     if (confidenceThreshold > 0 && classification.confidence < confidenceThreshold) {
       return {
         noteId: note.id,
