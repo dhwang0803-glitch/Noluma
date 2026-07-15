@@ -3,7 +3,7 @@ import { NoteChunk } from '../../domain/models/NoteChunk';
 import { SaveTarget } from '../../domain/models/SaveTarget';
 import { TagName, createTagName } from '../../domain/values/TagName';
 import { NotePath } from '../../domain/values/NotePath';
-import { Timestamp, createTimestamp } from '../../domain/values/Timestamp';
+import { Timestamp } from '../../domain/values/Timestamp';
 import { AIProviderPort, ChatMessageInput } from '../ports/AIProviderPort';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { SearchIndexPort, SearchResult } from '../ports/SearchIndexPort';
