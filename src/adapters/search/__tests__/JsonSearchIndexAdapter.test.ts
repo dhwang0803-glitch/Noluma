@@ -150,6 +150,23 @@ describe('JsonSearchIndexAdapter (MiniSearch)', () => {
       expect(results[0].notePath).toBe(np('people/이도진.md'));
     });
 
+    it('다중 청크 노트가 결과를 독식하지 않는다', async () => {
+      const vault = createMockVault({
+        readNote: vi.fn().mockResolvedValue(null),
+      });
+      const adapter = new JsonSearchIndexAdapter(vault);
+
+      const manyChunks = Array.from({ length: 10 }, (_, i) =>
+        makeChunk(`unrelated content ${i}`, 'Section', i * 10),
+      );
+      await adapter.index(np('people/김철수.md'), manyChunks);
+      await adapter.index(np('notes/김철수-meeting.md'), [makeChunk('회의 기록')]);
+
+      const results = await adapter.search('김철수', 5);
+      const uniqueNotes = new Set(results.map(r => r.notePath));
+      expect(uniqueNotes.size).toBe(2);
+    });
+
     it('폴더 경로가 다른 동명 파일을 모두 찾는다', async () => {
       const vault = createMockVault({
         readNote: vi.fn().mockResolvedValue(null),

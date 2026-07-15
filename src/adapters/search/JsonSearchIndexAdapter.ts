@@ -86,7 +86,18 @@ export class JsonSearchIndexAdapter implements SearchIndexPort {
 
     const results = this.miniSearch.search(query, { prefix: true, boost: { noteName: 3 } });
 
-    return results.slice(0, maxResults).map(result => ({
+    const MAX_PER_NOTE = 3;
+    const noteCounts = new Map<string, number>();
+    const diverse: typeof results = [];
+    for (const r of results) {
+      const count = noteCounts.get(r.notePath as string) ?? 0;
+      if (count >= MAX_PER_NOTE) continue;
+      noteCounts.set(r.notePath as string, count + 1);
+      diverse.push(r);
+      if (diverse.length >= maxResults) break;
+    }
+
+    return diverse.map(result => ({
       notePath: result.notePath as NotePath,
       chunk: {
         headingPath: result.headingPath as unknown as HeadingPath,
