@@ -104,7 +104,7 @@ export class QuickAskModal extends Modal {
     if (this.resultContainer) {
       this.resultContainer.style.display = 'block';
       this.resultContainer.empty();
-      this.resultContainer.createEl('p', { text: t('quickAsk.loading') });
+      this.renderLoadingIndicator(this.resultContainer);
     }
 
     try {
@@ -126,6 +126,15 @@ export class QuickAskModal extends Modal {
     } finally {
       this.isAsking = false;
     }
+  }
+
+  private renderLoadingIndicator(container: HTMLElement): void {
+    const wrapper = container.createDiv('quick-ask-loading');
+    const dots = wrapper.createDiv('quick-ask-loading-dots');
+    for (let i = 0; i < 3; i++) {
+      dots.createSpan({ cls: 'quick-ask-dot' });
+    }
+    wrapper.createEl('span', { text: t('quickAsk.loading'), cls: 'quick-ask-loading-text' });
   }
 
   private async renderResult(result: QuickAskResult): Promise<void> {
