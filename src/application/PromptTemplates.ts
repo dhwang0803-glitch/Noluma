@@ -37,11 +37,14 @@ Core rules:
     if (lang === 'en') {
       return `You are an assistant that answers questions based on the user's personal knowledge base (Obsidian Vault).
 
-Answer the question using the context provided below. If information is not in the context, you may use general knowledge but clearly distinguish it from context-based information.
+Rules:
+1. First, check if the context below is ACTUALLY RELEVANT to the question. If it is not related, IGNORE the context entirely.
+2. If the context is relevant, answer based on it and reference notes using [[wikilink]] format.
+3. If you cannot answer reliably (context is irrelevant AND you lack confident knowledge), say so honestly. Do NOT fabricate an answer by combining unrelated context.
+4. If you use general knowledge (not from context), clearly state it is not from the vault.
 
 Answer format:
 - Write in markdown format
-- Reference existing notes using [[wikilink]] format when relevant
 - Organize key points in a structured manner
 ${contextSection}
 
@@ -51,11 +54,14 @@ ${question}`;
 
     return `당신은 사용자의 개인 지식 베이스(Obsidian Vault)를 기반으로 질문에 답변하는 어시스턴트입니다.
 
-아래 제공된 컨텍스트를 참고하여 질문에 답변하세요. 컨텍스트에 없는 정보는 일반 지식을 활용하되, 컨텍스트 기반 정보와 구분하여 표시하세요.
+규칙:
+1. 먼저 아래 컨텍스트가 질문과 실제로 관련이 있는지 판단하세요. 관련이 없으면 컨텍스트를 완전히 무시하세요.
+2. 컨텍스트가 관련 있으면 그것을 기반으로 답변하고, [[wikilink]] 형식으로 노트를 참조하세요.
+3. 확실하게 답변할 수 없는 경우(컨텍스트가 무관하고 확신 있는 지식도 없는 경우), 솔직하게 모른다고 답하세요. 관련 없는 컨텍스트를 조합하여 답변을 지어내지 마세요.
+4. 일반 지식을 사용할 경우, vault의 내용이 아님을 명시하세요.
 
 답변 형식:
 - 마크다운 형식으로 작성
-- 관련 있는 경우 [[wikilink]] 형식으로 기존 노트 참조
 - 핵심 포인트를 구조화하여 정리
 ${contextSection}
 
@@ -183,49 +189,86 @@ ${noteContent}
 ["노트1", "노트2"]`;
   },
 
-  extractSearchKeywords(question: string): string {
+  classifyAndExtractKeywords(question: string): string {
     const lang = detectContentLanguage(question);
 
     if (lang === 'en') {
-      return `Extract the core search keywords from the user's question below.
-Your goal is to produce short, precise keywords that will work well in a BM25 keyword search engine.
+      return `Analyze the user's question below and determine its intent.
+
+Step 1: Classify the intent.
+- "vault": The question asks about specific notes, documents, people, topics, or information that could exist in a personal knowledge base.
+- "general": The question is casual conversation (greetings, small talk), general knowledge that doesn't need personal notes, or meta-questions about the assistant itself.
+
+Step 2: If intent is "vault", extract 1-5 BM25 search keywords (entity names, proper nouns, key concepts). If intent is "general", keywords should be an empty array.
 
 Rules:
-1. Extract entity names, proper nouns, and key concepts as-is (do not translate or paraphrase).
-2. Remove filler words, particles, and conversational phrases.
-3. If the question references a person/character name, include the exact name.
-4. Return 1-5 keywords, ordered by importance.
-5. Respond ONLY with a JSON object: {"keywords": ["word1", "word2"]}. No explanation.
+- Greetings ("hello", "hi", "how are you"), jokes, weather, time → "general"
+- Questions mentioning specific document names, people, projects, topics → "vault"
+- Ambiguous questions about concepts that COULD be in notes → "vault"
+- Respond ONLY with JSON: {"intent": "vault"|"general", "keywords": [...]}
 
 Question: ${question}
 
-Example:
-Question: "Tell me about the relationship between Alice and Bob"
-Answer: {"keywords": ["Alice", "Bob", "relationship"]}
+Examples:
+Question: "Hello!"
+Answer: {"intent": "general", "keywords": []}
+
+Question: "Tell me about Alice's project notes"
+Answer: {"intent": "vault", "keywords": ["Alice", "project"]}
+
+Question: "What is machine learning?"
+Answer: {"intent": "vault", "keywords": ["machine learning"]}
 
 Answer:`;
     }
 
-    return `아래 사용자 질문에서 핵심 검색 키워드를 추출하세요.
-BM25 키워드 검색 엔진에서 잘 동작할 짧고 정확한 키워드를 만들어야 합니다.
+    return `아래 사용자 질문을 분석하여 의도를 판별하세요.
+
+1단계: 의도 분류
+- "vault": 특정 노트, 문서, 인물, 주제 등 개인 지식 베이스에 있을 수 있는 정보를 묻는 질문
+- "general": 인사, 잡담, 일상 대화, 어시스턴트 자체에 대한 질문, 노트 검색이 불필요한 일반 지식 질문
+
+2단계: intent가 "vault"면 BM25 검색용 키워드 1~5개 추출 (고유명사, 핵심 개념, 조사 제거). "general"이면 빈 배열.
 
 규칙:
-1. 고유명사, 인물명, 핵심 개념은 원형 그대로 추출하세요 (조사 제거).
-2. "알려줘", "찾아줘", "대해서" 같은 대화체 표현은 제거하세요.
-3. 인물/캐릭터 이름이 있으면 반드시 이름 원형을 포함하세요.
-4. 1~5개 키워드를 중요도 순으로 반환하세요.
-5. 반드시 JSON 객체로만 응답하세요: {"keywords": ["키워드1", "키워드2"]}. 설명 금지.
+- 인사("안녕", "반가워"), 날씨, 시간, 농담 → "general"
+- 특정 문서명, 인물명, 프로젝트명, 주제 언급 → "vault"
+- 노트에 있을 수 있는 개념 질문 → "vault"
+- 반드시 JSON으로만 응답: {"intent": "vault"|"general", "keywords": [...]}
 
 질문: ${question}
 
 예시:
-질문: "서울에서 열리는 축제에 대해 알려줘"
-답변: {"keywords": ["서울", "축제"]}
+질문: "안녕하세요"
+답변: {"intent": "general", "keywords": []}
 
-질문: "프로젝트 일정이랑 담당자가 누구야?"
-답변: {"keywords": ["프로젝트", "일정", "담당자"]}
+질문: "이도진 문서 읽어서 요약해줘"
+답변: {"intent": "vault", "keywords": ["이도진"]}
+
+질문: "머신러닝이 뭐야?"
+답변: {"intent": "vault", "keywords": ["머신러닝"]}
 
 답변:`;
+  },
+
+  quickAskGeneral(question: string): string {
+    const lang = detectContentLanguage(question);
+
+    if (lang === 'en') {
+      return `You are a friendly assistant inside an Obsidian Vault plugin called Vaultend.
+The user asked a casual or general question that doesn't require searching their notes.
+Answer naturally and concisely in markdown format.
+
+## Question
+${question}`;
+    }
+
+    return `당신은 Obsidian Vault 플러그인 Vaultend의 친근한 어시스턴트입니다.
+사용자가 노트 검색이 필요 없는 일상적이거나 일반적인 질문을 했습니다.
+자연스럽고 간결하게 마크다운 형식으로 답변하세요.
+
+## 질문
+${question}`;
   },
 
   summarize(noteContent: string): string {
