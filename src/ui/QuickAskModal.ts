@@ -14,7 +14,8 @@ export class QuickAskModal extends Modal {
   private previewContainer: HTMLElement | null = null;
   private activeRefLink: HTMLElement | null = null;
   private previewRequestId = 0;
-  private viewportHandler: (() => void) | null = null;
+  private focusHandler: (() => void) | null = null;
+  private blurHandler: (() => void) | null = null;
 
   constructor(
     app: App,
@@ -59,31 +60,34 @@ export class QuickAskModal extends Modal {
   }
 
   onClose(): void {
-    if (this.viewportHandler && window.visualViewport) {
-      window.visualViewport.removeEventListener('resize', this.viewportHandler);
-      this.viewportHandler = null;
+    const textarea = this.questionInput?.inputEl;
+    if (textarea) {
+      if (this.focusHandler) textarea.removeEventListener('focus', this.focusHandler);
+      if (this.blurHandler) textarea.removeEventListener('blur', this.blurHandler);
     }
-    this.containerEl.style.removeProperty('--vaultend-keyboard-offset');
+    this.focusHandler = null;
+    this.blurHandler = null;
     this.renderComponent.unload();
     this.contentEl.empty();
   }
 
   private setupMobileKeyboardHandler(): void {
-    const vv = window.visualViewport;
-    if (!vv) return;
+    const textarea = this.questionInput?.inputEl;
+    if (!textarea) return;
 
-    this.viewportHandler = () => {
-      const keyboardHeight = window.innerHeight - vv.height;
-      const modalEl = this.containerEl.querySelector('.modal') as HTMLElement | null;
-      if (!modalEl) return;
-      if (keyboardHeight > 100) {
-        modalEl.style.transform = `translateY(${-keyboardHeight / 2}px)`;
-      } else {
-        modalEl.style.removeProperty('transform');
-      }
+    const modalEl = this.contentEl.closest('.modal') as HTMLElement | null;
+    if (!modalEl) return;
+
+    this.focusHandler = () => {
+      modalEl.setCssStyles({ top: '5%', transform: 'none' });
+    };
+    this.blurHandler = () => {
+      modalEl.style.removeProperty('top');
+      modalEl.style.removeProperty('transform');
     };
 
-    vv.addEventListener('resize', this.viewportHandler);
+    textarea.addEventListener('focus', this.focusHandler);
+    textarea.addEventListener('blur', this.blurHandler);
   }
 
   private async handleAsk(): Promise<void> {
