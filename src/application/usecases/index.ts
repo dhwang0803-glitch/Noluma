@@ -2,6 +2,7 @@
 
 export { QuickAskUseCase } from './QuickAskUseCase';
 export { OrganizeNoteUseCase } from './OrganizeNoteUseCase';
+export type { OrganizeContext } from './OrganizeNoteUseCase';
 export { OrganizeFolderUseCase } from './RunInboxProcessUseCase';
 export type { OrganizeFolderResult } from './RunInboxProcessUseCase';
 export { RunMaintenanceUseCase } from './RunMaintenanceUseCase';

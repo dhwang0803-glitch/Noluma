@@ -277,12 +277,14 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.organizeFolderUseCase = new OrganizeFolderUseCase(
       this.organizeNoteUseCase, this.vaultAdapter,
       this.configPort, this.historyAdapter, this.clockAdapter,
+      this.aiAdapter,
     );
 
     this.runMaintenanceUseCase = new RunMaintenanceUseCase(
       this.vaultAdapter, this.searchIndex,
       this.configPort, this.clockAdapter,
       this.changeTracker, this.corpusStatsAdapter,
+      this.aiAdapter,
     );
 
     this.captureClipboardUseCase = new CaptureClipboardUseCase(

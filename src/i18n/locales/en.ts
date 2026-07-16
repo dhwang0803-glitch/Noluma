@@ -51,6 +51,7 @@ const en = {
   'issue.brokenLinks': 'Broken Links ({{count}})',
   'issue.orphanNotes': 'Orphan Notes ({{count}})',
   'issue.duplicates': 'Duplicate Candidates ({{count}})',
+  'issue.duplicateTags': 'Duplicate Tags ({{count}})',
 
   // Issue type short labels (for filter chips)
   'issueShort.empty': 'Empty',
@@ -59,6 +60,7 @@ const en = {
   'issueShort.broken-link': 'Broken Links',
   'issueShort.orphan': 'Orphans',
   'issueShort.duplicate': 'Duplicates',
+  'issueShort.duplicate-tags': 'Dup Tags',
 
   // Summary
   'summary.emptyNotes': 'empty {{count}}',
@@ -67,6 +69,7 @@ const en = {
   'summary.brokenLinks': 'broken links {{count}}',
   'summary.orphanNotes': 'orphans {{count}}',
   'summary.duplicates': 'duplicates {{count}}',
+  'summary.duplicateTags': 'duplicate tags {{count}}',
 
   // Severity
   'severity.critical': 'Critical',
@@ -81,6 +84,7 @@ const en = {
   'btn.removeLink': 'Remove Link',
   'btn.createNote': 'Create Note',
   'btn.openSideBySide': 'Open Side by Side',
+  'btn.mergeTags': 'Merge',
   'btn.ask': 'Ask',
   'btn.close': 'Close',
 
@@ -93,6 +97,7 @@ const en = {
   'batch.selectedRestore': 'Restore Selected',
   'batch.selectedRemoveLinks': 'Remove Selected Links',
   'batch.selectedApplyTags': 'Apply Tags to Selected',
+  'batch.selectedMergeTags': 'Merge Selected',
 
   // Dismiss
   'dismiss.tooltip': 'Dismiss',
@@ -104,6 +109,9 @@ const en = {
   // Duplicates
   'duplicate.tagSuggestion': '{{tags}} suggested',
   'duplicate.similarity': 'Similarity {{score}}%',
+  'duplicateTag.keep': 'Keep: {{tag}}',
+  'duplicateTag.variants': 'Variants: {{tags}}',
+  'duplicateTag.affected': '{{count}} notes affected',
 
   // Undo / Redo
   'undo.tooltip': 'Undo',

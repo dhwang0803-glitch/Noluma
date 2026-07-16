@@ -53,6 +53,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'issue.brokenLinks': '깨진 링크 ({{count}})',
   'issue.orphanNotes': '고아 노트 ({{count}})',
   'issue.duplicates': '중복 후보 ({{count}})',
+  'issue.duplicateTags': '중복 태그 ({{count}})',
 
   // Issue type short labels (for filter chips)
   'issueShort.empty': '빈 노트',
@@ -61,6 +62,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'issueShort.broken-link': '깨진 링크',
   'issueShort.orphan': '고아 노트',
   'issueShort.duplicate': '중복 후보',
+  'issueShort.duplicate-tags': '중복 태그',
 
   // Summary
   'summary.emptyNotes': '빈 노트 {{count}}',
@@ -69,6 +71,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'summary.brokenLinks': '깨진 링크 {{count}}',
   'summary.orphanNotes': '고아 노트 {{count}}',
   'summary.duplicates': '중복 후보 {{count}}',
+  'summary.duplicateTags': '중복 태그 {{count}}',
 
   // Severity
   'severity.critical': '심각',
@@ -83,6 +86,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'btn.removeLink': '링크 제거',
   'btn.createNote': '노트 생성',
   'btn.openSideBySide': '나란히 열기',
+  'btn.mergeTags': '병합',
   'btn.ask': '질문하기',
   'btn.close': '닫기',
 
@@ -95,6 +99,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'batch.selectedRestore': '선택 복원',
   'batch.selectedRemoveLinks': '선택 링크 제거',
   'batch.selectedApplyTags': '선택 태그 적용',
+  'batch.selectedMergeTags': '선택 병합',
 
   // Dismiss
   'dismiss.tooltip': '무시',
@@ -106,6 +111,9 @@ const ko: { [K in keyof typeof en]: string } = {
   // Duplicates
   'duplicate.tagSuggestion': '{{tags}} 추가 제안',
   'duplicate.similarity': '유사도 {{score}}%',
+  'duplicateTag.keep': '유지: {{tag}}',
+  'duplicateTag.variants': '변형: {{tags}}',
+  'duplicateTag.affected': '{{count}}개 노트 영향',
 
   // Undo / Redo
   'undo.tooltip': '실행 취소',
