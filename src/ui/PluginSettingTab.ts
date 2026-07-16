@@ -450,10 +450,11 @@ export class PluginSettingTab extends ObsidianSettingTab {
       if (e.key === 'Enter') { e.preventDefault(); addItem(input.value); }
     });
 
+    const cachedSuggestions = opts.suggestions();
+
     input.addEventListener('input', () => {
       const query = input.value.trim().toLowerCase();
-      const all = opts.suggestions();
-      const filtered = all.filter(s =>
+      const filtered = cachedSuggestions.filter(s =>
         !opts.items.includes(s) && s.toLowerCase().includes(query),
       ).slice(0, 10);
 
@@ -499,9 +500,12 @@ export class PluginSettingTab extends ObsidianSettingTab {
           tags.set(tag, (tags.get(tag) ?? 0) + 1);
         }
       }
-      if (cache.frontmatter?.tags && Array.isArray(cache.frontmatter.tags)) {
-        for (const raw of cache.frontmatter.tags) {
-          const tag = String(raw).startsWith('#') ? String(raw) : `#${raw}`;
+      if (cache.frontmatter?.tags) {
+        const raw = cache.frontmatter.tags;
+        const list = Array.isArray(raw) ? raw : [raw];
+        for (const item of list) {
+          const s = String(item);
+          const tag = s.startsWith('#') ? s : `#${s}`;
           tags.set(tag, (tags.get(tag) ?? 0) + 1);
         }
       }
