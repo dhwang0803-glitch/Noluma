@@ -276,7 +276,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'settings.ruleNumber': '규칙 {{number}}',
   'settings.ruleTypeFolderExclude': '폴더 제외',
   'settings.ruleTypeTagExclude': '태그 제외',
-  'settings.ruleTypeFrontmatterExclude': 'Frontmatter 제외',
+  'settings.ruleTypeFrontmatterExclude': '속성(Properties) 제외',
   'settings.ruleTypeContentRedact': '내용 마스킹',
 };
 
