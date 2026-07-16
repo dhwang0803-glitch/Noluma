@@ -477,7 +477,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
   private collectVaultFolders(): string[] {
     const { TFolder } = require('obsidian');
     const folders: string[] = [];
-    const collect = (folder: any) => {
+    const collect = (folder: InstanceType<typeof TFolder>) => {
       if (folder.path) folders.push(folder.path);
       for (const child of folder.children ?? []) {
         if (child instanceof TFolder) collect(child);
