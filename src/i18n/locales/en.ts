@@ -276,7 +276,7 @@ const en = {
   'settings.ruleNumber': 'Rule {{number}}',
   'settings.ruleTypeFolderExclude': 'Folder exclude',
   'settings.ruleTypeTagExclude': 'Tag exclude',
-  'settings.ruleTypeFrontmatterExclude': 'Frontmatter exclude',
+  'settings.ruleTypeFrontmatterExclude': 'Properties exclude',
   'settings.ruleTypeContentRedact': 'Content redact',
 } as const;
 
