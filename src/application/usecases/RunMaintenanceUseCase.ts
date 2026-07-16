@@ -76,7 +76,7 @@ export class RunMaintenanceUseCase {
     let filtered = allNotes;
 
     filtered = filtered.filter(
-      np => !NON_TEXT_EXTENSIONS.some(ext => (np as string).endsWith(ext)),
+      np => !NON_TEXT_EXTENSIONS.some(ext => (np as string).toLowerCase().endsWith(ext)),
     );
 
     if (excludeFolders.length > 0) {
