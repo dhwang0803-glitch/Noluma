@@ -27,6 +27,7 @@
 | 0003 | [Inbox 제거 및 Organize Folder 리네이밍](./adr/ADR-0003-inbox-removal-organize-folder.md) | Accepted | 2026-07-16 |
 | 0004 | [Tag Taxonomy Engine — 2단계 중복 태그 탐지](./adr/ADR-0004-tag-taxonomy-engine.md) | Accepted | 2026-07-16 |
 | 0005 | [Quick Ask 원샷 → 멀티턴 채팅 전환](./adr/ADR-0005-quickask-multiturn-chat.md) | Accepted | 2026-07-15 |
+| 0006 | [클립보드 캡처 기능 제거](./adr/ADR-0006-clipboard-capture-removal.md) | Accepted | 2026-07-16 |
 
 ## 구현 결정 메모 (비-ADR)
 
@@ -39,3 +40,5 @@
 - **Tag 병합 undoable: false** (2026-07-16, PR #116, ADR-0004): 중복 태그 병합은 다수 파일의 frontmatter를 수정하므로 단일 undo로 복원 불가. History에 기록은 하되 undo 버튼 비활성.
 - **OrganizeContext 배치 I/O 최적화** (2026-07-16, PR #116, ADR-0004): Organize Folder 배치 실행 시 vault 쿼리 + 임베딩 호출을 1회로 통합. `OrganizeContext` 인터페이스로 캐시 전달. 단일 노트 모드는 fallback으로 개별 호출.
 - **Quick Ask 매 턴 재검색** (2026-07-15, PR #114, ADR-0005): 멀티턴 채팅에서 대화 이력만 사용하지 않고 매 턴 hybridSearch()를 재실행. 대화가 깊어져도 vault의 최신 컨텍스트를 반영하기 위함.
+- **교차 언어 태그 매칭 — 전체 canonical 비교** (2026-07-16, PR #117, ADR-0004 보완): findDuplicateTags() Stage 2에서 문자열 중복 그룹을 임베딩 비교 대상에서 제외하던 버그 수정. 모든 canonical 그룹을 임베딩 비교에 포함하고, 흡수된 문자열 중복 그룹을 dedup하여 교차 언어 매칭(#game-dev ↔ #게임개발) 동작.
+- **클립보드 캡처 제거** (2026-07-16, PR #117, ADR-0006): 플러그인 범위를 vault 내부 관리로 한정. ClipboardPort, CaptureClipboardUseCase, ObsidianClipboardAdapter 및 관련 코드 전체 삭제.
