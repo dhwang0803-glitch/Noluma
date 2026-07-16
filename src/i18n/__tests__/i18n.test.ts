@@ -22,8 +22,8 @@ describe('i18n', () => {
     });
 
     it('interpolates multiple params', () => {
-      const result = t('notice.inboxComplete', { processed: 5, skipped: 2, errors: 1 });
-      expect(result).toBe('Inbox complete: 5 processed, 2 skipped, 1 errors');
+      const result = t('organizeFolder.summary', { processed: '5', skipped: '2', errors: '1' });
+      expect(result).toBe('5 processed, 2 skipped, 1 errors');
     });
 
     it('preserves unmatched placeholders', () => {
