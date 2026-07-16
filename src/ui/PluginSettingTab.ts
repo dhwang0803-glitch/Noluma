@@ -179,10 +179,8 @@ export class PluginSettingTab extends ObsidianSettingTab {
 
     // --- Maintenance ---
     containerEl.createEl('h3', { text: t('settings.maintenance') });
-    containerEl.createEl('p', {
-      text: t('settings.maintenanceScopeNote'),
-      cls: 'setting-item-description',
-    });
+    new Setting(containerEl)
+      .setDesc(t('settings.maintenanceScopeNote'));
 
     new Setting(containerEl)
       .setName(t('settings.autoMaintenance'))
@@ -403,9 +401,10 @@ export class PluginSettingTab extends ObsidianSettingTab {
       onUpdate: (items: string[]) => Promise<void>;
     },
   ): void {
-    const wrapper = containerEl.createDiv({ cls: 'vaultend-chip-setting' });
-    wrapper.createEl('div', { text: opts.label, cls: 'setting-item-name' });
-    wrapper.createEl('div', { text: opts.desc, cls: 'setting-item-description' });
+    const wrapper = containerEl.createDiv({ cls: 'setting-item vaultend-chip-setting' });
+    const info = wrapper.createDiv({ cls: 'setting-item-info' });
+    info.createEl('div', { text: opts.label, cls: 'setting-item-name' });
+    info.createEl('div', { text: opts.desc, cls: 'setting-item-description' });
 
     const chipContainer = wrapper.createDiv({ cls: 'vaultend-chip-container' });
 
