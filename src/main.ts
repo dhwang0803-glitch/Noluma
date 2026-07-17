@@ -12,6 +12,7 @@ import { FileChangeTrackingAdapter } from './adapters/tracking/FileChangeTrackin
 import { FileCorpusStatsAdapter } from './adapters/corpus/FileCorpusStatsAdapter';
 import { AIEmbeddingAdapter } from './adapters/embedding/AIEmbeddingAdapter';
 import { JsonVectorStoreAdapter } from './adapters/vectorstore/JsonVectorStoreAdapter';
+import { LocalLicenseAdapter } from './adapters/license/LocalLicenseAdapter';
 
 // Use Cases
 import { QuickAskUseCase } from './application/usecases/QuickAskUseCase';
@@ -37,6 +38,9 @@ import { localizeError } from './ui/localizeError';
 // Ports
 import { AIProviderPort } from './application/ports/AIProviderPort';
 import { ConfigPort } from './application/ports/ConfigPort';
+import type { LicensePort } from './application/ports/LicensePort';
+import { PRO_FEATURES } from './domain/models/License';
+import type { ProFeatureId } from './domain/models/License';
 import { VaultEvent } from './application/ports/VaultAccessPort';
 import { NotePath, createNotePath } from './domain/values/NotePath';
 import type { MaintenancePlan } from './domain/models/OrganizeModels';
@@ -91,6 +95,8 @@ const DEFAULT_SETTINGS: PluginSettings = {
   knownTags: [],
   trackTokenUsage: true,
   locale: DEFAULT_LOCALE,
+  licenseKey: '',
+  proGraceDeadline: 0,
 };
 
 export default class KnowledgeMaintenancePlugin extends Plugin {
@@ -107,6 +113,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private corpusStatsAdapter!: FileCorpusStatsAdapter;
   private embeddingAdapter!: AIEmbeddingAdapter;
   private vectorStoreAdapter!: JsonVectorStoreAdapter;
+  private licenseAdapter!: LicensePort;
 
   // Shared ConfigPort (single instance)
   private configPort!: ConfigPort;
@@ -153,7 +160,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.registerCommands();
 
     // 6. Register settings tab
-    this.addSettingTab(new PluginSettingTab(this.app, this, this.configPort, () => {
+    this.addSettingTab(new PluginSettingTab(this.app, this, this.configPort, this.licenseAdapter, () => {
       this.scheduleMaintenanceIfEnabled();
     }));
 
@@ -228,7 +235,18 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       delete raw.inboxConfidenceThreshold;
     }
 
+    // Migrate: grant 14-day grace period for existing users on first license system introduction
+    let needsPersist = false;
+    if (!('licenseKey' in raw) && !('proGraceDeadline' in raw)) {
+      raw.proGraceDeadline = Date.now() + 14 * 24 * 60 * 60 * 1000;
+      needsPersist = true;
+    }
+
     this.settings = { ...DEFAULT_SETTINGS, ...raw };
+
+    if (needsPersist) {
+      await this.saveData(this.settings);
+    }
   }
 
   private wireAdapters(): void {
@@ -254,6 +272,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     // AI adapter — reads latest settings from ConfigPort on each call, delegates to the appropriate provider
     this.aiAdapter = new DynamicAIAdapter(this.configPort);
     this.embeddingAdapter = new AIEmbeddingAdapter(this.aiAdapter, this.configPort);
+
+    // License adapter — local key validation, swappable for server validation later
+    this.licenseAdapter = new LocalLicenseAdapter(this.configPort);
   }
 
   private wireUseCases(): void {
@@ -314,6 +335,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         this.applyMaintenanceActionUseCase,
         this.configPort,
         this.historyAdapter,
+        this.licenseAdapter,
         (path: string) => {
           const file = this.app.vault.getAbstractFileByPath(path);
           if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
@@ -336,6 +358,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         this.configPort,
         this.historyAdapter,
         this.vaultAdapter,
+        this.licenseAdapter,
         (path: string) => {
           const file = this.app.vault.getAbstractFileByPath(path);
           if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
@@ -343,6 +366,12 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         (v: boolean) => { this.isOrganizing = v; },
       ),
     );
+  }
+
+  private showProUpgradeNotice(feature: ProFeatureId): void {
+    const featureMeta = PRO_FEATURES.find(f => f.id === feature);
+    const featureName = featureMeta ? t(featureMeta.i18nKey as Parameters<typeof t>[0]) : feature;
+    new Notice(t('pro.featureLocked', { feature: featureName }), 5000);
   }
 
   private registerCommands(): void {
@@ -419,6 +448,10 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       callback: async () => {
         if (this.isOrganizing) {
           new Notice(t('notice.organizeAlreadyRunning'));
+          return;
+        }
+        if (!await this.licenseAdapter.canUseFeature('organize-folder')) {
+          this.showProUpgradeNotice('organize-folder');
           return;
         }
         new FolderSuggestModal(this.app, async (folder) => {
@@ -501,6 +534,10 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
                 new Notice(t('notice.organizeAlreadyRunning'));
                 return;
               }
+              if (!await this.licenseAdapter.canUseFeature('organize-folder')) {
+                this.showProUpgradeNotice('organize-folder');
+                return;
+              }
               await this.activateView(ORGANIZE_FOLDER_VIEW_TYPE);
               const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_FOLDER_VIEW_TYPE);
               if (leaves.length > 0) {
@@ -554,18 +591,24 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     });
   }
 
-  private scheduleMaintenanceIfEnabled(): void {
+  private async scheduleMaintenanceIfEnabled(): Promise<void> {
     if (this.maintenanceInterval !== null) {
       window.clearInterval(this.maintenanceInterval);
       this.maintenanceInterval = null;
     }
 
     if (!this.settings.maintenanceEnabled) return;
+    if (!await this.licenseAdapter.canUseFeature('auto-maintenance')) return;
 
     const ms = this.settings.maintenanceIntervalMinutes * 60 * 1000;
     let firstRun = true;
     this.maintenanceInterval = window.setInterval(async () => {
       if (this.isMaintenanceRunning) return;
+      if (!await this.licenseAdapter.canUseFeature('auto-maintenance')) {
+        window.clearInterval(this.maintenanceInterval!);
+        this.maintenanceInterval = null;
+        return;
+      }
       const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
       if (leaves.length > 0) {
         const view = leaves[0].view as MaintenanceResultView;
@@ -574,10 +617,13 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.isMaintenanceRunning = true;
       try {
         if (this.settings.smartScheduling && !firstRun) {
-          const lastScan = await this.changeTracker.getLastScanTimestamp();
-          if (lastScan !== null) {
-            const dirtySet = await this.changeTracker.getDirtySet();
-            if (dirtySet.size === 0) return;
+          const canUseSmart = await this.licenseAdapter.canUseFeature('smart-scheduling');
+          if (canUseSmart) {
+            const lastScan = await this.changeTracker.getLastScanTimestamp();
+            if (lastScan !== null) {
+              const dirtySet = await this.changeTracker.getDirtySet();
+              if (dirtySet.size === 0) return;
+            }
           }
         }
         firstRun = false;

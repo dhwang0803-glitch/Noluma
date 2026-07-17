@@ -278,6 +278,26 @@ const ko: { [K in keyof typeof en]: string } = {
   'settings.ruleTypeTagExclude': '태그 제외',
   'settings.ruleTypeFrontmatterExclude': '속성(Properties) 제외',
   'settings.ruleTypeContentRedact': '내용 마스킹',
+
+  // ─── License / Pro ───
+  'settings.license': '라이선스',
+  'settings.licenseKey': '라이선스 키',
+  'settings.licenseActive': 'Pro 라이선스가 활성화되어 있습니다.',
+  'settings.licenseInactive': '라이선스 키를 입력하여 Pro 기능을 잠금 해제하세요.',
+  'settings.licenseActivate': '활성화',
+  'settings.licenseDeactivate': '비활성화',
+  'settings.licenseActivated': 'Pro 라이선스가 활성화되었습니다!',
+  'settings.licenseInvalid': '유효하지 않은 라이선스 키입니다. 확인 후 다시 시도해주세요.',
+  'settings.licensePro': 'PRO',
+  'settings.licenseFree': 'FREE',
+  'settings.gracePeriod': 'Pro 기능을 {{days}}일 더 사용할 수 있습니다. 라이선스 키를 입력하여 계속 사용하세요.',
+
+  'pro.organizeFolder': '폴더 일괄 정리',
+  'pro.autoMaintenance': '자동 유지보수',
+  'pro.smartScheduling': '스마트 스케줄링',
+  'pro.batchMergeTags': '중복 태그 일괄 병합',
+  'pro.featureLocked': '{{feature}}은(는) Pro 기능입니다. 설정에서 라이선스 키를 입력하세요.',
+  'pro.badge': 'PRO',
 };
 
 export default ko;

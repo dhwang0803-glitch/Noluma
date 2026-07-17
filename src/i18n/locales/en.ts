@@ -278,6 +278,26 @@ const en = {
   'settings.ruleTypeTagExclude': 'Tag exclude',
   'settings.ruleTypeFrontmatterExclude': 'Properties exclude',
   'settings.ruleTypeContentRedact': 'Content redact',
+
+  // ─── License / Pro ───
+  'settings.license': 'License',
+  'settings.licenseKey': 'License Key',
+  'settings.licenseActive': 'Your Pro license is active.',
+  'settings.licenseInactive': 'Enter your license key to unlock Pro features.',
+  'settings.licenseActivate': 'Activate',
+  'settings.licenseDeactivate': 'Deactivate',
+  'settings.licenseActivated': 'Pro license activated!',
+  'settings.licenseInvalid': 'Invalid license key. Please check and try again.',
+  'settings.licensePro': 'PRO',
+  'settings.licenseFree': 'FREE',
+  'settings.gracePeriod': 'Pro features are available for {{days}} more days. Enter a license key to continue using them.',
+
+  'pro.organizeFolder': 'Organize Folder',
+  'pro.autoMaintenance': 'Auto Maintenance',
+  'pro.smartScheduling': 'Smart Scheduling',
+  'pro.batchMergeTags': 'Batch Merge Tags',
+  'pro.featureLocked': '{{feature}} is a Pro feature. Enter your license key in Settings to unlock.',
+  'pro.badge': 'PRO',
 } as const;
 
 export default en;
