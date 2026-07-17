@@ -1,5 +1,6 @@
-import { App, Plugin, PluginSettingTab as ObsidianSettingTab, Setting } from 'obsidian';
+import { App, Notice, Plugin, PluginSettingTab as ObsidianSettingTab, Setting } from 'obsidian';
 import { ConfigPort, PluginSettings } from '../application/ports/ConfigPort';
+import type { LicensePort } from '../application/ports/LicensePort';
 import { PrivacyRule, PrivacyRuleType } from '../domain/models/PrivacyRule';
 import { t, setLocale, detectObsidianLocale, type SupportedLocale } from '../i18n';
 import { MAINTENANCE_RESULT_VIEW_TYPE, MAINTENANCE_LOG_VIEW_TYPE, ORGANIZE_FOLDER_VIEW_TYPE } from '../constants';
@@ -42,6 +43,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
     app: App,
     private readonly plugin: Plugin,
     private readonly config: ConfigPort,
+    private readonly licensePort: LicensePort,
     private readonly onMaintenanceSettingsChanged?: () => void,
   ) {
     super(app, plugin);
@@ -75,6 +77,9 @@ export class PluginSettingTab extends ObsidianSettingTab {
             this.display();
           });
       });
+
+    // --- License ---
+    await this.renderLicenseSection(containerEl);
 
     // --- AI Provider ---
     containerEl.createEl('h3', { text: t('settings.aiProvider') });
@@ -182,10 +187,21 @@ export class PluginSettingTab extends ObsidianSettingTab {
     new Setting(containerEl)
       .setDesc(t('settings.maintenanceScopeNote'));
 
-    new Setting(containerEl)
+    const licenseStatus = await this.licensePort.getStatus();
+    const isPro = licenseStatus.tier === 'pro'
+      || (this.settings!.proGraceDeadline > 0 && Date.now() < this.settings!.proGraceDeadline);
+
+    const autoMaintenanceSetting = new Setting(containerEl)
       .setName(t('settings.autoMaintenance'))
-      .setDesc(t('settings.autoMaintenanceDesc'))
-      .addToggle(toggle => {
+      .setDesc(t('settings.autoMaintenanceDesc'));
+
+    if (!isPro) {
+      autoMaintenanceSetting.nameEl.createSpan({ text: ' PRO', cls: 'vaultend-pro-badge' });
+      autoMaintenanceSetting.addToggle(toggle => {
+        toggle.setValue(false).setDisabled(true);
+      });
+    } else {
+      autoMaintenanceSetting.addToggle(toggle => {
         toggle
           .setValue(this.settings!.maintenanceEnabled)
           .onChange(async (value) => {
@@ -193,6 +209,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
             this.onMaintenanceSettingsChanged?.();
           });
       });
+    }
 
     new Setting(containerEl)
       .setName(t('settings.maintenanceInterval'))
@@ -510,6 +527,75 @@ export class PluginSettingTab extends ObsidianSettingTab {
     return [...tags.entries()]
       .sort((a, b) => b[1] - a[1])
       .map(([tag]) => tag);
+  }
+
+  private async renderLicenseSection(containerEl: HTMLElement): Promise<void> {
+    containerEl.createEl('h3', { text: t('settings.license') });
+
+    const licenseStatus = await this.licensePort.getStatus();
+    const isGracePeriod = this.settings!.proGraceDeadline > 0
+      && Date.now() < this.settings!.proGraceDeadline
+      && licenseStatus.tier !== 'pro';
+
+    const licenseSetting = new Setting(containerEl)
+      .setName(t('settings.licenseKey'))
+      .setDesc(licenseStatus.tier === 'pro'
+        ? t('settings.licenseActive')
+        : t('settings.licenseInactive'));
+
+    let keyInput: HTMLInputElement | null = null;
+    licenseSetting.addText(text => {
+      text
+        .setPlaceholder('VE-XXXX-XXXX-XXXX-XXXX')
+        .setValue(this.settings!.licenseKey ?? '');
+      text.inputEl.type = 'password';
+      keyInput = text.inputEl;
+    });
+
+    if (licenseStatus.tier === 'pro') {
+      licenseSetting.addButton(btn => btn
+        .setButtonText(t('settings.licenseDeactivate'))
+        .onClick(async () => {
+          await this.licensePort.deactivate();
+          this.display();
+        }),
+      );
+    } else {
+      licenseSetting.addButton(btn => btn
+        .setButtonText(t('settings.licenseActivate'))
+        .setCta()
+        .onClick(async () => {
+          const key = keyInput?.value ?? '';
+          const result = await this.licensePort.activate(key);
+          if (result.tier === 'pro') {
+            new Notice(t('settings.licenseActivated'));
+            this.onMaintenanceSettingsChanged?.();
+          } else {
+            new Notice(t('settings.licenseInvalid'));
+          }
+          this.display();
+        }),
+      );
+    }
+
+    const badge = containerEl.createDiv({
+      cls: licenseStatus.tier === 'pro'
+        ? 'vaultend-license-badge vaultend-pro-active'
+        : 'vaultend-license-badge vaultend-free',
+    });
+    badge.textContent = licenseStatus.tier === 'pro'
+      ? t('settings.licensePro')
+      : t('settings.licenseFree');
+
+    if (isGracePeriod) {
+      const daysLeft = Math.ceil(
+        (this.settings!.proGraceDeadline - Date.now()) / (24 * 60 * 60 * 1000),
+      );
+      containerEl.createEl('p', {
+        text: t('settings.gracePeriod', { days: daysLeft }),
+        cls: 'vaultend-grace-notice',
+      });
+    }
   }
 
   private refreshOpenViews(): void {

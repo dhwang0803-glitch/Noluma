@@ -941,3 +941,42 @@
 .vaultend-model-anchor {
   display: none;
 }
+
+/* License / Pro Badge */
+.vaultend-pro-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  margin-left: 6px;
+  border-radius: 4px;
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  vertical-align: middle;
+}
+
+.vaultend-license-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.vaultend-pro-active {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.vaultend-free {
+  background-color: var(--background-modifier-border);
+  color: var(--text-muted);
+}
+
+.vaultend-grace-notice {
+  color: var(--text-accent);
+  font-size: var(--font-ui-small);
+  margin-top: -8px;
+  margin-bottom: 12px;
+}

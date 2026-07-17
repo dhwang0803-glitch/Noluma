@@ -8,6 +8,7 @@ import type { SeverityLevel } from '../domain/values/Severity';
 import { ISSUE_SEVERITY, getSeverity } from '../domain/values/Severity';
 import type { ConfigPort } from '../application/ports/ConfigPort';
 import type { HistoryPort } from '../application/ports/HistoryPort';
+import type { LicensePort } from '../application/ports/LicensePort';
 import { localizeError } from './localizeError';
 import { MAINTENANCE_RESULT_VIEW_TYPE, HISTORY_CHANGED_EVENT } from '../constants';
 import { t, formatDate } from '../i18n';
@@ -52,6 +53,7 @@ export class MaintenanceResultView extends ItemView {
     private readonly applyAction: ApplyMaintenanceActionUseCase,
     private readonly configPort: ConfigPort,
     private readonly historyPort: HistoryPort,
+    private readonly licensePort: LicensePort,
     private readonly openFile: (path: string) => void,
     private readonly openFileSplit: (pathA: string, pathB: string) => void,
   ) {
@@ -668,16 +670,22 @@ export class MaintenanceResultView extends ItemView {
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.mergeTags'))
         .setCta()
-        .onClick(() => this.executeAction(
-          {
-            kind: 'merge-duplicate-tags',
-            keepTag: group.canonicalTag,
-            replaceTags,
-            affectedNotes: group.affectedNotes,
-          },
-          settingEl,
-          `duplicate-tags:${group.canonicalTag as string}`,
-        )),
+        .onClick(async () => {
+          if (!await this.licensePort.canUseFeature('batch-merge-tags')) {
+            new Notice(t('pro.featureLocked', { feature: t('pro.batchMergeTags') }), 5000);
+            return;
+          }
+          this.executeAction(
+            {
+              kind: 'merge-duplicate-tags',
+              keepTag: group.canonicalTag,
+              replaceTags,
+              affectedNotes: group.affectedNotes,
+            },
+            settingEl,
+            `duplicate-tags:${group.canonicalTag as string}`,
+          );
+        }),
       );
 
       this.addDismissButton(settingEl, 'duplicate-tags', group.canonicalTag as string);
@@ -842,6 +850,12 @@ export class MaintenanceResultView extends ItemView {
     const selected = entries.filter(e => e.checkbox.checked && e.status === 'pending');
     if (selected.length === 0) {
       new Notice(t('notice.noSelection'));
+      return;
+    }
+
+    const hasMerge = selected.some(e => e.action.kind === 'merge-duplicate-tags');
+    if (hasMerge && !await this.licensePort.canUseFeature('batch-merge-tags')) {
+      new Notice(t('pro.featureLocked', { feature: t('pro.batchMergeTags') }), 5000);
       return;
     }
 
