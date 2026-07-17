@@ -21,7 +21,6 @@ An AI-powered vault maintenance plugin for Obsidian. Automatically classify, tag
   - [Organize Folder](#organize-folder)
   - [Vault Maintenance](#vault-maintenance)
   - [Activity Log](#activity-log)
-  - [Clipboard Capture](#clipboard-capture)
   - [Privacy Protection](#privacy-protection)
 - [Commands](#commands)
 - [Settings](#settings)
@@ -31,6 +30,7 @@ An AI-powered vault maintenance plugin for Obsidian. Automatically classify, tag
 - [Compatibility](#compatibility)
 - [Known Limitations](#known-limitations)
 - [Development](#development)
+- [Contributing](#contributing)
 - [License](#license)
 
 ---
@@ -64,25 +64,26 @@ This is a deliberate design choice: AI tools should be transparent about resourc
 
 ### Quick Ask
 
-Ask AI questions using your vault as context — directly from the Command Palette.
+Multi-turn AI chat using your vault as context — ask follow-up questions and the AI re-searches your vault every turn.
 
 <!-- TODO: screenshot of Quick Ask modal -->
 
-**How to use**: `Ctrl/Cmd + P` → "Quick Ask" → type your question → `Ctrl+Enter` to send.
+**How to use**: `Ctrl/Cmd + P` → "Quick Ask" → type your question → `Enter` to send.
 
 | Feature | Description |
 |---------|-------------|
-| Vault-aware context | BM25 keyword search + optional semantic embedding search (Hybrid RRF) |
-| Save to file | Answers saved to timestamped files or Daily Notes (configurable) |
+| Multi-turn chat | Continue the conversation with follow-up questions in the same session |
+| Per-turn vault search | Every message triggers a fresh hybrid search (BM25 + optional embeddings via RRF) |
+| Save conversation | Save the entire chat as a Markdown note with `#vaultend-qa` tag |
 | Referenced Notes | Context source notes shown as references — click to preview content inline |
 | Link validation | AI-generated `[[wikilinks]]` are validated against vault; non-existent links are cleaned |
-| Token & cost display | Real-time usage info shown after each response |
+| Token & cost display | Cumulative usage info shown across the conversation |
 | Markdown rendering | AI responses render with full Markdown formatting |
-| Keyboard shortcut | `Ctrl+Enter` to send, `Escape` to close |
+| Sliding window | Conversations auto-trim to 20 messages + 20 context chunks for consistent quality |
 
 **Save modes**:
-- **Timestamp** — each Q&A gets its own file in `QuickAsk/YYYY-MM-DD/`
-- **Daily Note** — all Q&A for a day appended to one file (auto-splits when size limit is reached)
+- **Timestamp** — each conversation gets its own file in `QuickAsk/YYYY-MM-DD/`
+- **Daily Note** — all conversations for a day appended to one file (auto-splits when size limit is reached)
 
 ---
 
@@ -154,8 +155,6 @@ Batch-organize any folder in your vault with AI. Pick a folder, and the plugin c
 - **Links**: AI analyzes note content and selects related notes from your vault. Every suggested link is validated against actual vault notes — hallucinated links are filtered out.
 - **Folder**: AI classifies the note's category and maps it to an appropriate folder path, inferred from your vault's existing folder structure.
 
-**Auto-watch**: When Auto Apply is enabled in Settings, notes created or modified in the configured Inbox folder are automatically processed in the background.
-
 ---
 
 ### Vault Maintenance
@@ -175,7 +174,8 @@ Scan your vault for structural issues and fix them in bulk. **No AI required** �
 | Broken Links | Critical | `[[wikilinks]]` pointing to non-existent notes (heading/block fragment aware) |
 | Empty Notes | Critical | Notes with no content (shows backlink impact) |
 | Orphan Notes | Warning | Notes not linked from anywhere (canvas-aware) |
-| Duplicates | Warning | Similar notes detected via Jaccard similarity (side-by-side view) |
+| Duplicates | Warning | Similar notes detected via TF-IDF cosine similarity (side-by-side view) |
+| Duplicate Tags | Warning | Duplicate tags detected via 2-stage analysis: string normalization + cross-language embedding similarity |
 | Untagged Notes | Info | Notes without any tags |
 | Missing Tags | Info | AI-suggested tags for notes that need them |
 
@@ -203,6 +203,7 @@ Each issue has contextual action buttons:
 | Apply Tags | Missing Tags | Write suggested tags to frontmatter |
 | Remove Link | Broken Links | Convert `[[broken]]` to plain text |
 | Open Side by Side | Duplicates | Compare two notes in split view |
+| Merge Tags | Duplicate Tags | Merge variant tags into canonical form across all affected notes |
 | Dismiss | All | Strikethrough + Undo button (recoverable) |
 
 #### Batch Operations
@@ -240,24 +241,13 @@ Track every action the plugin takes — and restore previous states.
 - Tag additions
 - Link removals
 - Issue dismissals
-- Clipboard captures
-- Quick Ask saves
+- Quick Ask conversation saves
 - Note classifications
 - **Restorations** (when you use the Restore button)
 
 **Restore button**: Entries that modified or deleted content show a red **Restore** button. Click it to revert the note to its state before the action. Archived notes are moved back to their original location. The restoration itself is also logged.
 
 **Refresh**: Click the ↻ button to reload the latest entries without restarting Obsidian.
-
----
-
-### Clipboard Capture
-
-Save clipboard text as a new note instantly.
-
-**How to use**: `Ctrl/Cmd + P` → "Capture Clipboard"
-
-The clipboard content is saved as a new note in your Inbox folder with a timestamp filename. Useful for quickly saving web snippets, quotes, or ideas.
 
 ---
 
@@ -269,10 +259,10 @@ Fine-grained control over what gets sent to AI. Configure rules in **Settings �
 |-----------|-------------|
 | Folder exclude | Notes in specified folders are never sent to AI |
 | Tag exclude | Notes with specific tags are excluded from AI context |
-| Frontmatter exclude | Notes with specific frontmatter keys are excluded |
+| Properties exclude | Notes with specific frontmatter properties are excluded |
 | Content redact | Regex patterns are replaced with `[REDACTED]` before sending |
 
-**Content redaction example**: Pattern `password:\S+` replaces `password:abc123` with `[REDACTED]` before sending. Your original note is never modified.
+**Content redaction example**: Pattern `password:\S+` replaces `password:abc123` with `[REDACTED]` before sending. Your original note is never modified. For simple word masking, just type the word (e.g., `vaultend`) — regex knowledge is not required for basic use.
 
 **Key guarantee**: Privacy rules run before ANY data leaves your device. AI never sees excluded or redacted content.
 
@@ -290,7 +280,6 @@ All commands are accessible via `Ctrl/Cmd + P` (Command Palette).
 | Run Maintenance | Scan entire vault for issues | Partial |
 | Scan this folder for maintenance | Right-click context menu | Partial |
 | Organize Folder (context menu) | Right-click a folder to organize it | Yes |
-| Capture Clipboard | Save clipboard as note | No |
 | Open Maintenance Log | Show activity log sidebar | No |
 
 > "Partial" means orphan/broken-link/empty/duplicate detection works offline, but missing-tag suggestions require AI.
@@ -362,12 +351,11 @@ The dropdown lists pre-defined models for each provider. You can also select **C
 
 > **Note:** Model availability changes over time. If a listed model returns an error, check the official documentation links above for the latest status, or use the **Custom** option to enter a newer model ID. This list was last updated on **2026-07-15**.
 
-### Inbox
+### Organize Folder
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| Inbox Folder | Folder for unprocessed notes | Inbox |
-| Auto Apply | Apply results automatically | Off |
+| Auto-apply results | When enabled, AI classification results (move, tag, link) are applied immediately without manual review | Off |
 
 ### Quick Ask
 
@@ -379,32 +367,22 @@ The dropdown lists pre-defined models for each provider. You can also select **C
 
 ### Maintenance
 
+Maintenance scans only Markdown (`.md`) notes. Non-text files such as Excalidraw and Canvas are automatically excluded.
+
 | Setting | Description | Default |
 |---------|-------------|---------|
 | Auto Maintenance | Run on a timer | Off |
 | Interval | Minutes between auto-scans | 60 |
-| Exclude Folders | Comma-separated folder paths to skip | — |
-| Exclude File Patterns | Glob patterns for files to skip | — |
-| Exclude Tags | Notes with these tags are skipped | — |
+| Exclude Folders | Folders to exclude (chip UI with vault autocomplete) | — |
+| Exclude Tags | Notes with these tags are skipped (chip UI with vault autocomplete) | — |
 | Archive Folder | Destination for archived notes | Archive |
-
-### Search (Advanced)
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| Embeddings Enabled | Enable semantic search via Gemini Embeddings | Off |
-| Embeddings Model | Gemini embedding model | gemini-embedding-001 |
-| RRF Embedding Weight | How much to weight embedding results vs BM25 | 4.0 |
-| RRF K | Rank smoothing parameter (lower = sharper ranking) | 20 |
-
-> When embeddings are enabled, Quick Ask uses Hybrid search: BM25 keywords + semantic embeddings merged via Reciprocal Rank Fusion (RRF).
 
 ### Privacy Rules
 
 Add rules in the Privacy section. Each rule has:
 - **Name** — descriptive label
-- **Type** — Folder exclude / Tag exclude / Frontmatter exclude / Content redact
-- **Pattern** — the folder path, tag, frontmatter key, or regex pattern
+- **Type** — Folder exclude / Tag exclude / Properties exclude / Content redact
+- **Pattern** — the folder path, tag, property key, or regex pattern
 
 ---
 
@@ -463,7 +441,7 @@ The same 3 files go in `.obsidian/plugins/vaultend/`.
 
 Change in **Settings → Language**. Views update immediately; command palette names update after restart.
 
-Want to contribute a translation? See `src/i18n/locales/en.ts` for the key list.
+Want to contribute a translation? See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ---
 
@@ -473,9 +451,9 @@ Clean Architecture — dependencies always point inward toward the domain.
 
 ```
 domain/          ← Pure business logic (zero external deps)
-  models/        ← Note, MaintenanceAction, HistoryEntry
+  models/        ← Note, MaintenanceAction, HistoryEntry, ChatSession, DuplicateTagGroup
   values/        ← NotePath, TagName, Timestamp, Severity
-  services/      ← TfIdfCorpus, tokenize
+  services/      ← TfIdfCorpus, TagNormalizationService, tokenize
   errors/        ← Domain-specific errors (i18n)
 
 application/     ← Use cases + port interfaces
@@ -486,8 +464,9 @@ adapters/        ← Port implementations (external deps live here)
   ai/            ← OpenAI, Gemini, DynamicAI adapters
   vault/         ← ObsidianVaultAdapter
   history/       ← FileHistoryAdapter
-  search/        ← BM25SearchIndexAdapter
-  embedding/     ← GeminiEmbeddingAdapter
+  search/        ← JsonSearchIndexAdapter
+  embedding/     ← AIEmbeddingAdapter
+  clock/         ← SystemClockAdapter
   vectorstore/   ← JsonVectorStoreAdapter
   tracking/      ← FileChangeTrackingAdapter
   corpus/        ← FileCorpusStatsAdapter
@@ -520,8 +499,8 @@ main.ts          ← Composition Root
 | API costs | All AI calls consume tokens. Token usage and cost are shown in every AI feature (Quick Ask, Organizer, Organize Folder). |
 | Network | AI features need internet. Maintenance scans work offline. |
 | Search index | BM25 keyword + optional Gemini embeddings. Very large vaults (5000+ notes) remain performant (P95 < 10ms for BM25). |
-| Duplicates | TF-IDF cosine similarity — may miss very short notes with insufficient term overlap. |
-| Mobile | Background switching may interrupt AI calls. Clipboard subject to OS permissions. |
+| Duplicates | Note duplicates use TF-IDF cosine similarity — may miss very short notes. Tag duplicates use 2-stage detection (string normalization + embedding); embedding stage requires AI and is capped at 500 tags. |
+| Mobile | Background switching may interrupt AI calls. |
 | Privacy | Rules control this plugin only. Review your AI provider's data policies separately. |
 
 ---
@@ -534,8 +513,13 @@ npm run build      # Production build
 npm run lint       # ESLint
 npm run test       # Vitest (unit + integration tests)
 npm run test:watch # Watch mode tests
-npm run benchmark  # Embedding benchmark (requires GEMINI_API_KEY)
 ```
+
+---
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on translations, bug reports, and pull requests.
 
 ---
 

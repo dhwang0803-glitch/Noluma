@@ -4,7 +4,7 @@ const en = {
 
   // ─── Commands ───
   'command.quickAsk': 'Quick Ask',
-  'command.captureClipboard': 'Capture Clipboard',
+
   'command.organizeNote': 'Organize Current Note',
   'command.runMaintenance': 'Run Maintenance',
   'command.organizeFolder': 'Organize Folder',
@@ -12,8 +12,7 @@ const en = {
   'command.scanFolder': 'Scan this folder for maintenance',
 
   // ─── Notices ───
-  'notice.clipboardSaved': 'Clipboard saved: {{path}}',
-  'notice.clipboardFailed': 'Clipboard capture failed: {{error}}',
+
   'notice.organizeResult': 'Folder: {{folder}} | Tags: {{tags}}',
   'notice.organizeFailed': 'Note organize failed: {{error}}',
   'notice.organizeAlreadyRunning': 'Folder organizing is already running.',
@@ -224,11 +223,9 @@ const en = {
   'settings.modelDesc': 'Select the AI model to use.',
   'settings.modelCustom': 'Custom',
 
-  'settings.organize': 'Organize',
-  'settings.captureFolder': 'Capture Folder',
-  'settings.captureFolderDesc': 'Default folder for clipboard captures',
-  'settings.autoApply': 'Auto Apply',
-  'settings.autoApplyDesc': 'Automatically apply folder organizing results.',
+  'settings.organize': 'Organize Folder',
+  'settings.autoApply': 'Auto-apply results',
+  'settings.autoApplyDesc': 'When enabled, AI classification results (move, tag, link) are applied immediately without manual review after organizing the selected folder.',
 
   'settings.quickAsk': 'Quick Ask',
   'settings.saveMode': 'Save Mode',
@@ -241,16 +238,18 @@ const en = {
   'settings.dailyNoteLimitDesc': 'Create a new file when Daily Note exceeds this size.',
 
   'settings.maintenance': 'Maintenance',
+  'settings.maintenanceScopeNote': 'Maintenance scans only Markdown (.md) notes. Non-text files such as Excalidraw and Canvas are automatically excluded.',
   'settings.autoMaintenance': 'Auto Maintenance',
   'settings.autoMaintenanceDesc': 'Run vault maintenance periodically.',
   'settings.maintenanceInterval': 'Maintenance Interval (min)',
   'settings.maintenanceIntervalDesc': 'Interval for automatic maintenance',
   'settings.excludeFolders': 'Exclude Folders',
-  'settings.excludeFoldersDesc': 'Folders to exclude from maintenance scan (comma-separated)',
-  'settings.excludeFiles': 'Exclude File Patterns',
-  'settings.excludeFilesDesc': 'File patterns to exclude from maintenance scan (comma-separated, glob supported)',
+  'settings.excludeFoldersDesc': 'Folders to exclude from maintenance scan.',
+  'settings.excludeFoldersPlaceholder': 'Type folder name...',
   'settings.excludeTags': 'Exclude Tags',
-  'settings.excludeTagsDesc': 'Notes with these tags are excluded from maintenance scan (comma-separated)',
+  'settings.excludeTagsDesc': 'Notes with these tags are excluded from maintenance scan.',
+  'settings.excludeTagsPlaceholder': 'Type tag name...',
+  'settings.chipAdd': 'Add',
   'settings.archiveFolder': 'Archive Folder',
   'settings.archiveFolderDesc': 'Target folder for archived notes',
 
@@ -277,7 +276,7 @@ const en = {
   'settings.ruleNumber': 'Rule {{number}}',
   'settings.ruleTypeFolderExclude': 'Folder exclude',
   'settings.ruleTypeTagExclude': 'Tag exclude',
-  'settings.ruleTypeFrontmatterExclude': 'Frontmatter exclude',
+  'settings.ruleTypeFrontmatterExclude': 'Properties exclude',
   'settings.ruleTypeContentRedact': 'Content redact',
 } as const;
 

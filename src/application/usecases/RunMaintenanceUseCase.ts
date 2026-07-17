@@ -14,6 +14,7 @@ import { createTagName } from '../../domain/values/TagName';
 import { Note } from '../../domain/models/Note';
 
 const EMBEDDING_SIMILARITY_THRESHOLD = 0.85;
+const NON_TEXT_EXTENSIONS = ['.excalidraw.md', '.canvas'];
 
 export interface MaintenanceScanOptions {
   readonly folder?: string;
@@ -72,9 +73,11 @@ export class RunMaintenanceUseCase {
   ): ReadonlyArray<NotePath> {
     const excludeFolders = (settings.maintenanceExcludeFolders ?? [])
       .map(f => f.replace(/\/+$/, ''));
-    const excludeFilePatterns = settings.maintenanceExcludeFiles ?? [];
-
     let filtered = allNotes;
+
+    filtered = filtered.filter(
+      np => !NON_TEXT_EXTENSIONS.some(ext => (np as string).toLowerCase().endsWith(ext)),
+    );
 
     if (excludeFolders.length > 0) {
       filtered = filtered.filter(
@@ -82,21 +85,7 @@ export class RunMaintenanceUseCase {
       );
     }
 
-    if (excludeFilePatterns.length > 0) {
-      filtered = filtered.filter(
-        np => !excludeFilePatterns.some(pattern => this.matchGlob(np as string, pattern)),
-      );
-    }
-
     return filtered;
-  }
-
-  private matchGlob(path: string, pattern: string): boolean {
-    const escaped = pattern
-      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-      .replace(/\*/g, '.*')
-      .replace(/\?/g, '.');
-    return new RegExp(`^${escaped}$`, 'i').test(path);
   }
 
   private async applyTagExclusion(
@@ -514,13 +503,19 @@ export class RunMaintenanceUseCase {
     // 2단계: 임베딩 유사도 그룹핑 (교차 언어) — 모든 canonical 그룹 비교
     let embeddingDuplicates: CanonicalTagGroup[] = [];
     if (this.aiProvider) {
-      const nonDuplicateGroups = canonicalGroups.filter(g =>
-        !stringDuplicates.includes(g),
-      );
-      embeddingDuplicates = await this.findSimilarByEmbedding(nonDuplicateGroups);
+      embeddingDuplicates = await this.findSimilarByEmbedding(canonicalGroups);
     }
 
-    const allDuplicateGroups = [...stringDuplicates, ...embeddingDuplicates];
+    // 임베딩 그룹에 흡수된 문자열 중복 그룹 제거 (중복 방지)
+    const absorbedKeys = new Set(
+      embeddingDuplicates.flatMap(g =>
+        g.variants.map(v => TagNormalizationService.normalizeForComparison(v.tag)),
+      ),
+    );
+    const unresolvedStringDups = stringDuplicates.filter(
+      g => !absorbedKeys.has(g.canonicalKey),
+    );
+    const allDuplicateGroups = [...unresolvedStringDups, ...embeddingDuplicates];
     if (allDuplicateGroups.length === 0) return [];
 
     // 노트별 태그 맵 구축 (모든 노트를 한 번만 읽음)
