@@ -20,6 +20,7 @@ import { SearchIndexPort } from '../ports/SearchIndexPort';
 import { OrganizeVaultPort } from '../ports/OrganizeVaultPort';
 import { AIProviderPort } from '../ports/AIProviderPort';
 import { ConfigPort } from '../ports/ConfigPort';
+import type { PreferencePort } from '../ports/PreferencePort';
 import { createNotePath } from '../../domain/values/NotePath';
 import { REFACTOR_PROMPTS } from '../RefactorPromptTemplates';
 import {
@@ -40,6 +41,7 @@ export class GenerateRefactorPlanUseCase {
     private readonly store: OrganizeVaultPort,
     private readonly ai: AIProviderPort,
     private readonly config: ConfigPort,
+    private readonly preference?: PreferencePort,
   ) {}
 
   async execute(
@@ -112,6 +114,8 @@ export class GenerateRefactorPlanUseCase {
     const tags = snapshot.tagFrequencies;
     if (tags.length === 0) return [];
 
+    const prefCtx = this.preference ? await this.preference.getPreferenceContext('refactor') : '';
+
     const canonicalIndex = TagNormalizationService.buildCanonicalIndex(tags);
     const existingMappings = canonicalIndex
       .filter(g => g.variants.length > 1)
@@ -138,7 +142,7 @@ export class GenerateRefactorPlanUseCase {
       try {
         const response = await this.ai.callCompletion({
           systemPrompt: REFACTOR_PROMPTS.tagCleanup.system,
-          prompt: REFACTOR_PROMPTS.tagCleanup.user(tagChunks[i].join('\n'), existingMappings),
+          prompt: (prefCtx ? prefCtx + '\n\n' : '') + REFACTOR_PROMPTS.tagCleanup.user(tagChunks[i].join('\n'), existingMappings),
           maxTokens: 2000,
           temperature: 0.2,
           jsonMode: true,
@@ -162,7 +166,7 @@ export class GenerateRefactorPlanUseCase {
     try {
       const synthResponse = await this.ai.callCompletion({
         systemPrompt: REFACTOR_PROMPTS.tagCleanup.system,
-        prompt: REFACTOR_PROMPTS.tagCleanup.synthesis(chunkResults.join('\n---\n')),
+        prompt: (prefCtx ? prefCtx + '\n\n' : '') + REFACTOR_PROMPTS.tagCleanup.synthesis(chunkResults.join('\n---\n')),
         maxTokens: 3000,
         temperature: 0.2,
         jsonMode: true,
@@ -253,6 +257,7 @@ export class GenerateRefactorPlanUseCase {
     const { noteEntries, folderTree } = snapshot;
     if (noteEntries.length === 0) return [];
 
+    const prefCtx = this.preference ? await this.preference.getPreferenceContext('refactor') : '';
     const settings = await this.config.getSettings();
     const privacyRules = [...settings.privacyRules];
     const foldersStr = folderTree.join('\n');
@@ -279,7 +284,7 @@ export class GenerateRefactorPlanUseCase {
       try {
         const response = await this.ai.callCompletion({
           systemPrompt: REFACTOR_PROMPTS.noteReorganize.system,
-          prompt: REFACTOR_PROMPTS.noteReorganize.user(chunkStr, foldersStr),
+          prompt: (prefCtx ? prefCtx + '\n\n' : '') + REFACTOR_PROMPTS.noteReorganize.user(chunkStr, foldersStr),
           maxTokens: 2000,
           temperature: 0.3,
           jsonMode: true,
@@ -313,7 +318,7 @@ export class GenerateRefactorPlanUseCase {
       try {
         const tier2Response = await this.ai.callCompletion({
           systemPrompt: REFACTOR_PROMPTS.noteReorganize.tier2System,
-          prompt: REFACTOR_PROMPTS.noteReorganize.tier2User(lowConfStr, foldersStr),
+          prompt: (prefCtx ? prefCtx + '\n\n' : '') + REFACTOR_PROMPTS.noteReorganize.tier2User(lowConfStr, foldersStr),
           maxTokens: 2000,
           temperature: 0.3,
           jsonMode: true,
@@ -439,6 +444,7 @@ export class GenerateRefactorPlanUseCase {
     );
     if (orphans.length === 0) return [];
 
+    const prefCtx = this.preference ? await this.preference.getPreferenceContext('refactor') : '';
     const settings = await this.config.getSettings();
     const privacyRules = [...settings.privacyRules];
     const proposals: OrganizeVaultProposal[] = [];
@@ -484,7 +490,7 @@ export class GenerateRefactorPlanUseCase {
 
           const response = await this.ai.callCompletion({
             systemPrompt: REFACTOR_PROMPTS.linkSuggest.system,
-            prompt: REFACTOR_PROMPTS.linkSuggest.user(orphanStr, candidateDescriptions.join('\n')),
+            prompt: (prefCtx ? prefCtx + '\n\n' : '') + REFACTOR_PROMPTS.linkSuggest.user(orphanStr, candidateDescriptions.join('\n')),
             maxTokens: 500,
             temperature: 0.2,
             jsonMode: true,
@@ -538,6 +544,8 @@ export class GenerateRefactorPlanUseCase {
     );
     if (candidates.length < FLEETING_MIN_CLUSTER_SIZE) return [];
 
+    const prefCtx = this.preference ? await this.preference.getPreferenceContext('refactor') : '';
+
     onProgress({
       phase: 'analyzing',
       currentStep: 1,
@@ -571,7 +579,7 @@ export class GenerateRefactorPlanUseCase {
 
         const response = await this.ai.callCompletion({
           systemPrompt: REFACTOR_PROMPTS.fleetingConsolidate.system,
-          prompt: REFACTOR_PROMPTS.fleetingConsolidate.user(clusterStr),
+          prompt: (prefCtx ? prefCtx + '\n\n' : '') + REFACTOR_PROMPTS.fleetingConsolidate.user(clusterStr),
           maxTokens: 4000,
           temperature: 0.2,
           jsonMode: true,
