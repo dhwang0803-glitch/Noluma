@@ -13,7 +13,6 @@ import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { createTagName } from '../../domain/values/TagName';
 import { Note } from '../../domain/models/Note';
 
-const EMBEDDING_SIMILARITY_THRESHOLD = 0.85;
 const NON_TEXT_EXTENSIONS = ['.excalidraw.md', '.canvas'];
 
 export interface MaintenanceScanOptions {
