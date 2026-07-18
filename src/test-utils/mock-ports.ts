@@ -6,6 +6,7 @@ import type { HistoryPort } from '../application/ports/HistoryPort';
 import type { ConfigPort, PluginSettings } from '../application/ports/ConfigPort';
 import type { ClockPort } from '../application/ports/ClockPort';
 import type { PreferencePort } from '../application/ports/PreferencePort';
+import type { TagEmbeddingCachePort } from '../application/ports/TagEmbeddingCachePort';
 
 import type { Timestamp } from '../domain/values/Timestamp';
 import { createDefaultSettings } from './fixtures';
@@ -48,6 +49,11 @@ export function createMockAI(overrides?: Partial<AIProviderPort>): AIProviderPor
   return {
     callCompletion: vi.fn().mockResolvedValue(defaultCompletion),
     callClassification: vi.fn().mockResolvedValue(defaultClassification),
+    callEmbedding: vi.fn().mockResolvedValue({
+      embeddings: [],
+      dimension: 0,
+      tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0 },
+    }),
     ...overrides,
   };
 }
@@ -94,6 +100,25 @@ export function createMockPreference(overrides?: Partial<PreferencePort>): Prefe
     deleteRule: vi.fn().mockResolvedValue(undefined),
     resetAll: vi.fn().mockResolvedValue(undefined),
     addManualRule: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+}
+
+export function createMockTagEmbeddingCache(overrides?: Partial<TagEmbeddingCachePort>): TagEmbeddingCachePort {
+  return {
+    load: vi.fn().mockResolvedValue(undefined),
+    flush: vi.fn().mockResolvedValue(undefined),
+    get: vi.fn().mockReturnValue(undefined),
+    getMany: vi.fn().mockReturnValue(new Map()),
+    put: vi.fn(),
+    putMany: vi.fn(),
+    delete: vi.fn(),
+    retainOnly: vi.fn(),
+    getMeta: vi.fn().mockReturnValue(null),
+    setMeta: vi.fn(),
+    isCompatible: vi.fn().mockReturnValue(false),
+    clear: vi.fn().mockResolvedValue(undefined),
+    size: vi.fn().mockReturnValue(0),
     ...overrides,
   };
 }

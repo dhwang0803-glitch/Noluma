@@ -43,6 +43,9 @@ export const COMMAND_RUN_MAINTENANCE = 'run-maintenance';
 export const COMMAND_ORGANIZE_FOLDER = 'organize-folder';
 export const COMMAND_OPEN_MAINTENANCE_LOG = 'open-maintenance-log';
 
+/** Tag Embedding Cache */
+export const TAG_EMBEDDINGS_PATH = `${PLUGIN_DATA_FOLDER}/tag-embeddings.json`;
+
 /** Preference Learning 상수 */
 export const PREFERENCES_PATH = `${PLUGIN_DATA_FOLDER}/preferences.json`;
 export const PREFERENCE_SIGNAL_MAX = 200;

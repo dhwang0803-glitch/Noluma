@@ -41,6 +41,7 @@ import { FolderSuggestModal } from './ui/FolderSuggestModal';
 import { OrganizeVaultView, ORGANIZE_VAULT_VIEW_TYPE } from './ui/OrganizeVaultView';
 import { FileOrganizeVaultAdapter } from './adapters/organize-vault/FileOrganizeVaultAdapter';
 import { FilePreferenceAdapter } from './adapters/preference/FilePreferenceAdapter';
+import { FileTagEmbeddingCacheAdapter } from './adapters/tag-embedding-cache/FileTagEmbeddingCacheAdapter';
 import { PluginSettingTab } from './ui/PluginSettingTab';
 import { localizeError } from './ui/localizeError';
 
@@ -132,6 +133,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private licenseAdapter!: LicensePort;
   private organizeVaultAdapter!: FileOrganizeVaultAdapter;
   private preferenceAdapter!: FilePreferenceAdapter;
+  private tagEmbeddingCacheAdapter!: FileTagEmbeddingCacheAdapter;
 
   // Shared ConfigPort (single instance)
   private configPort!: ConfigPort;
@@ -214,6 +216,14 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
             await this.vectorStoreAdapter.clear();
           }
           this.vectorStoreAdapter.setMeta({ provider, dimension: dim });
+
+          await this.tagEmbeddingCacheAdapter.load();
+          if (this.tagEmbeddingCacheAdapter.size() > 0
+            && !this.tagEmbeddingCacheAdapter.isCompatible(provider, dim)) {
+            await this.tagEmbeddingCacheAdapter.clear();
+          }
+          this.tagEmbeddingCacheAdapter.setMeta({ provider, dimension: dim });
+
           this.syncEmbeddingsBackground();
         }
       }
@@ -231,6 +241,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.unsubscribeVaultEvents();
       this.unsubscribeVaultEvents = null;
     }
+
+    // Flush tag embedding cache
+    this.tagEmbeddingCacheAdapter.flush().catch(() => {});
 
     // Clear maintenance timer
     if (this.maintenanceInterval !== null) {
@@ -304,6 +317,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.organizeVaultAdapter = new FileOrganizeVaultAdapter(this.vaultAdapter);
 
     this.preferenceAdapter = new FilePreferenceAdapter(this.vaultAdapter);
+    this.tagEmbeddingCacheAdapter = new FileTagEmbeddingCacheAdapter(this.vaultAdapter);
   }
 
   private wireUseCases(): void {
@@ -322,12 +336,14 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.organizeNoteUseCase = new OrganizeNoteUseCase(
       this.aiAdapter, this.vaultAdapter,
       this.historyAdapter, this.configPort,
+      this.tagEmbeddingCacheAdapter,
     );
 
     this.organizeFolderUseCase = new OrganizeFolderUseCase(
       this.organizeNoteUseCase, this.vaultAdapter,
       this.configPort, this.historyAdapter, this.clockAdapter,
       this.aiAdapter,
+      this.tagEmbeddingCacheAdapter,
     );
 
     this.runMaintenanceUseCase = new RunMaintenanceUseCase(
@@ -335,6 +351,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.configPort, this.clockAdapter,
       this.changeTracker, this.corpusStatsAdapter,
       this.aiAdapter,
+      this.tagEmbeddingCacheAdapter,
     );
 
 

@@ -9,6 +9,7 @@ import { CorpusStatsPort } from '../ports/CorpusStatsPort';
 import { TfIdfCorpus } from '../../domain/services/TfIdfCorpus';
 import { tokenizeForTfIdf } from '../../domain/services/tokenize';
 import { TagNormalizationService, CanonicalTagGroup } from '../../domain/services/TagNormalizationService';
+import type { TagEmbeddingCachePort } from '../ports/TagEmbeddingCachePort';
 import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { createTagName } from '../../domain/values/TagName';
 import { Note } from '../../domain/models/Note';
@@ -28,6 +29,7 @@ export class RunMaintenanceUseCase {
     private readonly changeTracking?: ChangeTrackingPort,
     private readonly corpusStats?: CorpusStatsPort,
     private readonly aiProvider?: AIProviderPort,
+    private readonly tagEmbeddingCache?: TagEmbeddingCachePort,
   ) {}
 
   async execute(options?: MaintenanceScanOptions): Promise<MaintenancePlan> {
@@ -560,7 +562,22 @@ export class RunMaintenanceUseCase {
 
     try {
       const tags = capped.map(g => g.canonical);
-      const resp = await this.aiProvider.callEmbedding({ texts: tags });
+
+      const fromCache = this.tagEmbeddingCache?.getMany(tags)
+        ?? new Map<string, Float32Array>();
+      const missingTags = tags.filter(t => !fromCache.has(t));
+
+      if (missingTags.length > 0) {
+        const resp = await this.aiProvider.callEmbedding({ texts: missingTags });
+        const newEntries: Array<{ tag: string; vector: Float32Array }> = [];
+        for (let i = 0; i < missingTags.length; i++) {
+          fromCache.set(missingTags[i], resp.embeddings[i]);
+          newEntries.push({ tag: missingTags[i], vector: resp.embeddings[i] });
+        }
+        this.tagEmbeddingCache?.putMany(newEntries);
+      }
+
+      const allEmbeddings = tags.map(t => fromCache.get(t)!);
 
       const merged = new Set<number>();
       const result: CanonicalTagGroup[] = [];
@@ -573,7 +590,7 @@ export class RunMaintenanceUseCase {
         for (let j = i + 1; j < tags.length; j++) {
           if (merged.has(j)) continue;
           const sim = TagNormalizationService.cosineSimilarity(
-            resp.embeddings[i], resp.embeddings[j],
+            allEmbeddings[i], allEmbeddings[j],
           );
           const threshold = TagNormalizationService.embeddingMergeThreshold(tags[i], tags[j]);
           if (sim >= threshold) {
@@ -591,6 +608,9 @@ export class RunMaintenanceUseCase {
           merged.add(i);
         }
       }
+
+      this.tagEmbeddingCache?.retainOnly(tags);
+      await this.tagEmbeddingCache?.flush();
 
       return result;
     } catch {
