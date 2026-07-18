@@ -8,6 +8,7 @@ import type { SeverityLevel } from '../domain/values/Severity';
 import { ISSUE_SEVERITY, getSeverity } from '../domain/values/Severity';
 import type { ConfigPort } from '../application/ports/ConfigPort';
 import type { HistoryPort } from '../application/ports/HistoryPort';
+import type { LicensePort } from '../application/ports/LicensePort';
 import { localizeError } from './localizeError';
 import { MAINTENANCE_RESULT_VIEW_TYPE, HISTORY_CHANGED_EVENT } from '../constants';
 import { t, formatDate } from '../i18n';
@@ -52,8 +53,10 @@ export class MaintenanceResultView extends ItemView {
     private readonly applyAction: ApplyMaintenanceActionUseCase,
     private readonly configPort: ConfigPort,
     private readonly historyPort: HistoryPort,
+    private readonly licensePort: LicensePort,
     private readonly openFile: (path: string) => void,
     private readonly openFileSplit: (pathA: string, pathB: string) => void,
+    private readonly onMergeRequest: (pair: DuplicatePair) => void,
   ) {
     super(leaf);
   }
@@ -625,6 +628,18 @@ export class MaintenanceResultView extends ItemView {
         .onClick(() => this.openFileSplit(pair.noteA as string, pair.noteB as string)),
       );
 
+      settingEl.addButton(btn => btn
+        .setButtonText(t('btn.mergeWithAI'))
+        .setCta()
+        .onClick(async () => {
+          if (!await this.licensePort.canUseFeature('organize-vault')) {
+            new Notice(t('pro.featureLocked', { feature: t('pro.organizeVault') }));
+            return;
+          }
+          this.onMergeRequest(pair);
+        }),
+      );
+
       this.addDismissButton(settingEl, 'duplicate', `${pair.noteA as string}|${pair.noteB as string}`);
       this.applyPersistedState(entries[entries.length - 1]);
     }
@@ -668,16 +683,18 @@ export class MaintenanceResultView extends ItemView {
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.mergeTags'))
         .setCta()
-        .onClick(() => this.executeAction(
-          {
-            kind: 'merge-duplicate-tags',
-            keepTag: group.canonicalTag,
-            replaceTags,
-            affectedNotes: group.affectedNotes,
-          },
-          settingEl,
-          `duplicate-tags:${group.canonicalTag as string}`,
-        )),
+        .onClick(async () => {
+          this.executeAction(
+            {
+              kind: 'merge-duplicate-tags',
+              keepTag: group.canonicalTag,
+              replaceTags,
+              affectedNotes: group.affectedNotes,
+            },
+            settingEl,
+            `duplicate-tags:${group.canonicalTag as string}`,
+          );
+        }),
       );
 
       this.addDismissButton(settingEl, 'duplicate-tags', group.canonicalTag as string);

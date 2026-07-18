@@ -1,5 +1,7 @@
-import { App, Plugin, PluginSettingTab as ObsidianSettingTab, Setting } from 'obsidian';
+import { App, Notice, Plugin, PluginSettingTab as ObsidianSettingTab, Setting } from 'obsidian';
 import { ConfigPort, PluginSettings } from '../application/ports/ConfigPort';
+import type { LicensePort } from '../application/ports/LicensePort';
+import type { PreferencePort } from '../application/ports/PreferencePort';
 import { PrivacyRule, PrivacyRuleType } from '../domain/models/PrivacyRule';
 import { t, setLocale, detectObsidianLocale, type SupportedLocale } from '../i18n';
 import { MAINTENANCE_RESULT_VIEW_TYPE, MAINTENANCE_LOG_VIEW_TYPE, ORGANIZE_FOLDER_VIEW_TYPE } from '../constants';
@@ -28,6 +30,18 @@ const AI_MODELS: Record<string, ReadonlyArray<{ id: string; label: string }>> = 
     { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
     { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
   ],
+  ollama: [
+    { id: 'llama3.2', label: 'Llama 3.2' },
+    { id: 'llama3.1', label: 'Llama 3.1' },
+    { id: 'mistral', label: 'Mistral' },
+    { id: 'gemma2', label: 'Gemma 2' },
+    { id: 'qwen2.5', label: 'Qwen 2.5' },
+    { id: 'phi3', label: 'Phi-3' },
+  ],
+  deepseek: [
+    { id: 'deepseek-chat', label: 'DeepSeek Chat' },
+    { id: 'deepseek-reasoner', label: 'DeepSeek Reasoner' },
+  ],
 };
 
 const CUSTOM_MODEL_VALUE = '__custom__';
@@ -36,13 +50,16 @@ export class PluginSettingTab extends ObsidianSettingTab {
   private settings: PluginSettings | null = null;
   private modelSettingEl: HTMLElement | null = null;
   private modelAnchorEl: HTMLElement | null = null;
+  private providerSettingsContainerEl: HTMLElement | null = null;
   private isCustomMode = false;
 
   constructor(
     app: App,
     private readonly plugin: Plugin,
     private readonly config: ConfigPort,
+    private readonly licensePort: LicensePort,
     private readonly onMaintenanceSettingsChanged?: () => void,
+    private readonly preference?: PreferencePort,
   ) {
     super(app, plugin);
   }
@@ -76,6 +93,9 @@ export class PluginSettingTab extends ObsidianSettingTab {
           });
       });
 
+    // --- License ---
+    await this.renderLicenseSection(containerEl);
+
     // --- AI Provider ---
     containerEl.createEl('h3', { text: t('settings.aiProvider') });
 
@@ -86,36 +106,29 @@ export class PluginSettingTab extends ObsidianSettingTab {
         dropdown
           .addOption('openai', 'OpenAI')
           .addOption('gemini', 'Google Gemini')
+          .addOption('ollama', 'Ollama (Local)')
+          .addOption('deepseek', 'DeepSeek')
+          .addOption('custom', 'Custom (OpenAI-compatible)')
           .setValue(this.settings!.aiProvider)
           .onChange(async (value) => {
             await this.config.updateSettings({
-              aiProvider: value as 'openai' | 'gemini',
+              aiProvider: value as PluginSettings['aiProvider'],
             });
             this.settings = await this.config.getSettings();
             this.isCustomMode = false;
-            if (this.modelSettingEl) {
-              this.renderModelSetting(this.modelSettingEl.parentElement!);
-            }
+            this.display();
           });
       });
 
-    new Setting(containerEl)
-      .setName(t('settings.apiKey'))
-      .setDesc(t('settings.apiKeyDesc'))
-      .addText(text => {
-        text
-          .setPlaceholder('sk-...')
-          .setValue(this.settings!.aiApiKey)
-          .onChange(async (value) => {
-            await this.config.updateSettings({ aiApiKey: value });
-          });
-        text.inputEl.type = 'password';
-      });
+    this.providerSettingsContainerEl = containerEl.createDiv();
+    this.renderProviderSettings(this.providerSettingsContainerEl);
 
     this.modelAnchorEl = containerEl.createDiv();
     this.modelAnchorEl.addClass('vaultend-model-anchor');
     this.isCustomMode = false;
-    this.renderModelSetting(containerEl);
+    if (this.settings.aiProvider === 'openai' || this.settings.aiProvider === 'gemini') {
+      this.renderModelSetting(containerEl);
+    }
 
     // --- Organize Folder ---
     containerEl.createEl('h3', { text: t('settings.organize') });
@@ -182,10 +195,21 @@ export class PluginSettingTab extends ObsidianSettingTab {
     new Setting(containerEl)
       .setDesc(t('settings.maintenanceScopeNote'));
 
-    new Setting(containerEl)
+    const licenseStatus = await this.licensePort.getStatus();
+    const isPro = licenseStatus.tier === 'pro'
+      || (this.settings!.proGraceDeadline > 0 && Date.now() < this.settings!.proGraceDeadline);
+
+    const autoMaintenanceSetting = new Setting(containerEl)
       .setName(t('settings.autoMaintenance'))
-      .setDesc(t('settings.autoMaintenanceDesc'))
-      .addToggle(toggle => {
+      .setDesc(t('settings.autoMaintenanceDesc'));
+
+    if (!isPro) {
+      autoMaintenanceSetting.nameEl.createSpan({ text: ' PRO', cls: 'vaultend-pro-badge' });
+      autoMaintenanceSetting.addToggle(toggle => {
+        toggle.setValue(false).setDisabled(true);
+      });
+    } else {
+      autoMaintenanceSetting.addToggle(toggle => {
         toggle
           .setValue(this.settings!.maintenanceEnabled)
           .onChange(async (value) => {
@@ -193,6 +217,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
             this.onMaintenanceSettingsChanged?.();
           });
       });
+    }
 
     new Setting(containerEl)
       .setName(t('settings.maintenanceInterval'))
@@ -252,6 +277,16 @@ export class PluginSettingTab extends ObsidianSettingTab {
 
     const rulesContainer = containerEl.createDiv();
     this.renderPrivacyRules(rulesContainer);
+
+    // --- AI Learning ---
+    if (this.preference) {
+      containerEl.createEl('h3', { text: t('settings.aiLearning') });
+      new Setting(containerEl)
+        .setDesc(t('settings.aiLearningDesc'));
+
+      const learningContainer = containerEl.createDiv();
+      this.renderAILearningSection(learningContainer);
+    }
   }
 
   private renderPrivacyRules(container: HTMLElement): void {
@@ -335,6 +370,292 @@ export class PluginSettingTab extends ObsidianSettingTab {
       setting.setName(rule.name);
     }
     setting.settingEl.addClass('vaultend-privacy-rule');
+  }
+
+  private async renderAILearningSection(container: HTMLElement): Promise<void> {
+    container.empty();
+
+    const ruleSet = await this.preference!.load();
+    const hasRules = ruleSet && ruleSet.rules.length > 0;
+
+    if (!hasRules) {
+      container.createEl('p', {
+        text: t('settings.aiLearningEmpty'),
+        cls: 'setting-item-description',
+      });
+    } else {
+      container.createEl('p', {
+        text: t('settings.aiLearningStats', {
+          ruleCount: ruleSet.rules.length,
+          signalCount: ruleSet.signals.length,
+        }),
+        cls: 'setting-item-description',
+      });
+
+      const manualRules = ruleSet.rules.filter(r => r.source === 'manual');
+      const learnedRules = ruleSet.rules.filter(r => r.source !== 'manual');
+
+      for (const rule of [...manualRules, ...learnedRules]) {
+        const actionLabel = rule.action === 'approved'
+          ? t('settings.aiLearningRuleApproved')
+          : t('settings.aiLearningRuleRejected');
+        const sourceLabel = rule.source === 'manual'
+          ? t('settings.aiLearningRuleManual')
+          : t('settings.aiLearningRuleLearned');
+        const hitInfo = rule.source === 'manual' ? '' : ` (×${rule.hitCount})`;
+        const display = `${actionLabel}: ${rule.pattern}${hitInfo}`;
+
+        new Setting(container)
+          .setName(display)
+          .setDesc(sourceLabel)
+          .addExtraButton(btn => {
+            btn.setIcon('trash')
+              .setTooltip(t('settings.aiLearningDelete'))
+              .onClick(async () => {
+                await this.preference!.deleteRule(rule.id);
+                this.renderAILearningSection(container);
+              });
+          });
+      }
+    }
+
+    const licenseStatus = await this.licensePort.getStatus();
+    const isPro = licenseStatus.tier === 'pro'
+      || (this.settings!.proGraceDeadline > 0 && Date.now() < this.settings!.proGraceDeadline);
+
+    if (isPro) {
+      this.renderManualRuleForm(container);
+    } else {
+      const addSetting = new Setting(container)
+        .setName(t('settings.aiLearningAddRule'));
+      addSetting.nameEl.createSpan({ text: ' PRO', cls: 'vaultend-pro-badge' });
+      addSetting.addButton(btn => btn.setButtonText(t('settings.aiLearningAddRule')).setDisabled(true));
+    }
+
+    if (hasRules) {
+      new Setting(container)
+        .addButton(btn => {
+          btn.setButtonText(t('settings.aiLearningResetAll'))
+            .setWarning()
+            .onClick(async () => {
+              await this.preference!.resetAll();
+              new Notice(t('settings.aiLearningResetConfirm'));
+              this.renderAILearningSection(container);
+            });
+        });
+    }
+  }
+
+  private renderManualRuleForm(container: HTMLElement): void {
+    const formEl = container.createDiv({ cls: 'vaultend-manual-rule-form' });
+
+    let selectedType: 'exclusion' | 'folder-routing' | 'tag-mapping' = 'exclusion';
+    let selectedAction: 'approved' | 'rejected' = 'rejected';
+    let inputFrom = '';
+    let inputTo = '';
+
+    const dynamicEl = formEl.createDiv();
+
+    const rebuildInputs = () => {
+      dynamicEl.empty();
+
+      if (selectedType !== 'exclusion') {
+        new Setting(dynamicEl)
+          .setName(selectedType === 'folder-routing'
+            ? t('settings.aiLearningActionAlways') + ' / ' + t('settings.aiLearningActionNever')
+            : t('settings.aiLearningActionAlways') + ' / ' + t('settings.aiLearningActionNever'))
+          .addDropdown(dd => {
+            dd.addOption('approved', t('settings.aiLearningActionAlways'))
+              .addOption('rejected', t('settings.aiLearningActionNever'))
+              .setValue(selectedAction)
+              .onChange(v => { selectedAction = v as 'approved' | 'rejected'; });
+          });
+      }
+
+      if (selectedType === 'exclusion') {
+        new Setting(dynamicEl)
+          .setName(t('settings.aiLearningPatternFolder'))
+          .addText(text => {
+            text.setPlaceholder('Templates').onChange(v => { inputFrom = v; });
+          });
+      } else {
+        new Setting(dynamicEl)
+          .setName(t('settings.aiLearningPatternFrom'))
+          .addText(text => {
+            const ph = selectedType === 'folder-routing' ? 'Notes' : '#wip';
+            text.setPlaceholder(ph).onChange(v => { inputFrom = v; });
+          });
+        new Setting(dynamicEl)
+          .setName(t('settings.aiLearningPatternTo'))
+          .addText(text => {
+            const ph = selectedType === 'folder-routing' ? 'Projects' : '#draft';
+            text.setPlaceholder(ph).onChange(v => { inputTo = v; });
+          });
+      }
+    };
+
+    new Setting(formEl)
+      .setName(t('settings.aiLearningAddRule'))
+      .setDesc(t('settings.aiLearningAddRuleDesc'))
+      .addDropdown(dd => {
+        dd.addOption('exclusion', t('settings.aiLearningRuleTypeExclusion'))
+          .addOption('folder-routing', t('settings.aiLearningRuleTypeFolderRouting'))
+          .addOption('tag-mapping', t('settings.aiLearningRuleTypeTagMapping'))
+          .setValue(selectedType)
+          .onChange(v => {
+            selectedType = v as typeof selectedType;
+            selectedAction = v === 'exclusion' ? 'rejected' : 'approved';
+            inputFrom = '';
+            inputTo = '';
+            rebuildInputs();
+          });
+      });
+
+    rebuildInputs();
+
+    new Setting(formEl)
+      .addButton(btn => {
+        btn.setButtonText(t('settings.aiLearningAddRule'))
+          .setCta()
+          .onClick(async () => {
+            const from = inputFrom.trim();
+            if (!from) return;
+
+            let pattern: string;
+            let action = selectedAction;
+
+            switch (selectedType) {
+              case 'exclusion':
+                pattern = `exclude:${from}/*`;
+                action = 'rejected';
+                break;
+              case 'folder-routing': {
+                const to = inputTo.trim();
+                if (!to) return;
+                pattern = `folder:${from}→${to}`;
+                break;
+              }
+              case 'tag-mapping': {
+                const to = inputTo.trim();
+                if (!to) return;
+                pattern = `tag:${from}→${to}`;
+                break;
+              }
+            }
+
+            await this.preference!.addManualRule(selectedType, pattern, action);
+            new Notice(t('settings.aiLearningRuleAdded'));
+            this.renderAILearningSection(container);
+          });
+      });
+  }
+
+  private renderProviderSettings(containerEl: HTMLElement): void {
+    containerEl.empty();
+    const provider = this.settings!.aiProvider;
+
+    if (provider === 'openai' || provider === 'gemini') {
+      new Setting(containerEl)
+        .setName(t('settings.apiKey'))
+        .setDesc(t('settings.apiKeyDesc'))
+        .addText(text => {
+          text
+            .setPlaceholder('sk-...')
+            .setValue(this.settings!.aiApiKey)
+            .onChange(async (value) => {
+              await this.config.updateSettings({ aiApiKey: value });
+            });
+          text.inputEl.type = 'password';
+        });
+    }
+
+    if (provider === 'ollama') {
+      new Setting(containerEl)
+        .setName(t('settings.ollamaBaseUrl'))
+        .setDesc(t('settings.ollamaBaseUrlDesc'))
+        .addText(text => {
+          text
+            .setPlaceholder('http://localhost:11434')
+            .setValue(this.settings!.ollamaBaseUrl)
+            .onChange(async (value) => {
+              await this.config.updateSettings({ ollamaBaseUrl: value });
+            });
+        });
+      new Setting(containerEl)
+        .setName(t('settings.model'))
+        .setDesc(t('settings.modelDesc'))
+        .addText(text => {
+          text
+            .setPlaceholder('llama3.2')
+            .setValue(this.settings!.aiModel || 'llama3.2')
+            .onChange(async (value) => {
+              await this.config.updateSettings({ aiModel: value });
+            });
+        });
+    }
+
+    if (provider === 'deepseek') {
+      new Setting(containerEl)
+        .setName(t('settings.deepseekApiKey'))
+        .setDesc(t('settings.deepseekApiKeyDesc'))
+        .addText(text => {
+          text
+            .setPlaceholder('sk-...')
+            .setValue(this.settings!.deepseekApiKey)
+            .onChange(async (value) => {
+              await this.config.updateSettings({ deepseekApiKey: value });
+            });
+          text.inputEl.type = 'password';
+        });
+      new Setting(containerEl)
+        .setName(t('settings.deepseekModel'))
+        .setDesc(t('settings.deepseekModelDesc'))
+        .addText(text => {
+          text
+            .setPlaceholder('deepseek-chat')
+            .setValue(this.settings!.deepseekModel)
+            .onChange(async (value) => {
+              await this.config.updateSettings({ deepseekModel: value });
+            });
+        });
+    }
+
+    if (provider === 'custom') {
+      new Setting(containerEl)
+        .setName(t('settings.customBaseUrl'))
+        .setDesc(t('settings.customBaseUrlDesc'))
+        .addText(text => {
+          text
+            .setPlaceholder('http://localhost:1234')
+            .setValue(this.settings!.customBaseUrl)
+            .onChange(async (value) => {
+              await this.config.updateSettings({ customBaseUrl: value });
+            });
+        });
+      new Setting(containerEl)
+        .setName(t('settings.customApiKey'))
+        .setDesc(t('settings.customApiKeyDesc'))
+        .addText(text => {
+          text
+            .setPlaceholder('(optional)')
+            .setValue(this.settings!.customApiKey)
+            .onChange(async (value) => {
+              await this.config.updateSettings({ customApiKey: value });
+            });
+          text.inputEl.type = 'password';
+        });
+      new Setting(containerEl)
+        .setName(t('settings.customModel'))
+        .setDesc(t('settings.customModelDesc'))
+        .addText(text => {
+          text
+            .setPlaceholder('model-name')
+            .setValue(this.settings!.customModel)
+            .onChange(async (value) => {
+              await this.config.updateSettings({ customModel: value });
+            });
+        });
+    }
   }
 
   private renderModelSetting(parentEl: HTMLElement): void {
@@ -510,6 +831,75 @@ export class PluginSettingTab extends ObsidianSettingTab {
     return [...tags.entries()]
       .sort((a, b) => b[1] - a[1])
       .map(([tag]) => tag);
+  }
+
+  private async renderLicenseSection(containerEl: HTMLElement): Promise<void> {
+    containerEl.createEl('h3', { text: t('settings.license') });
+
+    const licenseStatus = await this.licensePort.getStatus();
+    const isGracePeriod = this.settings!.proGraceDeadline > 0
+      && Date.now() < this.settings!.proGraceDeadline
+      && licenseStatus.tier !== 'pro';
+
+    const licenseSetting = new Setting(containerEl)
+      .setName(t('settings.licenseKey'))
+      .setDesc(licenseStatus.tier === 'pro'
+        ? t('settings.licenseActive')
+        : t('settings.licenseInactive'));
+
+    let keyInput: HTMLInputElement | null = null;
+    licenseSetting.addText(text => {
+      text
+        .setPlaceholder('VE-XXXX-XXXX-XXXX-XXXX')
+        .setValue(this.settings!.licenseKey ?? '');
+      text.inputEl.type = 'password';
+      keyInput = text.inputEl;
+    });
+
+    if (licenseStatus.tier === 'pro') {
+      licenseSetting.addButton(btn => btn
+        .setButtonText(t('settings.licenseDeactivate'))
+        .onClick(async () => {
+          await this.licensePort.deactivate();
+          this.display();
+        }),
+      );
+    } else {
+      licenseSetting.addButton(btn => btn
+        .setButtonText(t('settings.licenseActivate'))
+        .setCta()
+        .onClick(async () => {
+          const key = keyInput?.value ?? '';
+          const result = await this.licensePort.activate(key);
+          if (result.tier === 'pro') {
+            new Notice(t('settings.licenseActivated'));
+            this.onMaintenanceSettingsChanged?.();
+          } else {
+            new Notice(t('settings.licenseInvalid'));
+          }
+          this.display();
+        }),
+      );
+    }
+
+    const badge = containerEl.createDiv({
+      cls: licenseStatus.tier === 'pro'
+        ? 'vaultend-license-badge vaultend-pro-active'
+        : 'vaultend-license-badge vaultend-free',
+    });
+    badge.textContent = licenseStatus.tier === 'pro'
+      ? t('settings.licensePro')
+      : t('settings.licenseFree');
+
+    if (isGracePeriod) {
+      const daysLeft = Math.ceil(
+        (this.settings!.proGraceDeadline - Date.now()) / (24 * 60 * 60 * 1000),
+      );
+      containerEl.createEl('p', {
+        text: t('settings.gracePeriod', { days: daysLeft }),
+        cls: 'vaultend-grace-notice',
+      });
+    }
   }
 
   private refreshOpenViews(): void {

@@ -12,6 +12,7 @@ import { FileChangeTrackingAdapter } from './adapters/tracking/FileChangeTrackin
 import { FileCorpusStatsAdapter } from './adapters/corpus/FileCorpusStatsAdapter';
 import { AIEmbeddingAdapter } from './adapters/embedding/AIEmbeddingAdapter';
 import { JsonVectorStoreAdapter } from './adapters/vectorstore/JsonVectorStoreAdapter';
+import { LocalLicenseAdapter } from './adapters/license/LocalLicenseAdapter';
 
 // Use Cases
 import { QuickAskUseCase } from './application/usecases/QuickAskUseCase';
@@ -23,6 +24,12 @@ import { SaveNoteUseCase } from './application/usecases/SaveNoteUseCase';
 import { GetHistoryUseCase } from './application/usecases/GetHistoryUseCase';
 import { ApplyMaintenanceActionUseCase } from './application/usecases/ApplyMaintenanceActionUseCase';
 import { SyncEmbeddingsUseCase } from './application/usecases/SyncEmbeddingsUseCase';
+import { GenerateOrganizeVaultUseCase } from './application/usecases/GenerateOrganizeVaultUseCase';
+import { ApplyOrganizeVaultUseCase } from './application/usecases/ApplyOrganizeVaultUseCase';
+import { RollbackOrganizeVaultUseCase } from './application/usecases/RollbackOrganizeVaultUseCase';
+import { EstimateRefactorCostUseCase } from './application/usecases/EstimateRefactorCostUseCase';
+import { GenerateRefactorPlanUseCase } from './application/usecases/GenerateRefactorPlanUseCase';
+import { RecordPreferenceUseCase } from './application/usecases/RecordPreferenceUseCase';
 
 // UI
 import { QuickAskModal } from './ui/QuickAskModal';
@@ -31,15 +38,22 @@ import { MaintenanceLogView, MAINTENANCE_LOG_VIEW_TYPE } from './ui/MaintenanceL
 import { MaintenanceResultView, MAINTENANCE_RESULT_VIEW_TYPE } from './ui/MaintenanceResultView';
 import { OrganizeFolderResultView, ORGANIZE_FOLDER_VIEW_TYPE } from './ui/OrganizeFolderResultView';
 import { FolderSuggestModal } from './ui/FolderSuggestModal';
+import { OrganizeVaultView, ORGANIZE_VAULT_VIEW_TYPE } from './ui/OrganizeVaultView';
+import { FileOrganizeVaultAdapter } from './adapters/organize-vault/FileOrganizeVaultAdapter';
+import { FilePreferenceAdapter } from './adapters/preference/FilePreferenceAdapter';
 import { PluginSettingTab } from './ui/PluginSettingTab';
 import { localizeError } from './ui/localizeError';
 
 // Ports
 import { AIProviderPort } from './application/ports/AIProviderPort';
 import { ConfigPort } from './application/ports/ConfigPort';
+import type { LicensePort } from './application/ports/LicensePort';
+import { PRO_FEATURES } from './domain/models/License';
+import type { ProFeatureId } from './domain/models/License';
 import { VaultEvent } from './application/ports/VaultAccessPort';
 import { NotePath, createNotePath } from './domain/values/NotePath';
-import type { MaintenancePlan } from './domain/models/OrganizeModels';
+import type { MaintenancePlan, DuplicatePair } from './domain/models/OrganizeModels';
+import { timestampNow } from './domain/values/Timestamp';
 import { SaveTarget } from './domain/models/SaveTarget';
 import { createNoteTitle } from './domain/values/NoteTitle';
 import {
@@ -66,6 +80,12 @@ const DEFAULT_SETTINGS: PluginSettings = {
   aiModel: DEFAULT_AI_MODEL,
   aiMaxTokens: DEFAULT_AI_MAX_TOKENS,
   aiTemperature: DEFAULT_AI_TEMPERATURE,
+  ollamaBaseUrl: 'http://localhost:11434',
+  deepseekApiKey: '',
+  deepseekModel: 'deepseek-chat',
+  customBaseUrl: '',
+  customApiKey: '',
+  customModel: '',
   captureFolder: 'Inbox',
   autoApplyOrganize: false,
   defaultSaveFolder: DEFAULT_SAVE_FOLDER,
@@ -91,6 +111,8 @@ const DEFAULT_SETTINGS: PluginSettings = {
   knownTags: [],
   trackTokenUsage: true,
   locale: DEFAULT_LOCALE,
+  licenseKey: '',
+  proGraceDeadline: 0,
 };
 
 export default class KnowledgeMaintenancePlugin extends Plugin {
@@ -107,6 +129,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private corpusStatsAdapter!: FileCorpusStatsAdapter;
   private embeddingAdapter!: AIEmbeddingAdapter;
   private vectorStoreAdapter!: JsonVectorStoreAdapter;
+  private licenseAdapter!: LicensePort;
+  private organizeVaultAdapter!: FileOrganizeVaultAdapter;
+  private preferenceAdapter!: FilePreferenceAdapter;
 
   // Shared ConfigPort (single instance)
   private configPort!: ConfigPort;
@@ -121,6 +146,12 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private getHistoryUseCase!: GetHistoryUseCase;
   private applyMaintenanceActionUseCase!: ApplyMaintenanceActionUseCase;
   private syncEmbeddingsUseCase!: SyncEmbeddingsUseCase;
+  private generateOrganizeVaultUseCase!: GenerateOrganizeVaultUseCase;
+  private applyOrganizeVaultUseCase!: ApplyOrganizeVaultUseCase;
+  private rollbackOrganizeVaultUseCase!: RollbackOrganizeVaultUseCase;
+  private estimateRefactorCostUseCase!: EstimateRefactorCostUseCase;
+  private generateRefactorPlanUseCase!: GenerateRefactorPlanUseCase;
+  private recordPreferenceUseCase!: RecordPreferenceUseCase;
 
   // Event unsubscribe functions
   private unsubscribeVaultEvents: (() => void) | null = null;
@@ -153,9 +184,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.registerCommands();
 
     // 6. Register settings tab
-    this.addSettingTab(new PluginSettingTab(this.app, this, this.configPort, () => {
+    this.addSettingTab(new PluginSettingTab(this.app, this, this.configPort, this.licenseAdapter, () => {
       this.scheduleMaintenanceIfEnabled();
-    }));
+    }, this.preferenceAdapter));
 
     // 7. Register folder context menu
     this.registerFolderContextMenu();
@@ -228,7 +259,18 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       delete raw.inboxConfidenceThreshold;
     }
 
+    // Migrate: grant 14-day grace period for existing users on first license system introduction
+    let needsPersist = false;
+    if (!('licenseKey' in raw) && !('proGraceDeadline' in raw)) {
+      raw.proGraceDeadline = Date.now() + 14 * 24 * 60 * 60 * 1000;
+      needsPersist = true;
+    }
+
     this.settings = { ...DEFAULT_SETTINGS, ...raw };
+
+    if (needsPersist) {
+      await this.saveData(this.settings);
+    }
   }
 
   private wireAdapters(): void {
@@ -254,6 +296,14 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     // AI adapter — reads latest settings from ConfigPort on each call, delegates to the appropriate provider
     this.aiAdapter = new DynamicAIAdapter(this.configPort);
     this.embeddingAdapter = new AIEmbeddingAdapter(this.aiAdapter, this.configPort);
+
+    // License adapter — local key validation, swappable for server validation later
+    this.licenseAdapter = new LocalLicenseAdapter(this.configPort);
+
+    // Organize Vault adapter — file-based storage for OrganizeVault plans
+    this.organizeVaultAdapter = new FileOrganizeVaultAdapter(this.vaultAdapter);
+
+    this.preferenceAdapter = new FilePreferenceAdapter(this.vaultAdapter);
   }
 
   private wireUseCases(): void {
@@ -298,6 +348,35 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.embeddingAdapter, this.vectorStoreAdapter,
       this.vaultAdapter, this.changeTracker,
     );
+
+    this.generateOrganizeVaultUseCase = new GenerateOrganizeVaultUseCase(
+      this.clockAdapter, this.vaultAdapter,
+      this.searchIndex, this.organizeVaultAdapter,
+      this.aiAdapter, this.configPort,
+      this.preferenceAdapter,
+    );
+
+    this.applyOrganizeVaultUseCase = new ApplyOrganizeVaultUseCase(
+      this.vaultAdapter, this.historyAdapter,
+      this.clockAdapter, this.organizeVaultAdapter, this.configPort,
+    );
+
+    this.rollbackOrganizeVaultUseCase = new RollbackOrganizeVaultUseCase(
+      this.historyAdapter, this.clockAdapter, this.organizeVaultAdapter,
+    );
+
+    this.estimateRefactorCostUseCase = new EstimateRefactorCostUseCase();
+
+    this.recordPreferenceUseCase = new RecordPreferenceUseCase(
+      this.preferenceAdapter, this.clockAdapter,
+    );
+
+    this.generateRefactorPlanUseCase = new GenerateRefactorPlanUseCase(
+      this.clockAdapter, this.vaultAdapter,
+      this.searchIndex, this.organizeVaultAdapter,
+      this.aiAdapter, this.configPort,
+      this.preferenceAdapter,
+    );
   }
 
   private registerViews(): void {
@@ -314,6 +393,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         this.applyMaintenanceActionUseCase,
         this.configPort,
         this.historyAdapter,
+        this.licenseAdapter,
         (path: string) => {
           const file = this.app.vault.getAbstractFileByPath(path);
           if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
@@ -324,6 +404,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           if (fileA instanceof TFile) this.app.workspace.getLeaf(false).openFile(fileA);
           if (fileB instanceof TFile) this.app.workspace.getLeaf('split').openFile(fileB);
         },
+        (pair) => this.triggerMergeForPair(pair),
       ),
     );
 
@@ -343,6 +424,33 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         (v: boolean) => { this.isOrganizing = v; },
       ),
     );
+
+    this.registerView(
+      ORGANIZE_VAULT_VIEW_TYPE,
+      (leaf: WorkspaceLeaf) => new OrganizeVaultView(
+        leaf,
+        this.runMaintenanceUseCase,
+        this.generateOrganizeVaultUseCase,
+        this.applyOrganizeVaultUseCase,
+        this.rollbackOrganizeVaultUseCase,
+        this.organizeVaultAdapter,
+        this.licenseAdapter,
+        (path: string) => {
+          const file = this.app.vault.getAbstractFileByPath(path);
+          if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
+        },
+        this.vaultAdapter,
+        this.estimateRefactorCostUseCase,
+        this.generateRefactorPlanUseCase,
+        this.recordPreferenceUseCase,
+      ),
+    );
+  }
+
+  private showProUpgradeNotice(feature: ProFeatureId): void {
+    const featureMeta = PRO_FEATURES.find(f => f.id === feature);
+    const featureName = featureMeta ? t(featureMeta.i18nKey as Parameters<typeof t>[0]) : feature;
+    new Notice(t('pro.featureLocked', { feature: featureName }), 5000);
   }
 
   private registerCommands(): void {
@@ -404,11 +512,20 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       id: 'run-maintenance',
       name: t('command.runMaintenance'),
       callback: async () => {
-        await this.activateView(MAINTENANCE_RESULT_VIEW_TYPE);
-        const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
-        if (leaves.length > 0) {
-          const view = leaves[0].view as MaintenanceResultView;
-          await view.triggerScan();
+        if (await this.licenseAdapter.canUseFeature('organize-vault')) {
+          await this.activateView(ORGANIZE_VAULT_VIEW_TYPE);
+          const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_VAULT_VIEW_TYPE);
+          if (leaves.length > 0) {
+            const view = leaves[0].view as OrganizeVaultView;
+            await view.triggerScan();
+          }
+        } else {
+          await this.activateView(MAINTENANCE_RESULT_VIEW_TYPE);
+          const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
+          if (leaves.length > 0) {
+            const view = leaves[0].view as MaintenanceResultView;
+            await view.triggerScan();
+          }
         }
       },
     });
@@ -484,11 +601,20 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
             .setTitle(t('command.scanFolder'))
             .setIcon('shield-check')
             .onClick(async () => {
-              await this.activateView(MAINTENANCE_RESULT_VIEW_TYPE);
-              const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
-              if (leaves.length > 0) {
-                const view = leaves[0].view as MaintenanceResultView;
-                view.triggerScanForFolder(file.path);
+              if (await this.licenseAdapter.canUseFeature('organize-vault')) {
+                await this.activateView(ORGANIZE_VAULT_VIEW_TYPE);
+                const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_VAULT_VIEW_TYPE);
+                if (leaves.length > 0) {
+                  const view = leaves[0].view as OrganizeVaultView;
+                  await view.triggerScan(file.path);
+                }
+              } else {
+                await this.activateView(MAINTENANCE_RESULT_VIEW_TYPE);
+                const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
+                if (leaves.length > 0) {
+                  const view = leaves[0].view as MaintenanceResultView;
+                  await view.triggerScanForFolder(file.path);
+                }
               }
             });
         });
@@ -554,22 +680,28 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     });
   }
 
-  private scheduleMaintenanceIfEnabled(): void {
+  private async scheduleMaintenanceIfEnabled(): Promise<void> {
     if (this.maintenanceInterval !== null) {
       window.clearInterval(this.maintenanceInterval);
       this.maintenanceInterval = null;
     }
 
     if (!this.settings.maintenanceEnabled) return;
+    if (!await this.licenseAdapter.canUseFeature('auto-maintenance')) return;
 
     const ms = this.settings.maintenanceIntervalMinutes * 60 * 1000;
     let firstRun = true;
     this.maintenanceInterval = window.setInterval(async () => {
       if (this.isMaintenanceRunning) return;
-      const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
+      if (!await this.licenseAdapter.canUseFeature('auto-maintenance')) {
+        window.clearInterval(this.maintenanceInterval!);
+        this.maintenanceInterval = null;
+        return;
+      }
+      const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_VAULT_VIEW_TYPE);
       if (leaves.length > 0) {
-        const view = leaves[0].view as MaintenanceResultView;
-        if (view.isRestoreInProgress()) return;
+        const view = leaves[0].view as OrganizeVaultView;
+        if (view.isScanInProgress()) return;
       }
       this.isMaintenanceRunning = true;
       try {
@@ -592,7 +724,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.registerInterval(this.maintenanceInterval);
   }
 
-  private showMaintenancePlanIfNeeded(plan: MaintenancePlan): void {
+  private async showMaintenancePlanIfNeeded(plan: MaintenancePlan): Promise<void> {
     const totalIssues = plan.orphanNotes.length
       + plan.duplicateCandidates.length
       + plan.brokenLinks.length
@@ -601,14 +733,40 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       + plan.untaggedNotes.length;
     if (totalIssues === 0) return;
 
-    const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
+    const organizeVaultPlan = await this.generateOrganizeVaultUseCase.execute(plan);
+    const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_VAULT_VIEW_TYPE);
     if (leaves.length > 0) {
-      const view = leaves[0].view as MaintenanceResultView;
+      const view = leaves[0].view as OrganizeVaultView;
       if (view.isScanInProgress()) return;
-      if (view.isRestoreInProgress()) return;
-      view.showPlan(plan);
+      view.showPlan(organizeVaultPlan);
     }
     new Notice(t('notice.autoMaintenanceFound', { count: totalIssues }));
+  }
+
+  private async triggerMergeForPair(pair: DuplicatePair): Promise<void> {
+    const minPlan: MaintenancePlan = {
+      orphanNotes: [],
+      duplicateCandidates: [pair],
+      brokenLinks: [],
+      missingTags: [],
+      emptyNotes: [],
+      duplicateTags: [],
+      untaggedNotes: [],
+      timestamp: timestampNow(),
+    };
+    try {
+      const organizeVaultPlan = await this.generateOrganizeVaultUseCase.execute(minPlan);
+      if (organizeVaultPlan.proposals.length === 0) {
+        new Notice(t('organizeVault.empty'));
+        return;
+      }
+      const leaf = this.app.workspace.getLeaf('tab');
+      await leaf.setViewState({ type: ORGANIZE_VAULT_VIEW_TYPE, active: true });
+      const view = leaf.view as OrganizeVaultView;
+      view.showPlan(organizeVaultPlan);
+    } catch (err) {
+      new Notice(t('organizeVault.scanFailed', { error: String(err) }));
+    }
   }
 
   private generateTimestampParts(prefix: string): { dateFolder: string; title: string } {
