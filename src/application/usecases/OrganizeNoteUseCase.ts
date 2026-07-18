@@ -9,6 +9,7 @@ import { AIProviderPort } from '../ports/AIProviderPort';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { HistoryPort } from '../ports/HistoryPort';
 import { ConfigPort } from '../ports/ConfigPort';
+import type { TagEmbeddingCachePort } from '../ports/TagEmbeddingCachePort';
 import { PromptTemplates } from '../PromptTemplates';
 import { getLocale } from '../../i18n';
 import {
@@ -33,6 +34,7 @@ export class OrganizeNoteUseCase {
     private readonly vault: VaultAccessPort,
     private readonly history: HistoryPort,
     private readonly config: ConfigPort,
+    private readonly tagEmbeddingCache?: TagEmbeddingCachePort,
   ) {}
 
   /**
@@ -197,11 +199,20 @@ export class OrganizeNoteUseCase {
       if (cachedEmbeddings && cachedEmbeddings.size > 0) {
         existingEmbeddings = cachedEmbeddings;
       } else {
-        const resp = await this.aiProvider.callEmbedding({ texts: canonicals });
-        existingEmbeddings = new Map<string, Float32Array>();
-        for (let i = 0; i < canonicals.length; i++) {
-          existingEmbeddings.set(canonicals[i], resp.embeddings[i]);
+        const fromCache = this.tagEmbeddingCache?.getMany(canonicals)
+          ?? new Map<string, Float32Array>();
+        const missingTags = canonicals.filter(t => !fromCache.has(t));
+
+        if (missingTags.length > 0) {
+          const resp = await this.aiProvider.callEmbedding({ texts: missingTags });
+          const newEntries: Array<{ tag: string; vector: Float32Array }> = [];
+          for (let i = 0; i < missingTags.length; i++) {
+            fromCache.set(missingTags[i], resp.embeddings[i]);
+            newEntries.push({ tag: missingTags[i], vector: resp.embeddings[i] });
+          }
+          this.tagEmbeddingCache?.putMany(newEntries);
         }
+        existingEmbeddings = fromCache;
       }
 
       const newResp = await this.aiProvider.callEmbedding({ texts: newTags });
