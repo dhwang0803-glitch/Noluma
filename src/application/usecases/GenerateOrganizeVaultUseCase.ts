@@ -590,10 +590,10 @@ Return JSON:
   } {
     if (!data || typeof data !== 'object') return false;
     const d = data as Record<string, unknown>;
-    return typeof d.survivorIndex === 'number'
-      && typeof d.mergedContent === 'string'
-      && Array.isArray(d.mergedTags)
-      && typeof d.confidence === 'number'
+    return (d.survivorIndex === 1 || d.survivorIndex === 2)
+      && typeof d.mergedContent === 'string' && d.mergedContent.length > 0
+      && Array.isArray(d.mergedTags) && d.mergedTags.every((t: unknown) => typeof t === 'string')
+      && typeof d.confidence === 'number' && d.confidence >= 0 && d.confidence <= 1
       && typeof d.rationale === 'string';
   }
 

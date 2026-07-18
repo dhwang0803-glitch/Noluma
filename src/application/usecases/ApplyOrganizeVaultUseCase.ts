@@ -20,6 +20,8 @@ export interface ApplyOrganizeVaultResult {
 }
 
 export class ApplyOrganizeVaultUseCase {
+  private txSequence = 0;
+
   constructor(
     private readonly vault: VaultAccessPort,
     private readonly history: HistoryPort,
@@ -39,6 +41,7 @@ export class ApplyOrganizeVaultUseCase {
     const appliedProposalIds: string[] = [];
     let failedCount = 0;
     const transactionId = crypto.randomUUID();
+    this.txSequence = 0;
 
     for (const proposal of approved) {
       try {
@@ -137,6 +140,7 @@ export class ApplyOrganizeVaultUseCase {
         transactionId,
         organizeVaultProposalId: proposal.id,
         movedTo: destPath as string,
+        sequence: this.txSequence++,
       },
     };
     await this.history.record(entry);
@@ -181,7 +185,7 @@ export class ApplyOrganizeVaultUseCase {
       timestamp: this.clock.now(),
       description: `Organize Vault: broken link fixed — ${diff.before} → ${diff.after}`,
       previousContent: note.content,
-      metadata: { transactionId, organizeVaultProposalId: proposal.id },
+      metadata: { transactionId, organizeVaultProposalId: proposal.id, sequence: this.txSequence++ },
     };
     await this.history.record(entry);
     return entry.id;
@@ -236,7 +240,7 @@ export class ApplyOrganizeVaultUseCase {
       notePath: proposal.targetPath,
       timestamp: this.clock.now(),
       description: `Organize Vault: tags merged — ${replaceTags.join(', ')} → ${keepTag} (${mergedCount} notes)`,
-      metadata: { transactionId, organizeVaultProposalId: proposal.id, mergedCount },
+      metadata: { transactionId, organizeVaultProposalId: proposal.id, mergedCount, sequence: this.txSequence++ },
     };
     await this.history.record(entry);
     return entry.id;
@@ -267,7 +271,7 @@ export class ApplyOrganizeVaultUseCase {
       timestamp: this.clock.now(),
       description: `Organize Vault: tags added — ${toAdd.join(', ')}`,
       previousContent: note.content,
-      metadata: { transactionId, organizeVaultProposalId: proposal.id },
+      metadata: { transactionId, organizeVaultProposalId: proposal.id, sequence: this.txSequence++ },
     };
     await this.history.record(entry);
     return entry.id;
@@ -293,6 +297,7 @@ export class ApplyOrganizeVaultUseCase {
         transactionId,
         organizeVaultProposalId: proposal.id,
         archivedTo: destPath as string,
+        sequence: this.txSequence++,
       },
     };
     await this.history.record(entry);
@@ -309,9 +314,10 @@ export class ApplyOrganizeVaultUseCase {
   } {
     if (!meta || typeof meta !== 'object') return false;
     const m = meta as Record<string, unknown>;
-    return typeof m.survivorPath === 'string'
-      && typeof m.donorPath === 'string'
-      && typeof m.mergedContent === 'string'
+    return typeof m.survivorPath === 'string' && m.survivorPath.length > 0
+      && typeof m.donorPath === 'string' && m.donorPath.length > 0
+      && m.survivorPath !== m.donorPath
+      && typeof m.mergedContent === 'string' && m.mergedContent.length > 0
       && Array.isArray(m.mergedTags) && m.mergedTags.every((t: unknown) => typeof t === 'string')
       && typeof m.sourceBlock === 'string'
       && Array.isArray(m.backlinksToRedirect) && m.backlinksToRedirect.every((p: unknown) => typeof p === 'string');
@@ -327,16 +333,20 @@ export class ApplyOrganizeVaultUseCase {
     const survivorPath = createNotePath(meta.survivorPath);
     const donorPath = createNotePath(meta.donorPath);
     const entryIds: string[] = [];
-    let sequence = 0;
 
     const survivorNote = await this.vault.readNote(survivorPath);
     if (!survivorNote) return null;
+
+    let survivorModified = false;
+    const backlinkRestores: Array<{ path: ReturnType<typeof createNotePath>; content: string }> = [];
+    let donorArchiveDest: ReturnType<typeof createNotePath> | null = null;
 
     try {
       const fmMatch = survivorNote.content.match(/^---\n[\s\S]*?\n---\n?/);
       const existingFrontmatter = fmMatch ? fmMatch[0] : '';
       const finalContent = existingFrontmatter + meta.mergedContent + meta.sourceBlock;
       await this.vault.writeNote(survivorPath, finalContent);
+      survivorModified = true;
 
       if (meta.mergedTags.length > 0) {
         await this.vault.updateFrontmatter(survivorPath, { tags: meta.mergedTags });
@@ -353,7 +363,7 @@ export class ApplyOrganizeVaultUseCase {
           transactionId,
           organizeVaultProposalId: proposal.id,
           donorPath: meta.donorPath,
-          sequence: sequence++,
+          sequence: this.txSequence++,
         },
       };
       await this.history.record(survivorEntry);
@@ -363,8 +373,8 @@ export class ApplyOrganizeVaultUseCase {
       const survivorBasename = meta.survivorPath.split('/').pop()?.replace('.md', '') ?? '';
 
       const linkPattern = new RegExp(
-        `(!?)\\[\\[(?:[^\\]|#^]*\\/)?${this.escapeRegex(donorBasename)}((?:#[^\\]|]+|\\^[^\\]|]+)?(?:\\|[^\\]]+)?)\\]\\]`,
-        'g',
+        `(!?)\\[\\[(?:[^\\]|#^]*\\/)?${this.escapeRegex(donorBasename)}(?:\\.md)?((?:#[^\\]|]+|\\^[^\\]|]+)?(?:\\|[^\\]]+)?)\\]\\]`,
+        'gi',
       );
 
       for (const linkingPathStr of meta.backlinksToRedirect) {
@@ -377,6 +387,7 @@ export class ApplyOrganizeVaultUseCase {
         const newContent = linkingNote.content.replace(linkPattern, `$1[[${survivorBasename}$2]]`);
 
         if (newContent !== linkingNote.content) {
+          backlinkRestores.push({ path: linkingPath, content: linkingNote.content });
           await this.vault.writeNote(linkingPath, newContent);
 
           const backlinkEntry: HistoryEntry = {
@@ -389,7 +400,7 @@ export class ApplyOrganizeVaultUseCase {
             metadata: {
               transactionId,
               organizeVaultProposalId: proposal.id,
-              sequence: sequence++,
+              sequence: this.txSequence++,
             },
           };
           await this.history.record(backlinkEntry);
@@ -402,6 +413,7 @@ export class ApplyOrganizeVaultUseCase {
       const donorFileName = meta.donorPath.split('/').pop() ?? '';
       const archiveDest = createNotePath(`${archiveFolder}/${donorFileName}`);
       await this.vault.moveNote(donorPath, archiveDest);
+      donorArchiveDest = archiveDest;
 
       const archiveEntry: HistoryEntry = {
         id: crypto.randomUUID(),
@@ -413,7 +425,7 @@ export class ApplyOrganizeVaultUseCase {
           transactionId,
           organizeVaultProposalId: proposal.id,
           archivedTo: archiveDest as string,
-          sequence: sequence++,
+          sequence: this.txSequence++,
         },
       };
       await this.history.record(archiveEntry);
@@ -421,8 +433,17 @@ export class ApplyOrganizeVaultUseCase {
 
       return entryIds;
     } catch (err) {
-      if (entryIds.length > 0) {
-        await this.rollbackEntries(entryIds);
+      if (donorArchiveDest) {
+        try { await this.vault.moveNote(donorArchiveDest, donorPath); } catch { /* best-effort */ }
+      }
+      for (let i = backlinkRestores.length - 1; i >= 0; i--) {
+        try { await this.vault.writeNote(backlinkRestores[i].path, backlinkRestores[i].content); } catch { /* best-effort */ }
+      }
+      if (survivorModified) {
+        try { await this.vault.writeNote(survivorPath, survivorNote.content); } catch { /* best-effort */ }
+      }
+      for (let i = entryIds.length - 1; i >= 0; i--) {
+        try { await this.history.undo(entryIds[i]); } catch { /* best-effort */ }
       }
       throw err;
     }

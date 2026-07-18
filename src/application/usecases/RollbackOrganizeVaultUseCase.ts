@@ -44,8 +44,10 @@ export class RollbackOrganizeVaultUseCase {
       }
     }
 
-    const updated = withPlanStatus(plan, 'rolled-back', this.clock.now());
-    await this.store.save(updated);
+    if (failedCount === 0) {
+      const updated = withPlanStatus(plan, 'rolled-back', this.clock.now());
+      await this.store.save(updated);
+    }
 
     return { rolledBackCount, failedCount };
   }
