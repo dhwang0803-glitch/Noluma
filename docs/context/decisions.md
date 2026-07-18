@@ -29,6 +29,7 @@
 | 0005 | [Quick Ask 원샷 → 멀티턴 채팅 전환](./adr/ADR-0005-quickask-multiturn-chat.md) | Accepted | 2026-07-15 |
 | 0006 | [클립보드 캡처 기능 제거](./adr/ADR-0006-clipboard-capture-removal.md) | Accepted | 2026-07-16 |
 | 0007 | [Free/Pro 기능 게이팅 시스템](./adr/ADR-0007-free-pro-gating.md) | Accepted | 2026-07-17 |
+| 0008 | [AI API 배치 처리 + Rate Limit Circuit Breaker](./adr/ADR-0008-ai-batch-rate-limit-circuit-breaker.md) | Accepted | 2026-07-19 |
 
 ## 구현 결정 메모 (비-ADR)
 
@@ -46,3 +47,4 @@
 - **Free/Pro 게이팅 — 진입점 전용** (2026-07-17, PR #128, ADR-0007): 게이팅은 main.ts 커맨드 핸들러와 UI View에서만 수행. UseCase/Domain은 라이선스를 모름. LicensePort 인터페이스로 검증 방식 교체 가능. 초기 LocalLicenseAdapter는 로컬 체크섬만 사용 (Phase 3에서 Ed25519 전환).
 - **Grace period 영속화** (2026-07-17, PR #128): 기존 사용자 14일 유예를 `proGraceDeadline`에 영속화. Codex 교차검증에서 재시작 시 무한 갱신 버그 발견 → `loadSettings()` 마이그레이션 후 즉시 `saveData()` 호출로 수정.
 - **Pro 게이팅 재분류** (2026-07-18, PRD v2): `smart-scheduling`은 `auto-maintenance`의 하위 동작으로 통합 (별도 `ProFeatureId` 제거). `batch-merge-tags`는 Free로 전환 (사용자 API를 쓰므로 게이팅 부당). 결과적으로 `ProFeatureId`는 `organize-folder`과 `auto-maintenance` 2개만 유지. ADR-0007 부분 수정.
+- **AI Rate Limit Circuit Breaker + 배치 처리** (2026-07-19, ADR-0008): Gemini Free RPM 10 제한으로 제안서 생성 6분+ 행 발생. 429 즉시 실패(circuit breaker) + broken link·merge 배치 처리(29회→8회)로 해결. 503만 재시도 유지.
