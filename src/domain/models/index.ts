@@ -73,3 +73,14 @@ export type {
   RefactorPhase,
   RefactorProgress,
 } from './RefactorModels';
+export type {
+  PreferenceActionType,
+  PreferenceSignalType,
+  PreferenceRuleSource,
+  PreferenceSignal,
+  SignalContext,
+  PreferenceRule,
+  FewShotExample,
+  PreferenceRuleSet,
+} from './PreferenceModels';
+export { createEmptyRuleSet } from './PreferenceModels';

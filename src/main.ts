@@ -29,6 +29,7 @@ import { ApplyOrganizeVaultUseCase } from './application/usecases/ApplyOrganizeV
 import { RollbackOrganizeVaultUseCase } from './application/usecases/RollbackOrganizeVaultUseCase';
 import { EstimateRefactorCostUseCase } from './application/usecases/EstimateRefactorCostUseCase';
 import { GenerateRefactorPlanUseCase } from './application/usecases/GenerateRefactorPlanUseCase';
+import { RecordPreferenceUseCase } from './application/usecases/RecordPreferenceUseCase';
 
 // UI
 import { QuickAskModal } from './ui/QuickAskModal';
@@ -39,6 +40,7 @@ import { OrganizeFolderResultView, ORGANIZE_FOLDER_VIEW_TYPE } from './ui/Organi
 import { FolderSuggestModal } from './ui/FolderSuggestModal';
 import { OrganizeVaultView, ORGANIZE_VAULT_VIEW_TYPE } from './ui/OrganizeVaultView';
 import { FileOrganizeVaultAdapter } from './adapters/organize-vault/FileOrganizeVaultAdapter';
+import { FilePreferenceAdapter } from './adapters/preference/FilePreferenceAdapter';
 import { PluginSettingTab } from './ui/PluginSettingTab';
 import { localizeError } from './ui/localizeError';
 
@@ -129,6 +131,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private vectorStoreAdapter!: JsonVectorStoreAdapter;
   private licenseAdapter!: LicensePort;
   private organizeVaultAdapter!: FileOrganizeVaultAdapter;
+  private preferenceAdapter!: FilePreferenceAdapter;
 
   // Shared ConfigPort (single instance)
   private configPort!: ConfigPort;
@@ -148,6 +151,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private rollbackOrganizeVaultUseCase!: RollbackOrganizeVaultUseCase;
   private estimateRefactorCostUseCase!: EstimateRefactorCostUseCase;
   private generateRefactorPlanUseCase!: GenerateRefactorPlanUseCase;
+  private recordPreferenceUseCase!: RecordPreferenceUseCase;
 
   // Event unsubscribe functions
   private unsubscribeVaultEvents: (() => void) | null = null;
@@ -182,7 +186,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     // 6. Register settings tab
     this.addSettingTab(new PluginSettingTab(this.app, this, this.configPort, this.licenseAdapter, () => {
       this.scheduleMaintenanceIfEnabled();
-    }));
+    }, this.preferenceAdapter));
 
     // 7. Register folder context menu
     this.registerFolderContextMenu();
@@ -298,6 +302,8 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
     // Organize Vault adapter — file-based storage for OrganizeVault plans
     this.organizeVaultAdapter = new FileOrganizeVaultAdapter(this.vaultAdapter);
+
+    this.preferenceAdapter = new FilePreferenceAdapter(this.vaultAdapter);
   }
 
   private wireUseCases(): void {
@@ -347,6 +353,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.clockAdapter, this.vaultAdapter,
       this.searchIndex, this.organizeVaultAdapter,
       this.aiAdapter, this.configPort,
+      this.preferenceAdapter,
     );
 
     this.applyOrganizeVaultUseCase = new ApplyOrganizeVaultUseCase(
@@ -360,10 +367,15 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
     this.estimateRefactorCostUseCase = new EstimateRefactorCostUseCase();
 
+    this.recordPreferenceUseCase = new RecordPreferenceUseCase(
+      this.preferenceAdapter, this.clockAdapter,
+    );
+
     this.generateRefactorPlanUseCase = new GenerateRefactorPlanUseCase(
       this.clockAdapter, this.vaultAdapter,
       this.searchIndex, this.organizeVaultAdapter,
       this.aiAdapter, this.configPort,
+      this.preferenceAdapter,
     );
   }
 
@@ -430,6 +442,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         this.vaultAdapter,
         this.estimateRefactorCostUseCase,
         this.generateRefactorPlanUseCase,
+        this.recordPreferenceUseCase,
       ),
     );
   }

@@ -21,6 +21,7 @@ import { SearchIndexPort } from '../ports/SearchIndexPort';
 import { OrganizeVaultPort } from '../ports/OrganizeVaultPort';
 import { AIProviderPort } from '../ports/AIProviderPort';
 import { ConfigPort } from '../ports/ConfigPort';
+import type { PreferencePort } from '../ports/PreferencePort';
 
 const AI_BATCH_SIZE = 10;
 const CONTENT_PREVIEW_LENGTH = 500;
@@ -36,6 +37,7 @@ export class GenerateOrganizeVaultUseCase {
     private readonly store: OrganizeVaultPort,
     private readonly ai: AIProviderPort,
     private readonly config: ConfigPort,
+    private readonly preference?: PreferencePort,
   ) {}
 
   async execute(plan: MaintenancePlan): Promise<OrganizeVaultPlan> {
@@ -99,9 +101,10 @@ export class GenerateOrganizeVaultUseCase {
         `[${idx + 1}] Path: ${n.orphan.notePath as string}\nContent: ${n.content}`,
       ).join('\n---\n');
 
+      const prefCtx = this.preference ? await this.preference.getPreferenceContext('organize') : '';
       const response = await this.ai.callCompletion({
         systemPrompt: 'You are a vault organizer. Analyze orphan notes and suggest the best folder, tags, and rationale for each. Respond ONLY with a JSON array.',
-        prompt: `These notes have no links to or from other notes. For each, suggest where it belongs.
+        prompt: `${prefCtx ? prefCtx + '\n\n' : ''}These notes have no links to or from other notes. For each, suggest where it belongs.
 
 Available folders: ${folders.slice(0, 50).join(', ')}
 ${knownTags.length > 0 ? `Existing vault tags (prefer these over inventing new ones): ${knownTags.slice(0, 50).join(', ')}` : ''}
@@ -199,9 +202,10 @@ Return a JSON array where each element has:
 
         let aiCallFailed = false;
         try {
+          const prefCtxBroken = this.preference ? await this.preference.getPreferenceContext('organize') : '';
           const response = await this.ai.callCompletion({
             systemPrompt: 'You resolve broken wiki-links in a knowledge vault by matching them to existing notes. You are biased toward finding a match — partial or fuzzy matches count. Respond ONLY with valid JSON.',
-            prompt: `A broken link [[${link.targetLink}]] was found in "${link.sourcePath as string}" (line ${link.lineNumber}). The linked note does not exist.
+            prompt: `${prefCtxBroken ? prefCtxBroken + '\n\n' : ''}A broken link [[${link.targetLink}]] was found in "${link.sourcePath as string}" (line ${link.lineNumber}). The linked note does not exist.
 
 Below are candidate notes found by searching the vault. Pick the one that best matches the link text:
 ${candidateDescriptions.join('\n')}
@@ -319,9 +323,10 @@ Return JSON: {"targetIndex": <1-based number or null>, "confidence": 0.0-1.0, "r
         `[${idx + 1}] Path: ${n.suggestion.notePath as string}\nRule-suggested: ${n.suggestion.suggestedTags.map(t => t as string).join(', ')}\nContent: ${n.content}`,
       ).join('\n---\n');
 
+      const prefCtxTags = this.preference ? await this.preference.getPreferenceContext('organize') : '';
       const response = await this.ai.callCompletion({
         systemPrompt: 'You are a tag specialist for a knowledge vault. Validate and refine tag suggestions. Respond ONLY with a JSON array.',
-        prompt: `Review these tag suggestions. A rule-based system suggested tags based on keyword matching. Validate whether the tags actually fit the note content.
+        prompt: `${prefCtxTags ? prefCtxTags + '\n\n' : ''}Review these tag suggestions. A rule-based system suggested tags based on keyword matching. Validate whether the tags actually fit the note content.
 
 Known vault tags: ${knownTags.slice(0, 50).join(', ')}
 
@@ -465,9 +470,10 @@ Return a JSON array where each element has:
     const scorePercent = Math.round(pair.similarityScore * 100);
 
     try {
+      const prefCtxMerge = this.preference ? await this.preference.getPreferenceContext('organize') : '';
       const response = await this.ai.callCompletion({
         systemPrompt: 'You are a knowledge vault merger. You analyze two similar notes and produce a single merged document that preserves ALL unique information from both. Respond ONLY with valid JSON.',
-        prompt: `Two notes in a vault are ${scorePercent}% similar. Merge them into one document.
+        prompt: `${prefCtxMerge ? prefCtxMerge + '\n\n' : ''}Two notes in a vault are ${scorePercent}% similar. Merge them into one document.
 
 Note A: "${pair.noteA as string}"
 Backlinks: ${aBacklinks}

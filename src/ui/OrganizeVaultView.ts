@@ -5,6 +5,7 @@ import { ApplyOrganizeVaultUseCase } from '../application/usecases/ApplyOrganize
 import { RollbackOrganizeVaultUseCase } from '../application/usecases/RollbackOrganizeVaultUseCase';
 import type { EstimateRefactorCostUseCase } from '../application/usecases/EstimateRefactorCostUseCase';
 import type { GenerateRefactorPlanUseCase } from '../application/usecases/GenerateRefactorPlanUseCase';
+import type { RecordPreferenceUseCase } from '../application/usecases/RecordPreferenceUseCase';
 import type { OrganizeVaultPort } from '../application/ports/OrganizeVaultPort';
 import type { VaultAccessPort } from '../application/ports/VaultAccessPort';
 import type { LicensePort } from '../application/ports/LicensePort';
@@ -50,6 +51,7 @@ export class OrganizeVaultView extends ItemView {
     private readonly vaultAdapter?: VaultAccessPort,
     private readonly estimateRefactorCost?: EstimateRefactorCostUseCase,
     private readonly generateRefactorPlan?: GenerateRefactorPlanUseCase,
+    private readonly recordPreference?: RecordPreferenceUseCase,
   ) {
     super(leaf);
   }
@@ -349,6 +351,12 @@ export class OrganizeVaultView extends ItemView {
     status: 'approved' | 'rejected',
   ): Promise<void> {
     if (!this.currentPlan) return;
+
+    const proposal = this.currentPlan.proposals.find(p => p.id === proposalId);
+    if (proposal && this.recordPreference) {
+      this.recordPreference.execute(proposal, status).catch(() => {});
+    }
+
     const updated = await this.store.updateProposalStatus(
       this.currentPlan.id,
       proposalId,
@@ -364,6 +372,9 @@ export class OrganizeVaultView extends ItemView {
     if (!this.currentPlan) return;
     for (const proposal of this.currentPlan.proposals) {
       if (proposal.status === 'pending') {
+        if (this.recordPreference) {
+          this.recordPreference.execute(proposal, 'approved').catch(() => {});
+        }
         await this.store.updateProposalStatus(
           this.currentPlan.id,
           proposal.id,

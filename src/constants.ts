@@ -43,6 +43,12 @@ export const COMMAND_RUN_MAINTENANCE = 'run-maintenance';
 export const COMMAND_ORGANIZE_FOLDER = 'organize-folder';
 export const COMMAND_OPEN_MAINTENANCE_LOG = 'open-maintenance-log';
 
+/** Preference Learning 상수 */
+export const PREFERENCES_PATH = `${PLUGIN_DATA_FOLDER}/preferences.json`;
+export const PREFERENCE_SIGNAL_MAX = 200;
+export const PREFERENCE_FEWSHOT_MAX = 10;
+export const PREFERENCE_RULE_THRESHOLD = 3;
+
 /** Refactor 파이프라인 상수 */
 export const REFACTOR_BATCH_SIZE = 50;
 export const REFACTOR_CONTENT_PREVIEW = 300;
