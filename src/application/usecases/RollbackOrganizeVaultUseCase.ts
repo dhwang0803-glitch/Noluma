@@ -25,7 +25,12 @@ export class RollbackOrganizeVaultUseCase {
     const allEntries = await this.history.list();
     const txEntries = allEntries
       .filter(e => (e.metadata as Record<string, unknown>)?.transactionId === transactionId)
-      .sort((a, b) => (b.timestamp as number) - (a.timestamp as number));
+      .sort((a, b) => {
+        const seqA = (a.metadata as Record<string, unknown>)?.sequence;
+        const seqB = (b.metadata as Record<string, unknown>)?.sequence;
+        if (typeof seqA === 'number' && typeof seqB === 'number') return seqB - seqA;
+        return (b.timestamp as number) - (a.timestamp as number);
+      });
 
     let rolledBackCount = 0;
     let failedCount = 0;
@@ -39,8 +44,10 @@ export class RollbackOrganizeVaultUseCase {
       }
     }
 
-    const updated = withPlanStatus(plan, 'rolled-back', this.clock.now());
-    await this.store.save(updated);
+    if (failedCount === 0) {
+      const updated = withPlanStatus(plan, 'rolled-back', this.clock.now());
+      await this.store.save(updated);
+    }
 
     return { rolledBackCount, failedCount };
   }
