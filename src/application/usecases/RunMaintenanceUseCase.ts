@@ -13,7 +13,6 @@ import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { createTagName } from '../../domain/values/TagName';
 import { Note } from '../../domain/models/Note';
 
-const EMBEDDING_SIMILARITY_THRESHOLD = 0.85;
 const NON_TEXT_EXTENSIONS = ['.excalidraw.md', '.canvas'];
 
 export interface MaintenanceScanOptions {
@@ -576,7 +575,8 @@ export class RunMaintenanceUseCase {
           const sim = TagNormalizationService.cosineSimilarity(
             resp.embeddings[i], resp.embeddings[j],
           );
-          if (sim >= EMBEDDING_SIMILARITY_THRESHOLD) {
+          const threshold = TagNormalizationService.embeddingMergeThreshold(tags[i], tags[j]);
+          if (sim >= threshold) {
             group.push(...capped[j].variants);
             merged.add(j);
           }

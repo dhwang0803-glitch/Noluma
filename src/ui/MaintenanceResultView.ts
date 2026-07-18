@@ -56,6 +56,7 @@ export class MaintenanceResultView extends ItemView {
     private readonly licensePort: LicensePort,
     private readonly openFile: (path: string) => void,
     private readonly openFileSplit: (pathA: string, pathB: string) => void,
+    private readonly onMergeRequest: (pair: DuplicatePair) => void,
   ) {
     super(leaf);
   }
@@ -627,6 +628,18 @@ export class MaintenanceResultView extends ItemView {
         .onClick(() => this.openFileSplit(pair.noteA as string, pair.noteB as string)),
       );
 
+      settingEl.addButton(btn => btn
+        .setButtonText(t('btn.mergeWithAI'))
+        .setCta()
+        .onClick(async () => {
+          if (!await this.licensePort.canUseFeature('organize-vault')) {
+            new Notice(t('pro.featureLocked', { feature: t('pro.organizeVault') }));
+            return;
+          }
+          this.onMergeRequest(pair);
+        }),
+      );
+
       this.addDismissButton(settingEl, 'duplicate', `${pair.noteA as string}|${pair.noteB as string}`);
       this.applyPersistedState(entries[entries.length - 1]);
     }
@@ -671,10 +684,6 @@ export class MaintenanceResultView extends ItemView {
         .setButtonText(t('btn.mergeTags'))
         .setCta()
         .onClick(async () => {
-          if (!await this.licensePort.canUseFeature('batch-merge-tags')) {
-            new Notice(t('pro.featureLocked', { feature: t('pro.batchMergeTags') }), 5000);
-            return;
-          }
           this.executeAction(
             {
               kind: 'merge-duplicate-tags',
@@ -850,12 +859,6 @@ export class MaintenanceResultView extends ItemView {
     const selected = entries.filter(e => e.checkbox.checked && e.status === 'pending');
     if (selected.length === 0) {
       new Notice(t('notice.noSelection'));
-      return;
-    }
-
-    const hasMerge = selected.some(e => e.action.kind === 'merge-duplicate-tags');
-    if (hasMerge && !await this.licensePort.canUseFeature('batch-merge-tags')) {
-      new Notice(t('pro.featureLocked', { feature: t('pro.batchMergeTags') }), 5000);
       return;
     }
 
