@@ -18,9 +18,17 @@ import {
 } from '../../constants';
 
 export class FilePreferenceAdapter implements PreferencePort {
+  private writeLock: Promise<void> = Promise.resolve();
+
   constructor(
     private readonly vault: VaultAccessPort,
   ) {}
+
+  private serialized<T>(fn: () => Promise<T>): Promise<T> {
+    const next = this.writeLock.then(fn, fn);
+    this.writeLock = next.then(() => {}, () => {});
+    return next;
+  }
 
   async load(): Promise<PreferenceRuleSet | null> {
     const raw = await this.vault.readFileRaw(PREFERENCES_PATH);
@@ -41,51 +49,55 @@ export class FilePreferenceAdapter implements PreferencePort {
   }
 
   async recordSignal(signal: PreferenceSignal): Promise<PreferenceRuleSet> {
-    const existing = (await this.load()) ?? createEmptyRuleSet();
+    return this.serialized(async () => {
+      const existing = (await this.load()) ?? createEmptyRuleSet();
 
-    const allSignals = PreferenceExtractor.trimSignals(
-      [...existing.signals, signal],
-      PREFERENCE_SIGNAL_MAX,
-    );
+      const allSignals = PreferenceExtractor.trimSignals(
+        [...existing.signals, signal],
+        PREFERENCE_SIGNAL_MAX,
+      );
 
-    const manualRules = existing.rules.filter(r => r.source === 'manual');
-    const learnedRules = PreferenceExtractor.deriveRules(allSignals, PREFERENCE_RULE_THRESHOLD);
-    const fewShotExamples = PreferenceExtractor.buildFewShotExamples(allSignals, PREFERENCE_FEWSHOT_MAX);
+      const manualRules = existing.rules.filter(r => r.source === 'manual');
+      const learnedRules = PreferenceExtractor.deriveRules(allSignals, PREFERENCE_RULE_THRESHOLD);
+      const fewShotExamples = PreferenceExtractor.buildFewShotExamples(allSignals, PREFERENCE_FEWSHOT_MAX);
 
-    const updated: PreferenceRuleSet = {
-      version: existing.version,
-      rules: [...manualRules, ...learnedRules],
-      signals: allSignals,
-      fewShotExamples,
-      lastUpdated: signal.timestamp,
-    };
+      const updated: PreferenceRuleSet = {
+        version: existing.version,
+        rules: [...manualRules, ...learnedRules],
+        signals: allSignals,
+        fewShotExamples,
+        lastUpdated: signal.timestamp,
+      };
 
-    await this.save(updated);
-    return updated;
+      await this.save(updated);
+      return updated;
+    });
   }
 
   async deleteRule(ruleId: string): Promise<void> {
-    const ruleSet = await this.load();
-    if (!ruleSet) return;
+    return this.serialized(async () => {
+      const ruleSet = await this.load();
+      if (!ruleSet) return;
 
-    const deletedRule = ruleSet.rules.find(r => r.id === ruleId);
-    let filteredSignals = ruleSet.signals;
+      const deletedRule = ruleSet.rules.find(r => r.id === ruleId);
+      let filteredSignals = ruleSet.signals;
 
-    if (deletedRule && deletedRule.source === 'learned') {
-      filteredSignals = ruleSet.signals.filter(s => {
-        const pattern = PreferenceExtractor.extractPattern(s);
-        return !(s.signalType === deletedRule.ruleType
-          && pattern === deletedRule.pattern
-          && s.action === deletedRule.action);
-      });
-    }
+      if (deletedRule && deletedRule.source === 'learned') {
+        filteredSignals = ruleSet.signals.filter(s => {
+          const pattern = PreferenceExtractor.extractPattern(s);
+          return !(s.signalType === deletedRule.ruleType
+            && pattern === deletedRule.pattern
+            && s.action === deletedRule.action);
+        });
+      }
 
-    const updated: PreferenceRuleSet = {
-      ...ruleSet,
-      rules: ruleSet.rules.filter(r => r.id !== ruleId),
-      signals: filteredSignals,
-    };
-    await this.save(updated);
+      const updated: PreferenceRuleSet = {
+        ...ruleSet,
+        rules: ruleSet.rules.filter(r => r.id !== ruleId),
+        signals: filteredSignals,
+      };
+      await this.save(updated);
+    });
   }
 
   async resetAll(): Promise<void> {
@@ -97,26 +109,28 @@ export class FilePreferenceAdapter implements PreferencePort {
     pattern: string,
     action: PreferenceActionType,
   ): Promise<void> {
-    const existing = (await this.load()) ?? createEmptyRuleSet();
+    return this.serialized(async () => {
+      const existing = (await this.load()) ?? createEmptyRuleSet();
 
-    const newRule: PreferenceRule = {
-      id: crypto.randomUUID(),
-      ruleType,
-      pattern,
-      action,
-      hitCount: 0,
-      lastTriggered: Date.now(),
-      examples: [],
-      source: 'manual',
-    };
+      const newRule: PreferenceRule = {
+        id: crypto.randomUUID(),
+        ruleType,
+        pattern,
+        action,
+        hitCount: 0,
+        lastTriggered: Date.now(),
+        examples: [],
+        source: 'manual',
+      };
 
-    const updated: PreferenceRuleSet = {
-      ...existing,
-      rules: [newRule, ...existing.rules],
-      lastUpdated: Date.now(),
-    };
+      const updated: PreferenceRuleSet = {
+        ...existing,
+        rules: [newRule, ...existing.rules],
+        lastUpdated: Date.now(),
+      };
 
-    await this.save(updated);
+      await this.save(updated);
+    });
   }
 
   async getPreferenceContext(mode: 'organize' | 'refactor'): Promise<string> {
