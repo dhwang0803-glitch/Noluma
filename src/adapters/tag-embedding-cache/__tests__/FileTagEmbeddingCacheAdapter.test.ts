@@ -197,6 +197,26 @@ describe('FileTagEmbeddingCacheAdapter', () => {
       adapter.setMeta({ provider: 'openai', dimension: 1536 });
       expect(adapter.isCompatible('openai', 768)).toBe(false);
     });
+
+    it('returns true when model matches', () => {
+      adapter.setMeta({ provider: 'openai', dimension: 1536, model: 'text-embedding-3-small' });
+      expect(adapter.isCompatible('openai', 1536, 'text-embedding-3-small')).toBe(true);
+    });
+
+    it('returns false when model differs', () => {
+      adapter.setMeta({ provider: 'openai', dimension: 1536, model: 'text-embedding-3-small' });
+      expect(adapter.isCompatible('openai', 1536, 'text-embedding-3-large')).toBe(false);
+    });
+
+    it('returns false when meta has no model but caller passes model', () => {
+      adapter.setMeta({ provider: 'openai', dimension: 1536 });
+      expect(adapter.isCompatible('openai', 1536, 'text-embedding-3-small')).toBe(false);
+    });
+
+    it('returns true when no model specified by caller', () => {
+      adapter.setMeta({ provider: 'openai', dimension: 1536, model: 'text-embedding-3-small' });
+      expect(adapter.isCompatible('openai', 1536)).toBe(true);
+    });
   });
 
   describe('clear', () => {
