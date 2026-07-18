@@ -1,17 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { AIEmbeddingAdapter } from '../AIEmbeddingAdapter';
 import { AIProviderPort } from '../../../application/ports/AIProviderPort';
-import { ConfigPort, PluginSettings } from '../../../application/ports/ConfigPort';
 
 describe('AIEmbeddingAdapter', () => {
   let adapter: AIEmbeddingAdapter;
   let mockAI: { callEmbedding: ReturnType<typeof vi.fn> };
-  let mockConfig: ConfigPort;
-
-  const fakeSettings = {
-    aiApiKey: 'test-key',
-    embeddingsModel: 'text-embedding-3-small',
-  } as PluginSettings;
 
   beforeEach(() => {
     mockAI = {
@@ -21,12 +14,7 @@ describe('AIEmbeddingAdapter', () => {
         tokenUsage: { promptTokens: 5, completionTokens: 0, totalTokens: 5, estimatedCostUsd: 0 },
       }),
     };
-    mockConfig = {
-      getSettings: vi.fn().mockResolvedValue(fakeSettings),
-      saveSettings: vi.fn(),
-      updateSettings: vi.fn(),
-    };
-    adapter = new AIEmbeddingAdapter(mockAI as unknown as AIProviderPort, mockConfig);
+    adapter = new AIEmbeddingAdapter(mockAI as unknown as AIProviderPort);
   });
 
   it('initializes by calling embedding API with test text', async () => {
@@ -39,14 +27,16 @@ describe('AIEmbeddingAdapter', () => {
     });
   });
 
-  it('returns false when API key is missing', async () => {
-    (mockConfig.getSettings as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ...fakeSettings,
-      aiApiKey: '',
+  it('returns false when provider returns empty embeddings', async () => {
+    mockAI.callEmbedding.mockResolvedValue({
+      embeddings: [],
+      dimension: 0,
+      tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0 },
     });
     const result = await adapter.initialize();
     expect(result).toBe(false);
     expect(adapter.isReady()).toBe(false);
+    expect(adapter.getDimension()).toBe(0);
   });
 
   it('returns false when API call fails', async () => {

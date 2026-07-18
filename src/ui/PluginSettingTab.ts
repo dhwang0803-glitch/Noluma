@@ -60,6 +60,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
     private readonly licensePort: LicensePort,
     private readonly onMaintenanceSettingsChanged?: () => void,
     private readonly preference?: PreferencePort,
+    private readonly onAIProviderChanged?: () => void,
   ) {
     super(app, plugin);
   }
@@ -116,6 +117,7 @@ export class PluginSettingTab extends ObsidianSettingTab {
             });
             this.settings = await this.config.getSettings();
             this.isCustomMode = false;
+            this.onAIProviderChanged?.();
             this.display();
           });
       });
