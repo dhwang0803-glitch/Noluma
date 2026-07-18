@@ -93,6 +93,22 @@ describe('JsonVectorStoreAdapter', () => {
     expect(adapter.isCompatible('gemini', 768)).toBe(false);
   });
 
+  it('detects model compatibility', () => {
+    adapter.setMeta({ provider: 'openai', dimension: 1536, model: 'text-embedding-3-small' });
+    expect(adapter.isCompatible('openai', 1536, 'text-embedding-3-small')).toBe(true);
+    expect(adapter.isCompatible('openai', 1536, 'text-embedding-3-large')).toBe(false);
+  });
+
+  it('treats legacy cache without model as incompatible when model specified', () => {
+    adapter.setMeta({ provider: 'openai', dimension: 1536 });
+    expect(adapter.isCompatible('openai', 1536, 'text-embedding-3-small')).toBe(false);
+  });
+
+  it('ignores model check when caller omits model', () => {
+    adapter.setMeta({ provider: 'openai', dimension: 1536, model: 'text-embedding-3-small' });
+    expect(adapter.isCompatible('openai', 1536)).toBe(true);
+  });
+
   it('clearEntries removes vectors but preserves metadata', async () => {
     adapter.setMeta({ provider: 'gemini', dimension: 2 });
     await adapter.upsert(createNotePath('a.md'), 0, new Float32Array([1, 0]));
