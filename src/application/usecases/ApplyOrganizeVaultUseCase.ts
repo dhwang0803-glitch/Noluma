@@ -299,110 +299,133 @@ export class ApplyOrganizeVaultUseCase {
     return entry.id;
   }
 
+  private isMergeMetadata(meta: unknown): meta is {
+    survivorPath: string;
+    donorPath: string;
+    mergedContent: string;
+    mergedTags: string[];
+    sourceBlock: string;
+    backlinksToRedirect: string[];
+  } {
+    if (!meta || typeof meta !== 'object') return false;
+    const m = meta as Record<string, unknown>;
+    return typeof m.survivorPath === 'string'
+      && typeof m.donorPath === 'string'
+      && typeof m.mergedContent === 'string'
+      && Array.isArray(m.mergedTags) && m.mergedTags.every((t: unknown) => typeof t === 'string')
+      && typeof m.sourceBlock === 'string'
+      && Array.isArray(m.backlinksToRedirect) && m.backlinksToRedirect.every((p: unknown) => typeof p === 'string');
+  }
+
   private async applyMergeDuplicateNotes(
     proposal: OrganizeVaultProposal,
     transactionId: string,
   ): Promise<string[] | null> {
-    const meta = proposal.metadata as {
-      survivorPath: string;
-      donorPath: string;
-      mergedContent: string;
-      mergedTags: string[];
-      sourceBlock: string;
-      backlinksToRedirect: string[];
-    };
-    if (!meta?.survivorPath || !meta?.donorPath || !meta?.mergedContent) return null;
+    if (!this.isMergeMetadata(proposal.metadata)) return null;
+    const meta = proposal.metadata;
 
     const survivorPath = createNotePath(meta.survivorPath);
     const donorPath = createNotePath(meta.donorPath);
     const entryIds: string[] = [];
+    let sequence = 0;
 
     const survivorNote = await this.vault.readNote(survivorPath);
     if (!survivorNote) return null;
 
-    const fmMatch = survivorNote.content.match(/^---\n[\s\S]*?\n---\n?/);
-    const existingFrontmatter = fmMatch ? fmMatch[0] : '';
-    const finalContent = existingFrontmatter + meta.mergedContent + meta.sourceBlock;
-    await this.vault.writeNote(survivorPath, finalContent);
+    try {
+      const fmMatch = survivorNote.content.match(/^---\n[\s\S]*?\n---\n?/);
+      const existingFrontmatter = fmMatch ? fmMatch[0] : '';
+      const finalContent = existingFrontmatter + meta.mergedContent + meta.sourceBlock;
+      await this.vault.writeNote(survivorPath, finalContent);
 
-    if (meta.mergedTags.length > 0) {
-      await this.vault.updateFrontmatter(survivorPath, { tags: meta.mergedTags });
-    }
+      if (meta.mergedTags.length > 0) {
+        await this.vault.updateFrontmatter(survivorPath, { tags: meta.mergedTags });
+      }
 
-    const survivorEntry: HistoryEntry = {
-      id: crypto.randomUUID(),
-      action: 'merge-notes',
-      notePath: survivorPath,
-      timestamp: this.clock.now(),
-      description: `Organize Vault: merged ${meta.donorPath} → ${meta.survivorPath}`,
-      previousContent: survivorNote.content,
-      metadata: {
-        transactionId,
-        organizeVaultProposalId: proposal.id,
-        donorPath: meta.donorPath,
-      },
-    };
-    await this.history.record(survivorEntry);
-    entryIds.push(survivorEntry.id);
+      const survivorEntry: HistoryEntry = {
+        id: crypto.randomUUID(),
+        action: 'merge-notes',
+        notePath: survivorPath,
+        timestamp: this.clock.now(),
+        description: `Organize Vault: merged ${meta.donorPath} → ${meta.survivorPath}`,
+        previousContent: survivorNote.content,
+        metadata: {
+          transactionId,
+          organizeVaultProposalId: proposal.id,
+          donorPath: meta.donorPath,
+          sequence: sequence++,
+        },
+      };
+      await this.history.record(survivorEntry);
+      entryIds.push(survivorEntry.id);
 
-    const donorBasename = meta.donorPath.split('/').pop()?.replace('.md', '') ?? '';
-    const survivorBasename = meta.survivorPath.split('/').pop()?.replace('.md', '') ?? '';
+      const donorBasename = meta.donorPath.split('/').pop()?.replace('.md', '') ?? '';
+      const survivorBasename = meta.survivorPath.split('/').pop()?.replace('.md', '') ?? '';
 
-    for (const linkingPathStr of meta.backlinksToRedirect) {
-      if (linkingPathStr === meta.survivorPath || linkingPathStr === meta.donorPath) continue;
-
-      const linkingPath = createNotePath(linkingPathStr);
-      const linkingNote = await this.vault.readNote(linkingPath);
-      if (!linkingNote) continue;
-
-      const wikiPattern = new RegExp(
-        `\\[\\[${this.escapeRegex(donorBasename)}(\\|[^\\]]+)?\\]\\]`,
+      const linkPattern = new RegExp(
+        `(!?)\\[\\[(?:[^\\]|#^]*\\/)?${this.escapeRegex(donorBasename)}((?:#[^\\]|]+|\\^[^\\]|]+)?(?:\\|[^\\]]+)?)\\]\\]`,
         'g',
       );
-      const newContent = linkingNote.content.replace(wikiPattern, `[[${survivorBasename}]]`);
 
-      if (newContent !== linkingNote.content) {
-        await this.vault.writeNote(linkingPath, newContent);
+      for (const linkingPathStr of meta.backlinksToRedirect) {
+        if (linkingPathStr === meta.survivorPath || linkingPathStr === meta.donorPath) continue;
 
-        const backlinkEntry: HistoryEntry = {
-          id: crypto.randomUUID(),
-          action: 'modify',
-          notePath: linkingPath,
-          timestamp: this.clock.now(),
-          description: `Organize Vault: backlink redirected — [[${donorBasename}]] → [[${survivorBasename}]]`,
-          previousContent: linkingNote.content,
-          metadata: {
-            transactionId,
-            organizeVaultProposalId: proposal.id,
-          },
-        };
-        await this.history.record(backlinkEntry);
-        entryIds.push(backlinkEntry.id);
+        const linkingPath = createNotePath(linkingPathStr);
+        const linkingNote = await this.vault.readNote(linkingPath);
+        if (!linkingNote) continue;
+
+        const newContent = linkingNote.content.replace(linkPattern, `$1[[${survivorBasename}$2]]`);
+
+        if (newContent !== linkingNote.content) {
+          await this.vault.writeNote(linkingPath, newContent);
+
+          const backlinkEntry: HistoryEntry = {
+            id: crypto.randomUUID(),
+            action: 'modify',
+            notePath: linkingPath,
+            timestamp: this.clock.now(),
+            description: `Organize Vault: backlink redirected — [[${donorBasename}]] → [[${survivorBasename}]]`,
+            previousContent: linkingNote.content,
+            metadata: {
+              transactionId,
+              organizeVaultProposalId: proposal.id,
+              sequence: sequence++,
+            },
+          };
+          await this.history.record(backlinkEntry);
+          entryIds.push(backlinkEntry.id);
+        }
       }
+
+      const settings = await this.config.getSettings();
+      const archiveFolder = settings.maintenanceArchiveFolder ?? 'Archive';
+      const donorFileName = meta.donorPath.split('/').pop() ?? '';
+      const archiveDest = createNotePath(`${archiveFolder}/${donorFileName}`);
+      await this.vault.moveNote(donorPath, archiveDest);
+
+      const archiveEntry: HistoryEntry = {
+        id: crypto.randomUUID(),
+        action: 'archive',
+        notePath: donorPath,
+        timestamp: this.clock.now(),
+        description: `Organize Vault: donor archived — ${meta.donorPath} → ${archiveFolder}/`,
+        metadata: {
+          transactionId,
+          organizeVaultProposalId: proposal.id,
+          archivedTo: archiveDest as string,
+          sequence: sequence++,
+        },
+      };
+      await this.history.record(archiveEntry);
+      entryIds.push(archiveEntry.id);
+
+      return entryIds;
+    } catch (err) {
+      if (entryIds.length > 0) {
+        await this.rollbackEntries(entryIds);
+      }
+      throw err;
     }
-
-    const settings = await this.config.getSettings();
-    const archiveFolder = settings.maintenanceArchiveFolder ?? 'Archive';
-    const donorFileName = meta.donorPath.split('/').pop() ?? '';
-    const archiveDest = createNotePath(`${archiveFolder}/${donorFileName}`);
-    await this.vault.moveNote(donorPath, archiveDest);
-
-    const archiveEntry: HistoryEntry = {
-      id: crypto.randomUUID(),
-      action: 'archive',
-      notePath: donorPath,
-      timestamp: this.clock.now(),
-      description: `Organize Vault: donor archived — ${meta.donorPath} → ${archiveFolder}/`,
-      metadata: {
-        transactionId,
-        organizeVaultProposalId: proposal.id,
-        archivedTo: archiveDest as string,
-      },
-    };
-    await this.history.record(archiveEntry);
-    entryIds.push(archiveEntry.id);
-
-    return entryIds;
   }
 
   private async rollbackEntries(entryIds: ReadonlyArray<string>): Promise<void> {

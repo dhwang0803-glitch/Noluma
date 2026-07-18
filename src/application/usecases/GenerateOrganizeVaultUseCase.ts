@@ -444,6 +444,9 @@ Return a JSON array where each element has:
     );
     if (!aAllowed || !bAllowed) return null;
 
+    const aTruncated = noteA.content.length > MERGE_CONTENT_MAX_LENGTH;
+    const bTruncated = noteB.content.length > MERGE_CONTENT_MAX_LENGTH;
+
     const contentA = applyContentRedaction(
       noteA.content.substring(0, MERGE_CONTENT_MAX_LENGTH),
       privacyRules,
@@ -452,6 +455,10 @@ Return a JSON array where each element has:
       noteB.content.substring(0, MERGE_CONTENT_MAX_LENGTH),
       privacyRules,
     );
+
+    const truncationNotice = (aTruncated || bTruncated)
+      ? `\n\nIMPORTANT: ${aTruncated ? `Note A content is truncated (showing ${MERGE_CONTENT_MAX_LENGTH} of ${noteA.content.length} chars). ` : ''}${bTruncated ? `Note B content is truncated (showing ${MERGE_CONTENT_MAX_LENGTH} of ${noteB.content.length} chars). ` : ''}Preserve ALL shown content and note that additional content exists beyond what is shown.`
+      : '';
 
     const aBacklinks = noteA.metadata.backlinks.length;
     const bBacklinks = noteB.metadata.backlinks.length;
@@ -478,7 +485,7 @@ Merge rules:
 3. Merge frontmatter tags from both notes (deduplicate).
 4. If information conflicts, keep the more detailed/complete version and note the conflict with a "> [!warning] Conflict" callout.
 5. Structure the merged document logically with clear headings.
-6. The merged content should be valid Markdown without a frontmatter --- block.
+6. The merged content should be valid Markdown without a frontmatter --- block.${truncationNotice}
 
 Return JSON:
 {
@@ -493,13 +500,12 @@ Return JSON:
         jsonMode: true,
       });
 
-      const result = JSON.parse(response.content) as {
-        survivorIndex: number;
-        mergedContent: string;
-        mergedTags: string[];
-        confidence: number;
-        rationale: string;
-      };
+      const parsed: unknown = JSON.parse(response.content);
+      if (!this.isMergeAIResponse(parsed)) {
+        console.warn(`[Vaultend] Merge AI response validation failed for pair: ${pair.noteA as string} + ${pair.noteB as string}`);
+        return null;
+      }
+      const result = parsed;
 
       const survivor = result.survivorIndex === 2 ? pair.noteB : pair.noteA;
       const donor = survivor === pair.noteA ? pair.noteB : pair.noteA;
@@ -563,11 +569,32 @@ Return JSON:
           mergedTags,
           sourceBlock,
           backlinksToRedirect: backlinksToRedirect.map(p => p as string),
+          contentTruncated: aTruncated || bTruncated,
         },
       });
-    } catch {
+    } catch (err) {
+      console.warn(
+        `[Vaultend] Merge analysis failed for pair: ${pair.noteA as string} + ${pair.noteB as string}`,
+        err instanceof Error ? err.message : err,
+      );
       return null;
     }
+  }
+
+  private isMergeAIResponse(data: unknown): data is {
+    survivorIndex: number;
+    mergedContent: string;
+    mergedTags: string[];
+    confidence: number;
+    rationale: string;
+  } {
+    if (!data || typeof data !== 'object') return false;
+    const d = data as Record<string, unknown>;
+    return typeof d.survivorIndex === 'number'
+      && typeof d.mergedContent === 'string'
+      && Array.isArray(d.mergedTags)
+      && typeof d.confidence === 'number'
+      && typeof d.rationale === 'string';
   }
 
   private async collectFolders(): Promise<ReadonlyArray<string>> {
