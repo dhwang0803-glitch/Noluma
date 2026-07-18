@@ -188,7 +188,12 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     // 6. Register settings tab
     this.addSettingTab(new PluginSettingTab(this.app, this, this.configPort, this.licenseAdapter, () => {
       this.scheduleMaintenanceIfEnabled();
-    }, this.preferenceAdapter));
+    }, this.preferenceAdapter, async () => {
+      await this.reinitializeEmbeddings();
+      if (this.embeddingAdapter.isReady()) {
+        this.syncEmbeddingsBackground();
+      }
+    }));
 
     // 7. Register folder context menu
     this.registerFolderContextMenu();
@@ -203,27 +208,13 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     this.app.workspace.onLayoutReady(async () => {
       await this.buildSearchIndex();
 
-      if (this.settings.aiApiKey) {
-        await this.vectorStoreAdapter.load();
-        await this.embeddingAdapter.initialize();
+      await this.vectorStoreAdapter.load();
+      await this.tagEmbeddingCacheAdapter.load();
+
+      if (this.hasAIProviderConfig()) {
+        await this.reinitializeEmbeddings();
 
         if (this.embeddingAdapter.isReady()) {
-          const dim = this.embeddingAdapter.getDimension();
-          const provider = this.settings.aiProvider;
-
-          if (!this.vectorStoreAdapter.isEmpty() && !this.vectorStoreAdapter.isCompatible(provider, dim)) {
-            console.log('Vaultend: embedding provider/dimension changed, rebuilding index');
-            await this.vectorStoreAdapter.clear();
-          }
-          this.vectorStoreAdapter.setMeta({ provider, dimension: dim });
-
-          await this.tagEmbeddingCacheAdapter.load();
-          if (this.tagEmbeddingCacheAdapter.size() > 0
-            && !this.tagEmbeddingCacheAdapter.isCompatible(provider, dim)) {
-            await this.tagEmbeddingCacheAdapter.clear();
-          }
-          this.tagEmbeddingCacheAdapter.setMeta({ provider, dimension: dim });
-
           this.syncEmbeddingsBackground();
         }
       }
@@ -253,6 +244,36 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   }
 
   // ─── Internal methods ───
+
+  private hasAIProviderConfig(): boolean {
+    const s = this.settings;
+    switch (s.aiProvider) {
+      case 'ollama': return !!s.ollamaBaseUrl;
+      case 'deepseek': return !!(s.deepseekApiKey || s.aiApiKey);
+      case 'custom': return !!s.customBaseUrl;
+      default: return !!s.aiApiKey;
+    }
+  }
+
+  private async reinitializeEmbeddings(): Promise<void> {
+    await this.embeddingAdapter.initialize();
+    if (!this.embeddingAdapter.isReady()) return;
+
+    const dim = this.embeddingAdapter.getDimension();
+    const provider = this.settings.aiProvider;
+
+    if (!this.vectorStoreAdapter.isEmpty() && !this.vectorStoreAdapter.isCompatible(provider, dim)) {
+      console.log('Vaultend: embedding provider/dimension changed, rebuilding index');
+      await this.vectorStoreAdapter.clear();
+    }
+    this.vectorStoreAdapter.setMeta({ provider, dimension: dim });
+
+    if (this.tagEmbeddingCacheAdapter.size() > 0
+      && !this.tagEmbeddingCacheAdapter.isCompatible(provider, dim)) {
+      await this.tagEmbeddingCacheAdapter.clear();
+    }
+    this.tagEmbeddingCacheAdapter.setMeta({ provider, dimension: dim });
+  }
 
   private async loadSettings(): Promise<void> {
     const data = await this.loadData();
@@ -308,7 +329,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
     // AI adapter — reads latest settings from ConfigPort on each call, delegates to the appropriate provider
     this.aiAdapter = new DynamicAIAdapter(this.configPort);
-    this.embeddingAdapter = new AIEmbeddingAdapter(this.aiAdapter, this.configPort);
+    this.embeddingAdapter = new AIEmbeddingAdapter(this.aiAdapter);
 
     // License adapter — local key validation, swappable for server validation later
     this.licenseAdapter = new LocalLicenseAdapter(this.configPort);

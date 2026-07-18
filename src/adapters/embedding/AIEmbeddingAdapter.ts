@@ -1,6 +1,5 @@
 import { EmbeddingPort } from '../../application/ports/EmbeddingPort';
 import { AIProviderPort } from '../../application/ports/AIProviderPort';
-import { ConfigPort } from '../../application/ports/ConfigPort';
 
 export class AIEmbeddingAdapter implements EmbeddingPort {
   private ready = false;
@@ -8,17 +7,18 @@ export class AIEmbeddingAdapter implements EmbeddingPort {
 
   constructor(
     private readonly aiProvider: AIProviderPort,
-    private readonly config: ConfigPort,
   ) {}
 
   async initialize(): Promise<boolean> {
     try {
-      const settings = await this.config.getSettings();
-      if (!settings.aiApiKey) return false;
-
       const response = await this.aiProvider.callEmbedding({
         texts: ['test'],
       });
+
+      if (response.dimension <= 0 || response.embeddings.length === 0) {
+        this.ready = false;
+        return false;
+      }
 
       this.dimension = response.dimension;
       this.ready = true;
