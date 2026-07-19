@@ -1033,6 +1033,16 @@ function tryParseJsonArray<T>(raw: string): T[] {
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
   } catch {
+    // Mid-object truncation: find last complete element via `},` or trailing `}`
+    const lastComplete = raw.lastIndexOf('},');
+    if (lastComplete > 0) {
+      const trimmed = raw.substring(0, lastComplete + 1) + ']';
+      try {
+        const parsed = JSON.parse(trimmed);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch { /* fall through */ }
+    }
+    // Trailing comma between elements: `[{...},{...},` → close array
     const repaired = raw.replace(/,\s*$/, '') + ']';
     try {
       const parsed = JSON.parse(repaired);
