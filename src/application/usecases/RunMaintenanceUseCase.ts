@@ -10,6 +10,7 @@ import { TfIdfCorpus } from '../../domain/services/TfIdfCorpus';
 import { tokenizeForTfIdf } from '../../domain/services/tokenize';
 import { TagNormalizationService, CanonicalTagGroup } from '../../domain/services/TagNormalizationService';
 import { FuzzyLinkMatcher } from '../../domain/services/FuzzyLinkMatcher';
+import { LinkSuggestionService } from '../../domain/services/LinkSuggestionService';
 import type { TagEmbeddingCachePort } from '../ports/TagEmbeddingCachePort';
 import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { createTagName } from '../../domain/values/TagName';
@@ -128,18 +129,47 @@ export class RunMaintenanceUseCase {
     allNotes: ReadonlyArray<NotePath>,
     canvasRefs: Set<string>,
   ): Promise<OrphanNoteEntry[]> {
-    const orphans: OrphanNoteEntry[] = [];
+    const orphanData: Array<{ notePath: NotePath; fileSize: number; tags: string[]; tokens: string[] }> = [];
+    const candidateData: Array<{ path: string; tags: string[]; tokens: string[] }> = [];
+    const corpus = new TfIdfCorpus();
+
+    if (this.corpusStats) {
+      const saved = await this.corpusStats.loadStats();
+      if (saved) corpus.loadFromStats(saved);
+    }
+
     for (const notePath of allNotes) {
       const note = await this.vault.readNote(notePath);
       if (!note) continue;
+      const tokens = tokenizeForTfIdf(note.content);
+      const tags = note.metadata.tags.map(t => t as string);
+      corpus.addDocument(notePath as string, tokens);
+
       const hasBacklinks = note.metadata.backlinks.length > 0;
       const hasLinks = note.metadata.links.length > 0;
       const referencedByCanvas = canvasRefs.has(notePath as string);
       if (!hasBacklinks && !hasLinks && !referencedByCanvas) {
-        orphans.push({ notePath, fileSize: note.metadata.fileSize });
+        orphanData.push({ notePath, fileSize: note.metadata.fileSize, tags, tokens });
+      } else {
+        candidateData.push({ path: notePath as string, tags, tokens });
       }
     }
-    return orphans;
+
+    return orphanData.map(orphan => {
+      const suggestions = LinkSuggestionService.findRelatedNotes({
+        orphanPath: orphan.notePath as string,
+        orphanTags: orphan.tags,
+        orphanTokens: orphan.tokens,
+        candidates: candidateData,
+        corpus,
+        maxLinks: 5,
+      });
+      return {
+        notePath: orphan.notePath,
+        fileSize: orphan.fileSize,
+        suggestedLinks: suggestions.length > 0 ? suggestions.map(s => s.path) : undefined,
+      };
+    });
   }
 
   private async findEmptyNotes(allNotes: ReadonlyArray<NotePath>): Promise<EmptyNoteEntry[]> {
@@ -459,16 +489,20 @@ export class RunMaintenanceUseCase {
 
   private async suggestMissingTags(allNotes: ReadonlyArray<NotePath>): Promise<MissingTagSuggestion[]> {
     const settings = await this.config.getSettings();
-    const knownTags = settings.knownTags ?? [];
-    if (knownTags.length === 0) return [];
+    let tagSource: ReadonlyArray<string> = settings.knownTags ?? [];
+    if (tagSource.length === 0) {
+      const vaultTags = await this.vault.listAllTags();
+      tagSource = vaultTags.filter(t => t.count >= 2).map(t => t.tag);
+    }
+    if (tagSource.length === 0) return [];
 
     const keywordToTag = new Map<string, string>();
-    for (const tag of knownTags) {
-      const stripped = tag.startsWith('#') ? tag.substring(1) : tag;
+    for (const tag of tagSource) {
+      const stripped = (tag as string).startsWith('#') ? (tag as string).substring(1) : tag as string;
       const parts = stripped.split('/');
       for (const part of parts) {
         if (part.length >= 4) {
-          keywordToTag.set(part.toLowerCase(), tag);
+          keywordToTag.set(part.toLowerCase(), tag as string);
         }
       }
     }
