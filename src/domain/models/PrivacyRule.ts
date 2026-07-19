@@ -26,7 +26,7 @@ export function isNoteAllowedByRules(
   rules: ReadonlyArray<PrivacyRule>
 ): boolean {
   for (const rule of rules) {
-    if (!rule.enabled) continue;
+    if (!rule.enabled || !rule.pattern) continue;
 
     switch (rule.type) {
       case 'folder-exclude':
