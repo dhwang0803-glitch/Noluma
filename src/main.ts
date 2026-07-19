@@ -45,6 +45,9 @@ import { FileTagEmbeddingCacheAdapter } from './adapters/tag-embedding-cache/Fil
 import { PluginSettingTab } from './ui/PluginSettingTab';
 import { localizeError } from './ui/localizeError';
 
+// Pro (tree-shaken in free builds via ENABLE_PRO=false)
+import { LocalLicenseAdapter } from './adapters/license/LocalLicenseAdapter';
+
 // Ports
 import { AIProviderPort } from './application/ports/AIProviderPort';
 import { ConfigPort } from './application/ports/ConfigPort';
@@ -149,6 +152,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private generateRefactorPlanUseCase!: GenerateRefactorPlanUseCase;
   private recordPreferenceUseCase!: RecordPreferenceUseCase;
 
+  // Pro (beta only — tree-shaken in free builds)
+  private licenseAdapter: import('./application/ports/LicensePort').LicensePort | null = null;
+
   // Event unsubscribe functions
   private unsubscribeVaultEvents: (() => void) | null = null;
   private maintenanceInterval: number | null = null;
@@ -169,6 +175,11 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
     // 2. Initialize adapters
     this.wireAdapters();
+
+    // 2b. Pro features (beta builds only — dead-code-eliminated in free builds)
+    if (ENABLE_PRO) {
+      this.wireProFeatures();
+    }
 
     // 3. Initialize use cases
     this.wireUseCases();
@@ -348,6 +359,10 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
     this.preferenceAdapter = new FilePreferenceAdapter(this.vaultAdapter, this.configPort);
     this.tagEmbeddingCacheAdapter = new FileTagEmbeddingCacheAdapter(this.vaultAdapter);
+  }
+
+  private wireProFeatures(): void {
+    this.licenseAdapter = new LocalLicenseAdapter(this.configPort);
   }
 
   private wireUseCases(): void {
