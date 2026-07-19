@@ -44,5 +44,8 @@ venv/
 .ruff_cache/
 .mypy_cache/
 
+# Private docs (local only, not for GitHub)
+docs/private/
+
 # ai-native-kit local settings
 .claude/settings.local.json

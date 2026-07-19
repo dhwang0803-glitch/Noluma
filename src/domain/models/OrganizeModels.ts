@@ -38,6 +38,7 @@ export interface MaintenancePlan {
 export interface OrphanNoteEntry {
   readonly notePath: NotePath;
   readonly fileSize: number;
+  readonly suggestedLinks?: ReadonlyArray<string>;
 }
 
 export interface EmptyNoteEntry {

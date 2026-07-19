@@ -3,7 +3,8 @@ import { RunMaintenanceUseCase } from '../application/usecases/RunMaintenanceUse
 import { ApplyMaintenanceActionUseCase, type ApplyResult } from '../application/usecases/ApplyMaintenanceActionUseCase';
 import { MaintenancePlan, BrokenLink, MissingTagSuggestion, DuplicatePair, OrphanNoteEntry, EmptyNoteEntry, DuplicateTagGroup } from '../domain/models/OrganizeModels';
 import type { MaintenanceAction, MaintenanceIssueType, LinkOrphan, FixBrokenLink } from '../domain/models/MaintenanceAction';
-import { NotePath } from '../domain/values/NotePath';
+import { NotePath, createNotePath } from '../domain/values/NotePath';
+import type { TagName } from '../domain/values/TagName';
 import type { SeverityLevel } from '../domain/values/Severity';
 import { ISSUE_SEVERITY, getSeverity } from '../domain/values/Severity';
 import type { ConfigPort } from '../application/ports/ConfigPort';
@@ -240,7 +241,7 @@ export class MaintenanceResultView extends ItemView {
       this.renderDuplicateTags(contentEl, plan.duplicateTags);
     }
     if (this.isTypeVisible('untagged') && plan.untaggedNotes.length > 0) {
-      this.renderUntaggedNotes(contentEl, plan.untaggedNotes);
+      this.renderUntaggedNotes(contentEl, plan.untaggedNotes, plan.missingTags);
     }
     if (this.isTypeVisible('missing-tags') && plan.missingTags.length > 0) {
       this.renderMissingTags(contentEl, plan.missingTags);
@@ -431,29 +432,62 @@ export class MaintenanceResultView extends ItemView {
     }
   }
 
-  private renderUntaggedNotes(container: HTMLElement, items: ReadonlyArray<NotePath>): void {
+  private renderUntaggedNotes(container: HTMLElement, items: ReadonlyArray<NotePath>, missingTags?: ReadonlyArray<MissingTagSuggestion>): void {
     const filtered = items
       .filter(p => !this.dismissedIds.has(`untagged:${p as string}`))
       .filter(p => this.matchesSearch(p as string));
     if (filtered.length === 0) return;
     this.renderSectionHeading(container, 'untagged', t('issue.untaggedNotes', { count: filtered.length }));
 
+    const tagSuggestionMap = new Map<string, ReadonlyArray<TagName>>();
+    if (missingTags) {
+      for (const s of missingTags) {
+        tagSuggestionMap.set(s.notePath as string, s.suggestedTags);
+      }
+    }
+
+    const hasSuggestions = filtered.some(p => tagSuggestionMap.has(p as string));
     const entries: BatchEntry[] = [];
-    this.renderBatchControls(container, entries);
+    this.renderBatchControls(
+      container, entries,
+      hasSuggestions ? t('batch.selectedApplyTags') : undefined,
+      false, undefined, undefined, false,
+      hasSuggestions ? (e) => this.batchApplyTagsOnly(e) : undefined,
+    );
 
     for (const notePath of filtered) {
+      const suggestions = tagSuggestionMap.get(notePath as string);
+      const desc = suggestions && suggestions.length > 0
+        ? `${notePath as string} · ${suggestions.join(', ')}`
+        : `${notePath as string} · ${t('untagged.noMatchingTags')}`;
       const settingEl = new Setting(container)
         .setName(this.basename(notePath))
-        .setDesc(notePath as string);
+        .setDesc(desc);
 
       entries.push({
         checkbox: this.prependCheckbox(settingEl),
-        action: { kind: 'dismiss', issueType: 'untagged', identifier: notePath as string },
+        action: suggestions && suggestions.length > 0
+          ? { kind: 'apply-missing-tags', notePath: createNotePath(notePath as string), tags: suggestions }
+          : { kind: 'dismiss', issueType: 'untagged', identifier: notePath as string },
         setting: settingEl,
         issueType: 'untagged',
         identifier: notePath as string,
         status: 'pending',
       });
+      const untaggedEntry = entries[entries.length - 1];
+
+      if (suggestions && suggestions.length > 0) {
+        settingEl.addButton(btn => btn
+          .setButtonText(t('btn.applyTags'))
+          .setCta()
+          .onClick(() => this.executeAction(
+            { kind: 'apply-missing-tags', notePath: createNotePath(notePath as string), tags: suggestions },
+            settingEl,
+            `untagged:${notePath as string}`,
+            untaggedEntry,
+          )),
+        );
+      }
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.open'))
@@ -461,7 +495,7 @@ export class MaintenanceResultView extends ItemView {
       );
 
       this.addDismissButton(settingEl, 'untagged', notePath as string);
-      this.applyPersistedState(entries[entries.length - 1]);
+      this.applyPersistedState(untaggedEntry);
     }
   }
 
@@ -593,9 +627,12 @@ export class MaintenanceResultView extends ItemView {
 
     for (const entry of filtered) {
       const sizeStr = this.formatFileSize(entry.fileSize);
+      const linkPreview = entry.suggestedLinks && entry.suggestedLinks.length > 0
+        ? ` · → ${entry.suggestedLinks.map(l => `[[${l.replace(/\.md$/i, '').split('/').pop()}]]`).join(', ')}`
+        : '';
       const settingEl = new Setting(container)
         .setName(this.basename(entry.notePath))
-        .setDesc(`${entry.notePath as string} · ${sizeStr}`);
+        .setDesc(`${entry.notePath as string} · ${sizeStr}${linkPreview}`);
 
       entries.push({
         checkbox: this.prependCheckbox(settingEl),
@@ -612,12 +649,14 @@ export class MaintenanceResultView extends ItemView {
         .onClick(() => this.openFile(entry.notePath as string)),
       );
 
-      if (this.onLinkOrphan) {
+      if (this.onLinkOrphan || (entry.suggestedLinks && entry.suggestedLinks.length > 0)) {
         settingEl.addButton(btn => btn
           .setButtonText(t('btn.linkOrphan'))
           .setCta()
           .onClick(async () => {
-            const links = await this.onLinkOrphan!(entry.notePath);
+            const links = entry.suggestedLinks && entry.suggestedLinks.length > 0
+              ? entry.suggestedLinks.map(p => createNotePath(p))
+              : this.onLinkOrphan ? await this.onLinkOrphan(entry.notePath) : [];
             if (links.length === 0) {
               new Notice(t('notice.noRelatedNotes'));
               return;
@@ -966,6 +1005,15 @@ export class MaintenanceResultView extends ItemView {
       : t('notice.batchComplete', { count: success });
     new Notice(msg);
     if (success > 0) this.app.workspace.trigger(HISTORY_CHANGED_EVENT);
+  }
+
+  private async batchApplyTagsOnly(entries: BatchEntry[]): Promise<void> {
+    const taggable = entries.filter(e => e.checkbox.checked && e.status === 'pending' && e.action.kind === 'apply-missing-tags');
+    if (taggable.length === 0) {
+      new Notice(t('notice.noSelection'));
+      return;
+    }
+    await this.executeBatch(taggable);
   }
 
   private async batchRemoveBrokenLinks(entries: BatchEntry[]): Promise<void> {

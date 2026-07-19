@@ -24,6 +24,7 @@ const ko: { [K in keyof typeof en]: string } = {
   'notice.actionApplied': '액션을 적용했습니다',
   'notice.noChangeNeeded': '적용할 변경이 없습니다',
   'notice.noRelatedNotes': '관련 노트를 찾을 수 없습니다',
+  'untagged.noMatchingTags': '관련 태그 없음',
   'notice.actionFailed': '적용 실패: {{error}}',
   'notice.noSelection': '선택된 항목이 없습니다',
   'notice.batchResult': '{{success}}건 적용, {{failed}}건 실패',
