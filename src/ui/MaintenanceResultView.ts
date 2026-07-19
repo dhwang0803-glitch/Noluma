@@ -464,12 +464,14 @@ export class MaintenanceResultView extends ItemView {
 
     for (const notePath of filtered) {
       const suggestions = tagSuggestionMap.get(notePath as string);
-      const desc = suggestions && suggestions.length > 0
-        ? `${notePath as string} · ${t('desc.suggestedTags', { tags: suggestions.join(', ') })}`
-        : `${notePath as string} · ${t('untagged.noMatchingTags')}`;
       const settingEl = new Setting(section)
-        .setName(this.basename(notePath))
-        .setDesc(desc);
+        .setName(this.basename(notePath));
+      settingEl.descEl.createDiv({ text: notePath as string, cls: 'maintenance-card-path' });
+      if (suggestions && suggestions.length > 0) {
+        settingEl.descEl.createDiv({ text: t('desc.suggestedTags', { tags: suggestions.join(', ') }), cls: 'maintenance-card-suggestion' });
+      } else {
+        settingEl.descEl.createDiv({ text: t('untagged.noMatchingTags'), cls: 'maintenance-card-suggestion' });
+      }
       this.applyCardClass(settingEl, 'untagged');
 
       entries.push({
@@ -519,8 +521,9 @@ export class MaintenanceResultView extends ItemView {
 
     for (const item of filtered) {
       const settingEl = new Setting(section)
-        .setName(this.basename(item.notePath))
-        .setDesc(`${item.notePath as string} · ${t('desc.suggestedTags', { tags: item.suggestedTags.join(', ') })}`);
+        .setName(this.basename(item.notePath));
+      settingEl.descEl.createDiv({ text: item.notePath as string, cls: 'maintenance-card-path' });
+      settingEl.descEl.createDiv({ text: t('desc.suggestedTags', { tags: item.suggestedTags.join(', ') }), cls: 'maintenance-card-suggestion' });
       this.applyCardClass(settingEl, 'missing-tags');
 
       entries.push({
@@ -637,12 +640,13 @@ export class MaintenanceResultView extends ItemView {
 
     for (const entry of filtered) {
       const sizeStr = this.formatFileSize(entry.fileSize);
-      const linkPreview = entry.suggestedLinks && entry.suggestedLinks.length > 0
-        ? ` · ${t('desc.suggestedLinks', { links: entry.suggestedLinks.map(l => `[[${l.replace(/\.md$/i, '').split('/').pop()}]]`).join(', ') })}`
-        : '';
       const settingEl = new Setting(section)
-        .setName(this.basename(entry.notePath))
-        .setDesc(`${entry.notePath as string} · ${sizeStr}${linkPreview}`);
+        .setName(this.basename(entry.notePath));
+      settingEl.descEl.createDiv({ text: `${entry.notePath as string} · ${sizeStr}`, cls: 'maintenance-card-path' });
+      if (entry.suggestedLinks && entry.suggestedLinks.length > 0) {
+        const links = entry.suggestedLinks.map(l => `[[${l.replace(/\.md$/i, '').split('/').pop()}]]`).join(', ');
+        settingEl.descEl.createDiv({ text: t('desc.suggestedLinks', { links }), cls: 'maintenance-card-suggestion' });
+      }
       this.applyCardClass(settingEl, 'orphan');
 
       entries.push({
