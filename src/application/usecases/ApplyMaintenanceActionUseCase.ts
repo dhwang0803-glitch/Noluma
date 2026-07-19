@@ -32,6 +32,10 @@ export class ApplyMaintenanceActionUseCase {
         return this.archiveNote(action.notePath, action.targetFolder);
       case 'merge-duplicate-tags':
         return this.mergeDuplicateTags(action.keepTag, action.replaceTags, action.affectedNotes);
+      case 'link-orphan':
+        return this.linkOrphan(action.notePath, action.suggestedLinks);
+      case 'fix-broken-link':
+        return this.fixBrokenLink(action.sourcePath, action.targetLink, action.fixedTarget, action.lineNumber);
       case 'dismiss':
         return this.dismiss(action.issueType, action.identifier);
     }
@@ -139,6 +143,71 @@ export class ApplyMaintenanceActionUseCase {
       timestamp: this.clock.now(),
       description: `노트 아카이브: ${notePath as string} → ${targetFolder}/`,
       metadata: { archivedTo: destPath as string },
+    };
+    await this.history.record(entry);
+    return { entryId: entry.id, undoable: true };
+  }
+
+  private async linkOrphan(notePath: NotePath, suggestedLinks: ReadonlyArray<NotePath>): Promise<ApplyResult | null> {
+    const note = await this.vault.readNote(notePath);
+    if (!note || suggestedLinks.length === 0) return null;
+
+    const allNotes = await this.vault.listNotes();
+    const basenameCounts = new Map<string, number>();
+    for (const np of allNotes) {
+      const bn = (np as string).replace(/\.md$/i, '').split('/').pop()?.toLowerCase() ?? '';
+      basenameCounts.set(bn, (basenameCounts.get(bn) ?? 0) + 1);
+    }
+
+    const linkLines = suggestedLinks.map(link => {
+      const pathStr = (link as string).replace(/\.md$/i, '');
+      const basename = pathStr.split('/').pop() ?? pathStr;
+      const isAmbiguous = (basenameCounts.get(basename.toLowerCase()) ?? 0) > 1;
+      return isAmbiguous ? `- [[${pathStr}]]` : `- [[${basename}]]`;
+    });
+    const section = `\n\n## Related Notes\n${linkLines.join('\n')}\n`;
+    const newContent = note.content.trimEnd() + section;
+    await this.vault.writeNote(notePath, newContent);
+
+    const entry: HistoryEntry = {
+      id: crypto.randomUUID(),
+      action: 'link-add',
+      notePath,
+      timestamp: this.clock.now(),
+      description: `고아 노트 링크 생성: ${suggestedLinks.length}개 관련 노트 → ${notePath as string}`,
+      previousContent: note.content,
+    };
+    await this.history.record(entry);
+    return { entryId: entry.id, undoable: true };
+  }
+
+  private async fixBrokenLink(sourcePath: NotePath, targetLink: string, fixedTarget: string, lineNumber: number): Promise<ApplyResult | null> {
+    const note = await this.vault.readNote(sourcePath);
+    if (!note) return null;
+
+    const lines = note.content.split('\n');
+    const targetLineIdx = lineNumber - 1;
+    if (targetLineIdx < 0 || targetLineIdx >= lines.length) return null;
+
+    const hashIdx = targetLink.indexOf('#');
+    const caretIdx = targetLink.indexOf('^');
+    const fragmentIdx = hashIdx !== -1 ? hashIdx : (caretIdx !== -1 ? caretIdx : -1);
+    const fragment = fragmentIdx !== -1 ? targetLink.substring(fragmentIdx) : '';
+    const resolvedTarget = fixedTarget + fragment;
+
+    const wikiLinkPattern = new RegExp(`\\[\\[${this.escapeRegex(targetLink)}(\\|[^\\]]+)?\\]\\]`, 'g');
+    lines[targetLineIdx] = lines[targetLineIdx].replace(wikiLinkPattern, `[[${resolvedTarget}$1]]`);
+
+    const newContent = lines.join('\n');
+    await this.vault.writeNote(sourcePath, newContent);
+
+    const entry: HistoryEntry = {
+      id: crypto.randomUUID(),
+      action: 'link-add',
+      notePath: sourcePath,
+      timestamp: this.clock.now(),
+      description: `깨진 링크 수정: [[${targetLink}]] → [[${resolvedTarget}]] (${sourcePath as string}:${lineNumber})`,
+      previousContent: note.content,
     };
     await this.history.record(entry);
     return { entryId: entry.id, undoable: true };

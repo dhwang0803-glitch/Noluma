@@ -62,6 +62,9 @@ export interface PluginSettings {
   readonly maintenanceExcludeTags: ReadonlyArray<string>;
   readonly maintenanceArchiveFolder: string;
 
+  // Preference decay
+  readonly rejectDecayDays: number;
+
   // Organize confidence gating
   readonly organizeConfidenceThreshold: number;
 

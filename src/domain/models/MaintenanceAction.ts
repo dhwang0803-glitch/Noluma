@@ -8,6 +8,8 @@ export type MaintenanceAction =
   | ApplyMissingTags
   | MergeDuplicateTags
   | ArchiveNote
+  | LinkOrphan
+  | FixBrokenLink
   | DismissIssue;
 
 export interface DeleteOrphan {
@@ -44,6 +46,20 @@ export interface MergeDuplicateTags {
   readonly keepTag: TagName;
   readonly replaceTags: ReadonlyArray<TagName>;
   readonly affectedNotes: ReadonlyArray<NotePath>;
+}
+
+export interface LinkOrphan {
+  readonly kind: 'link-orphan';
+  readonly notePath: NotePath;
+  readonly suggestedLinks: ReadonlyArray<NotePath>;
+}
+
+export interface FixBrokenLink {
+  readonly kind: 'fix-broken-link';
+  readonly sourcePath: NotePath;
+  readonly targetLink: string;
+  readonly fixedTarget: string;
+  readonly lineNumber: number;
 }
 
 export type MaintenanceIssueType = 'orphan' | 'broken-link' | 'missing-tags' | 'duplicate' | 'duplicate-tags' | 'empty' | 'untagged';

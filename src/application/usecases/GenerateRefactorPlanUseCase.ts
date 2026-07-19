@@ -21,6 +21,7 @@ import { OrganizeVaultPort } from '../ports/OrganizeVaultPort';
 import { AIProviderPort } from '../ports/AIProviderPort';
 import { ConfigPort } from '../ports/ConfigPort';
 import type { PreferencePort } from '../ports/PreferencePort';
+import { PreferenceExtractor } from '../../domain/services/PreferenceExtractor';
 import { createNotePath } from '../../domain/values/NotePath';
 import { REFACTOR_PROMPTS } from '../RefactorPromptTemplates';
 import {
@@ -89,7 +90,9 @@ export class GenerateRefactorPlanUseCase {
     }
 
     onProgress({ phase: 'converting', currentStep: 1, totalSteps: 1, message: 'Saving plan...' });
-    const plan = createOrganizeVaultPlan(proposals, this.clock.now());
+    const now = this.clock.now();
+    const filtered = await this.filterSuppressed(proposals, now);
+    const plan = createOrganizeVaultPlan(filtered, now);
     await this.store.save(plan);
     return plan;
   }
@@ -1634,6 +1637,17 @@ export class GenerateRefactorPlanUseCase {
     if (signal.aborted) {
       throw new DOMException('Refactor cancelled by user', 'AbortError');
     }
+  }
+
+  private async filterSuppressed(
+    proposals: OrganizeVaultProposal[],
+    now: number,
+  ): Promise<OrganizeVaultProposal[]> {
+    if (!this.preference) return proposals;
+    const suppressed = await this.preference.getSuppressedFingerprints(now);
+    if (suppressed.length === 0) return proposals;
+    const suppressedSet = new Set(suppressed);
+    return proposals.filter(p => !suppressedSet.has(PreferenceExtractor.computeProposalFingerprint(p)));
   }
 }
 

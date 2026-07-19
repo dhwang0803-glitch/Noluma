@@ -10,6 +10,9 @@ import { FileHistoryAdapter } from './adapters/history/FileHistoryAdapter';
 import { SystemClockAdapter } from './adapters/clock/SystemClockAdapter';
 import { FileChangeTrackingAdapter } from './adapters/tracking/FileChangeTrackingAdapter';
 import { FileCorpusStatsAdapter } from './adapters/corpus/FileCorpusStatsAdapter';
+import { LinkSuggestionService } from './domain/services/LinkSuggestionService';
+import { TfIdfCorpus } from './domain/services/TfIdfCorpus';
+import { tokenizeForTfIdf } from './domain/services/tokenize';
 import { AIEmbeddingAdapter } from './adapters/embedding/AIEmbeddingAdapter';
 import { JsonVectorStoreAdapter } from './adapters/vectorstore/JsonVectorStoreAdapter';
 import { LocalLicenseAdapter } from './adapters/license/LocalLicenseAdapter';
@@ -104,6 +107,7 @@ const DEFAULT_SETTINGS: PluginSettings = {
   maintenanceExcludeFiles: [],
   maintenanceExcludeTags: [],
   maintenanceArchiveFolder: DEFAULT_ARCHIVE_FOLDER,
+  rejectDecayDays: 7,
   organizeConfidenceThreshold: 0,
   embeddingsEnabled: false,
   embeddingsModel: '',
@@ -370,7 +374,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     // Organize Vault adapter — file-based storage for OrganizeVault plans
     this.organizeVaultAdapter = new FileOrganizeVaultAdapter(this.vaultAdapter);
 
-    this.preferenceAdapter = new FilePreferenceAdapter(this.vaultAdapter);
+    this.preferenceAdapter = new FilePreferenceAdapter(this.vaultAdapter, this.configPort);
     this.tagEmbeddingCacheAdapter = new FileTagEmbeddingCacheAdapter(this.vaultAdapter);
   }
 
@@ -476,6 +480,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           if (fileB instanceof TFile) this.app.workspace.getLeaf('split').openFile(fileB);
         },
         (pair) => this.triggerMergeForPair(pair),
+        (notePath) => this.findLinksForOrphan(notePath),
       ),
     );
 
@@ -812,6 +817,45 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       view.showPlan(plan);
     }
     new Notice(t('notice.autoMaintenanceFound', { count: totalIssues }));
+  }
+
+  private async findLinksForOrphan(notePath: NotePath): Promise<ReadonlyArray<NotePath>> {
+    const note = await this.vaultAdapter.readNote(notePath);
+    if (!note) return [];
+
+    const allNotes = await this.vaultAdapter.listNotes();
+    const orphanTokens = tokenizeForTfIdf(note.content);
+    const orphanTags = note.metadata.tags.map(t => t as string);
+
+    const corpus = new TfIdfCorpus();
+    const savedStats = await this.corpusStatsAdapter.loadStats();
+    if (savedStats) corpus.loadFromStats(savedStats);
+
+    corpus.addDocument(notePath as string, orphanTokens);
+
+    const candidates: Array<{ path: string; tags: string[]; tokens: string[] }> = [];
+    for (const np of allNotes) {
+      if (np === notePath) continue;
+      const candidateNote = await this.vaultAdapter.readNote(np);
+      if (!candidateNote) continue;
+      const tokens = tokenizeForTfIdf(candidateNote.content);
+      corpus.addDocument(np as string, tokens);
+      candidates.push({
+        path: np as string,
+        tags: candidateNote.metadata.tags.map(t => t as string),
+        tokens,
+      });
+    }
+
+    const suggestions = LinkSuggestionService.findRelatedNotes({
+      orphanPath: notePath as string,
+      orphanTags,
+      orphanTokens,
+      candidates,
+      corpus,
+    });
+
+    return suggestions.map(s => createNotePath(s.path));
   }
 
   private async triggerMergeForPair(pair: DuplicatePair): Promise<void> {
