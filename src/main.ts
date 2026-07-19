@@ -419,7 +419,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.historyAdapter, this.clockAdapter, this.organizeVaultAdapter,
     );
 
-    this.estimateRefactorCostUseCase = new EstimateRefactorCostUseCase();
+    this.estimateRefactorCostUseCase = new EstimateRefactorCostUseCase(this.configPort);
 
     this.recordPreferenceUseCase = new RecordPreferenceUseCase(
       this.preferenceAdapter, this.clockAdapter,

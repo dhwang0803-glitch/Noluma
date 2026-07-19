@@ -108,7 +108,6 @@ export class RefactorGoalModal extends Modal {
         this.selectedType = option.type;
         this.updateEstimate();
         this.renderParams(paramsContainer);
-        this.renderEstimate(estimateContainer);
       });
 
       label.createSpan({ text: t(option.titleKey as any), cls: 'vaultend-refactor-goal-title' });
@@ -149,7 +148,6 @@ export class RefactorGoalModal extends Modal {
           .onChange(val => {
             this.fleetingThreshold = val;
             this.updateEstimate();
-            this.renderEstimate(this.contentEl.querySelector('.vaultend-refactor-estimate') as HTMLElement);
           }));
     } else if (this.selectedType === 'detect-misplaced') {
       new Setting(container)
@@ -162,7 +160,6 @@ export class RefactorGoalModal extends Modal {
           .onChange(val => {
             this.affinityThreshold = val;
             this.updateEstimate();
-            this.renderEstimate(this.contentEl.querySelector('.vaultend-refactor-estimate') as HTMLElement);
           }));
     } else if (this.selectedType === 'optimize-folders') {
       new Setting(container)
@@ -175,7 +172,6 @@ export class RefactorGoalModal extends Modal {
           .onChange(val => {
             this.bloatedThreshold = val;
             this.updateEstimate();
-            this.renderEstimate(this.contentEl.querySelector('.vaultend-refactor-estimate') as HTMLElement);
           }));
       new Setting(container)
         .setName(t('refactor.thinThreshold' as any))
@@ -187,7 +183,6 @@ export class RefactorGoalModal extends Modal {
           .onChange(val => {
             this.thinThreshold = val;
             this.updateEstimate();
-            this.renderEstimate(this.contentEl.querySelector('.vaultend-refactor-estimate') as HTMLElement);
           }));
     } else if (this.selectedType === 'promote-fleeting') {
       new Setting(container)
@@ -198,7 +193,6 @@ export class RefactorGoalModal extends Modal {
           .onChange(val => {
             this.fleetingFolders = val;
             this.updateEstimate();
-            this.renderEstimate(this.contentEl.querySelector('.vaultend-refactor-estimate') as HTMLElement);
           }));
       new Setting(container)
         .setName(t('refactor.maturityAge' as any))
@@ -210,7 +204,6 @@ export class RefactorGoalModal extends Modal {
           .onChange(val => {
             this.maturityAgeDays = val;
             this.updateEstimate();
-            this.renderEstimate(this.contentEl.querySelector('.vaultend-refactor-estimate') as HTMLElement);
           }));
       new Setting(container)
         .setName(t('refactor.maturityWordCount' as any))
@@ -222,7 +215,6 @@ export class RefactorGoalModal extends Modal {
           .onChange(val => {
             this.maturityWordCount = val;
             this.updateEstimate();
-            this.renderEstimate(this.contentEl.querySelector('.vaultend-refactor-estimate') as HTMLElement);
           }));
     }
   }
@@ -247,14 +239,16 @@ export class RefactorGoalModal extends Modal {
     addRow(t('refactor.estNotes' as any), String(e.noteCount));
     if (e.tagCount !== undefined) addRow(t('refactor.estTags' as any), String(e.tagCount));
     addRow(t('refactor.estAICalls' as any), `~${e.estimatedAICalls}`);
-    addRow(t('refactor.estCost' as any), `~$${e.estimatedCostUsd.toFixed(3)}`);
+    addRow(t('refactor.estCost' as any), e.estimatedCostUsd < 0 ? t('organize.costUnavailable' as any) : `~$${e.estimatedCostUsd.toFixed(3)}`);
     addRow(t('refactor.estDuration' as any), this.formatDuration(e.estimatedDurationSeconds));
   }
 
-  private updateEstimate(): void {
+  private async updateEstimate(): Promise<void> {
     if (!this.snapshot) return;
     const goal = this.buildGoal();
-    this.estimate = this.estimateCost.execute(goal, this.snapshot);
+    this.estimate = await this.estimateCost.execute(goal, this.snapshot);
+    const el = this.contentEl.querySelector('.vaultend-refactor-estimate') as HTMLElement | null;
+    if (el) this.renderEstimate(el);
   }
 
   private buildGoal(): RefactorGoal {
