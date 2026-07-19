@@ -299,6 +299,19 @@
   flex-shrink: 0;
 }
 
+/* Structured description lines */
+.maintenance-card-path {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  margin-bottom: 2px;
+}
+
+.maintenance-card-suggestion {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-accent);
+  font-weight: var(--font-medium, 500);
+}
+
 /* Button refinements */
 .workspace-leaf-content[data-type="vaultend-result"] .maintenance-card .setting-item-control > button {
   white-space: nowrap;
