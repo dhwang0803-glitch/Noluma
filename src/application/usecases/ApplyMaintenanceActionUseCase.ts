@@ -152,9 +152,18 @@ export class ApplyMaintenanceActionUseCase {
     const note = await this.vault.readNote(notePath);
     if (!note || suggestedLinks.length === 0) return null;
 
+    const allNotes = await this.vault.listNotes();
+    const basenameCounts = new Map<string, number>();
+    for (const np of allNotes) {
+      const bn = (np as string).replace(/\.md$/i, '').split('/').pop()?.toLowerCase() ?? '';
+      basenameCounts.set(bn, (basenameCounts.get(bn) ?? 0) + 1);
+    }
+
     const linkLines = suggestedLinks.map(link => {
-      const basename = (link as string).replace(/\.md$/i, '').split('/').pop() ?? link as string;
-      return `- [[${basename}]]`;
+      const pathStr = (link as string).replace(/\.md$/i, '');
+      const basename = pathStr.split('/').pop() ?? pathStr;
+      const isAmbiguous = (basenameCounts.get(basename.toLowerCase()) ?? 0) > 1;
+      return isAmbiguous ? `- [[${pathStr}]]` : `- [[${basename}]]`;
     });
     const section = `\n\n## Related Notes\n${linkLines.join('\n')}\n`;
     const newContent = note.content.trimEnd() + section;
@@ -180,8 +189,14 @@ export class ApplyMaintenanceActionUseCase {
     const targetLineIdx = lineNumber - 1;
     if (targetLineIdx < 0 || targetLineIdx >= lines.length) return null;
 
+    const hashIdx = targetLink.indexOf('#');
+    const caretIdx = targetLink.indexOf('^');
+    const fragmentIdx = hashIdx !== -1 ? hashIdx : (caretIdx !== -1 ? caretIdx : -1);
+    const fragment = fragmentIdx !== -1 ? targetLink.substring(fragmentIdx) : '';
+    const resolvedTarget = fixedTarget + fragment;
+
     const wikiLinkPattern = new RegExp(`\\[\\[${this.escapeRegex(targetLink)}(\\|[^\\]]+)?\\]\\]`, 'g');
-    lines[targetLineIdx] = lines[targetLineIdx].replace(wikiLinkPattern, `[[${fixedTarget}$1]]`);
+    lines[targetLineIdx] = lines[targetLineIdx].replace(wikiLinkPattern, `[[${resolvedTarget}$1]]`);
 
     const newContent = lines.join('\n');
     await this.vault.writeNote(sourcePath, newContent);
@@ -191,7 +206,7 @@ export class ApplyMaintenanceActionUseCase {
       action: 'link-add',
       notePath: sourcePath,
       timestamp: this.clock.now(),
-      description: `깨진 링크 수정: [[${targetLink}]] → [[${fixedTarget}]] (${sourcePath as string}:${lineNumber})`,
+      description: `깨진 링크 수정: [[${targetLink}]] → [[${resolvedTarget}]] (${sourcePath as string}:${lineNumber})`,
       previousContent: note.content,
     };
     await this.history.record(entry);

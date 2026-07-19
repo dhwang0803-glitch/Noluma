@@ -311,6 +311,7 @@ export class RunMaintenanceUseCase {
 
     const vaultBasenames = [...basenameSet];
     return broken.map(bl => {
+      if (bl.linkType !== 'wiki') return bl;
       const hashIdx = bl.targetLink.indexOf('#');
       const baseTarget = hashIdx !== -1 ? bl.targetLink.substring(0, hashIdx) : bl.targetLink;
       if (!baseTarget) return bl;
@@ -347,7 +348,7 @@ export class RunMaintenanceUseCase {
 
       if (!target && fragment) {
         if (!this.fragmentExistsInContent(note.content, fragment)) {
-          broken.push({ sourcePath: notePath, targetLink: rawTarget, lineNumber: lineIdx + 1 });
+          broken.push({ sourcePath: notePath, targetLink: rawTarget, lineNumber: lineIdx + 1, linkType: 'wiki' });
         }
         continue;
       }
@@ -360,10 +361,10 @@ export class RunMaintenanceUseCase {
           const targetPath = createNotePath(normalized);
           const exists = await this.vault.exists(targetPath);
           if (!exists) {
-            broken.push({ sourcePath: notePath, targetLink: rawTarget, lineNumber: lineIdx + 1 });
+            broken.push({ sourcePath: notePath, targetLink: rawTarget, lineNumber: lineIdx + 1, linkType: 'wiki' });
           }
         } catch {
-          broken.push({ sourcePath: notePath, targetLink: rawTarget, lineNumber: lineIdx + 1 });
+          broken.push({ sourcePath: notePath, targetLink: rawTarget, lineNumber: lineIdx + 1, linkType: 'wiki' });
         }
         continue;
       }
@@ -373,7 +374,7 @@ export class RunMaintenanceUseCase {
         if (resolvedPath) {
           const targetNote = await this.vault.readNote(resolvedPath);
           if (targetNote && !this.fragmentExistsInContent(targetNote.content, fragment)) {
-            broken.push({ sourcePath: notePath, targetLink: rawTarget, lineNumber: lineIdx + 1 });
+            broken.push({ sourcePath: notePath, targetLink: rawTarget, lineNumber: lineIdx + 1, linkType: 'wiki' });
           }
         }
       }
@@ -424,7 +425,7 @@ export class RunMaintenanceUseCase {
       try {
         targetPath = decodeURIComponent(targetPath);
       } catch {
-        broken.push({ sourcePath: notePath, targetLink: href, lineNumber: lineIdx + 1 });
+        broken.push({ sourcePath: notePath, targetLink: href, lineNumber: lineIdx + 1, linkType: 'markdown' });
         continue;
       }
 
@@ -441,7 +442,7 @@ export class RunMaintenanceUseCase {
       const hasExplicitPath = targetPath.includes('/');
       if (!hasExplicitPath && basenameSet.has(targetBasename)) continue;
 
-      broken.push({ sourcePath: notePath, targetLink: href, lineNumber: lineIdx + 1 });
+      broken.push({ sourcePath: notePath, targetLink: href, lineNumber: lineIdx + 1, linkType: 'markdown' });
     }
   }
 

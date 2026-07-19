@@ -517,11 +517,11 @@ export class MaintenanceResultView extends ItemView {
     const entries: BatchEntry[] = [];
     this.renderBatchControls(
       container, entries,
-      hasFixes ? t('batch.selectedFixLinks') : t('batch.selectedRemoveLinks'),
+      t('batch.selectedRemoveLinks'), false,
+      hasFixes ? t('batch.selectedFixLinks') : undefined,
+      hasFixes ? (e) => this.batchFixBrokenLinks(e) : undefined,
       false,
-      hasFixes ? t('batch.selectedRemoveLinks') : undefined,
-      hasFixes ? (e) => this.executeBatchWithAction(e, { kind: 'remove-broken-link' }) : undefined,
-      hasFixes,
+      (e) => this.batchRemoveBrokenLinks(e),
     );
 
     for (const item of filtered) {
@@ -769,6 +769,7 @@ export class MaintenanceResultView extends ItemView {
     secondaryLabel?: string,
     secondaryActionOverride?: (entries: BatchEntry[]) => Promise<void>,
     secondaryWarning = false,
+    primaryActionOverride?: (entries: BatchEntry[]) => Promise<void>,
   ): void {
     const batchSetting = new Setting(container)
       .setClass('maintenance-batch-controls')
@@ -784,7 +785,7 @@ export class MaintenanceResultView extends ItemView {
     if (primaryLabel) {
       batchSetting.addButton(btn => {
         btn.setButtonText(primaryLabel)
-          .onClick(() => this.executeBatch(entries));
+          .onClick(() => primaryActionOverride ? primaryActionOverride(entries) : this.executeBatch(entries));
         if (primaryWarning) btn.setWarning();
       });
     }
@@ -965,6 +966,34 @@ export class MaintenanceResultView extends ItemView {
       : t('notice.batchComplete', { count: success });
     new Notice(msg);
     if (success > 0) this.app.workspace.trigger(HISTORY_CHANGED_EVENT);
+  }
+
+  private async batchRemoveBrokenLinks(entries: BatchEntry[]): Promise<void> {
+    const selected = entries.filter(e => e.checkbox.checked && e.status === 'pending');
+    if (selected.length === 0) {
+      new Notice(t('notice.noSelection'));
+      return;
+    }
+    const originals = selected.map(e => e.action);
+    for (const e of selected) {
+      if (e.action.kind === 'fix-broken-link') {
+        e.action = { kind: 'remove-broken-link', sourcePath: e.action.sourcePath, targetLink: e.action.targetLink, lineNumber: e.action.lineNumber };
+      }
+    }
+    try {
+      await this.executeBatch(entries);
+    } finally {
+      selected.forEach((e, i) => { e.action = originals[i]; });
+    }
+  }
+
+  private async batchFixBrokenLinks(entries: BatchEntry[]): Promise<void> {
+    const fixable = entries.filter(e => e.checkbox.checked && e.status === 'pending' && e.action.kind === 'fix-broken-link');
+    if (fixable.length === 0) {
+      new Notice(t('notice.noSelection'));
+      return;
+    }
+    await this.executeBatch(fixable);
   }
 
   private async executeBatchWithAction(

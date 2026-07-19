@@ -63,6 +63,7 @@ export interface BrokenLink {
   readonly sourcePath: NotePath;
   readonly targetLink: string;
   readonly lineNumber: number;
+  readonly linkType: 'wiki' | 'markdown';
   readonly suggestedFix?: string;
   readonly fixConfidence?: number;
 }
