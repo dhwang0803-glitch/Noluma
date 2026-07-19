@@ -131,7 +131,7 @@ export class OrganizeVaultView extends ItemView {
     if (this.generateRefactorPlan) {
       setting.addButton(btn => btn
         .setButtonText(t('refactor.title' as any))
-        .onClick(() => this.openRefactorModal()));
+        .onClick(() => this.triggerScanThenRefactor()));
     }
   }
 
@@ -457,6 +457,36 @@ export class OrganizeVaultView extends ItemView {
         e.preventDefault();
         this.openFile(meta.donorPath!);
       });
+    }
+  }
+
+  private async triggerScanThenRefactor(): Promise<void> {
+    if (this.scanInProgress) return;
+    if (!await this.licensePort.canUseFeature('organize-vault')) {
+      new Notice(t('pro.featureLocked', { feature: t('pro.organizeVault') }));
+      return;
+    }
+    this.scanInProgress = true;
+
+    const container = this.containerEl.children[1] as HTMLElement;
+    container.empty();
+    container.createEl('div', {
+      text: t('organizeVault.scanning'),
+      cls: 'vaultend-organize-vault-scanning',
+    });
+
+    try {
+      await this.runMaintenance.execute();
+      this.renderEmpty();
+      this.openRefactorModal();
+    } catch (err) {
+      container.empty();
+      container.createEl('div', {
+        text: t('organizeVault.scanFailed', { error: localizeError(err) }),
+        cls: 'vaultend-organize-vault-error',
+      });
+    } finally {
+      this.scanInProgress = false;
     }
   }
 
