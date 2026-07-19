@@ -112,9 +112,21 @@ export class GenerateRefactorPlanUseCase {
     onProgress: (p: RefactorProgress) => void,
   ): Promise<OrganizeVaultProposal[]> {
     const tags = snapshot.tagFrequencies;
-    if (tags.length === 0) return [];
-
     const prefCtx = this.preference ? await this.preference.getPreferenceContext('refactor') : '';
+
+    // Phase 2 (untagged notes) runs even if no tags exist — skip only Phase 1 (tag merge)
+    if (tags.length === 0) {
+      const untaggedNotes = snapshot.noteEntries.filter(
+        n => n.tags.filter(t => t !== '#untagged').length === 0 && n.wordCount > 0,
+      );
+      if (untaggedNotes.length === 0) return [];
+      const untaggedProposals = await this.analyzeUntaggedNotes(untaggedNotes, snapshot, signal, onProgress);
+      const synthesized = {
+        mergeGroups: [] as Array<{ canonical: string; variants: string[]; confidence: number; rationale: string }>,
+        missingTagSuggestions: untaggedProposals,
+      };
+      return this.convertTagProposals(synthesized, snapshot);
+    }
 
     const canonicalIndex = TagNormalizationService.buildCanonicalIndex(tags);
     const existingMappings = canonicalIndex
@@ -181,7 +193,82 @@ export class GenerateRefactorPlanUseCase {
       synthesized = this.fallbackTagSynthesis(chunkResults);
     }
 
+    // Phase 2: Untagged notes → AI suggests tags
+    const untaggedNotes = snapshot.noteEntries.filter(
+      n => n.tags.filter(t => t !== '#untagged').length === 0 && n.wordCount > 0,
+    );
+
+    if (untaggedNotes.length > 0) {
+      const untaggedProposals = await this.analyzeUntaggedNotes(
+        untaggedNotes, snapshot, signal, onProgress,
+      );
+      if (!synthesized.missingTagSuggestions) {
+        synthesized.missingTagSuggestions = [];
+      }
+      for (const p of untaggedProposals) {
+        synthesized.missingTagSuggestions.push(p);
+      }
+    }
+
     return this.convertTagProposals(synthesized, snapshot);
+  }
+
+  private async analyzeUntaggedNotes(
+    untaggedNotes: ReadonlyArray<NoteMetadataEntry>,
+    snapshot: VaultMetadataSnapshot,
+    signal: AbortSignal,
+    onProgress: (p: RefactorProgress) => void,
+  ): Promise<Array<{ notePath: string; tags: string[]; confidence: number; rationale: string }>> {
+    const settings = await this.config.getSettings();
+    const privacyRules = [...settings.privacyRules];
+    const prefCtx = this.preference ? await this.preference.getPreferenceContext('refactor') : '';
+
+    const knownTags = snapshot.tagFrequencies
+      .slice(0, REFACTOR_MAX_TAGS_IN_PROMPT)
+      .map(t => `${t.tag} (${t.count})`)
+      .join('\n');
+
+    const results: Array<{ notePath: string; tags: string[]; confidence: number; rationale: string }> = [];
+    const chunks: NoteMetadataEntry[][] = [];
+    for (let i = 0; i < untaggedNotes.length; i += REFACTOR_BATCH_SIZE) {
+      chunks.push([...untaggedNotes.slice(i, i + REFACTOR_BATCH_SIZE)]);
+    }
+
+    let lastUntaggedError: unknown;
+    let untaggedAiSuccessCount = 0;
+
+    for (let i = 0; i < chunks.length; i++) {
+      this.checkAborted(signal);
+      onProgress({
+        phase: 'analyzing',
+        currentStep: i + 1,
+        totalSteps: chunks.length,
+        message: `Suggesting tags for untagged notes ${i + 1}/${chunks.length}...`,
+      });
+
+      const chunkStr = await this.buildNoteChunkString(chunks[i], privacyRules);
+
+      try {
+        const response = await this.ai.callCompletion({
+          systemPrompt: REFACTOR_PROMPTS.tagCleanup.untaggedSystem,
+          prompt: (prefCtx ? prefCtx + '\n\n' : '') + REFACTOR_PROMPTS.tagCleanup.untaggedUser(chunkStr, knownTags),
+          maxTokens: 2000,
+          temperature: 0.2,
+          jsonMode: true,
+        });
+        untaggedAiSuccessCount++;
+        const parsed = JSON.parse(response.content) as {
+          suggestions: Array<{ notePath: string; tags: string[]; confidence: number; rationale: string }>;
+        };
+        if (parsed.suggestions) results.push(...parsed.suggestions);
+      } catch (err) {
+        lastUntaggedError = err;
+        console.warn(`[Vaultend] Untagged note chunk ${i + 1} failed:`, err instanceof Error ? err.message : err);
+      }
+    }
+
+    if (untaggedAiSuccessCount === 0 && lastUntaggedError) throw lastUntaggedError;
+    return results;
   }
 
   private fallbackTagSynthesis(chunkResults: string[]): {
@@ -252,7 +339,7 @@ export class GenerateRefactorPlanUseCase {
     return proposals;
   }
 
-  // ─── Mode 1: Note Reorganize ───
+  // ─── Mode 1: Note Reorganize (orphan-focused) ───
 
   private async analyzeNoteReorganize(
     snapshot: VaultMetadataSnapshot,
@@ -262,101 +349,154 @@ export class GenerateRefactorPlanUseCase {
     const { noteEntries, folderTree } = snapshot;
     if (noteEntries.length === 0) return [];
 
+    const orphans = noteEntries.filter(
+      n => n.backlinks.length === 0 && n.links.length === 0,
+    );
+    const emptyNotes = noteEntries.filter(
+      n => n.wordCount === 0 && n.backlinks.length === 0,
+    );
+    const emptyNonOrphans = emptyNotes.filter(
+      n => n.links.length > 0,
+    );
+
+    if (orphans.length === 0 && emptyNonOrphans.length === 0) return [];
+
     const prefCtx = this.preference ? await this.preference.getPreferenceContext('refactor') : '';
     const settings = await this.config.getSettings();
     const privacyRules = [...settings.privacyRules];
+    const archiveFolder = settings.maintenanceArchiveFolder ?? 'Archive';
     const foldersStr = folderTree.join('\n');
 
-    const noteChunks: NoteMetadataEntry[][] = [];
-    for (let i = 0; i < noteEntries.length; i += REFACTOR_BATCH_SIZE) {
-      noteChunks.push([...noteEntries.slice(i, i + REFACTOR_BATCH_SIZE)]);
-    }
+    const proposals: OrganizeVaultProposal[] = [];
 
-    type PlacementResult = { path: string; suggestedFolder: string; confidence: number; rationale: string };
-    const allPlacements: PlacementResult[] = [];
-    let lastReorgError: unknown;
-    let aiSuccessCount = 0;
-
-    for (let i = 0; i < noteChunks.length; i++) {
-      this.checkAborted(signal);
-      onProgress({
-        phase: 'analyzing',
-        currentStep: i + 1,
-        totalSteps: noteChunks.length,
-        message: `Analyzing notes ${i + 1}/${noteChunks.length}...`,
-      });
-
-      const chunkStr = await this.buildNoteChunkString(noteChunks[i], privacyRules);
-
-      try {
-        const response = await this.ai.callCompletion({
-          systemPrompt: REFACTOR_PROMPTS.noteReorganize.system,
-          prompt: (prefCtx ? prefCtx + '\n\n' : '') + REFACTOR_PROMPTS.noteReorganize.user(chunkStr, foldersStr),
-          maxTokens: 2000,
-          temperature: 0.3,
-          jsonMode: true,
-        });
-        aiSuccessCount++;
-        const parsed = JSON.parse(response.content) as PlacementResult[];
-        if (Array.isArray(parsed)) allPlacements.push(...parsed);
-      } catch (err) {
-        lastReorgError = err;
-        console.warn(`[Vaultend] Reorganize chunk ${i + 1} failed:`, err instanceof Error ? err.message : err);
+    // Phase 1: Orphan notes → AI suggests folder placement
+    if (orphans.length > 0) {
+      const orphanChunks: NoteMetadataEntry[][] = [];
+      for (let i = 0; i < orphans.length; i += REFACTOR_BATCH_SIZE) {
+        orphanChunks.push([...orphans.slice(i, i + REFACTOR_BATCH_SIZE)]);
       }
-    }
 
-    if (aiSuccessCount === 0 && lastReorgError) throw lastReorgError;
+      type PlacementResult = { path: string; suggestedFolder: string; confidence: number; rationale: string };
+      const allPlacements: PlacementResult[] = [];
+      let lastReorgError: unknown;
+      let aiSuccessCount = 0;
 
-    const lowConfCount = allPlacements.filter(p => p.confidence < REORG_LOW_CONFIDENCE_THRESHOLD).length;
-    const lowConfRatio = allPlacements.length > 0 ? lowConfCount / allPlacements.length : 0;
-
-    if (lowConfRatio >= REORG_TIER2_TRIGGER_RATIO) {
-      this.checkAborted(signal);
-      onProgress({
-        phase: 'analyzing',
-        currentStep: noteChunks.length,
-        totalSteps: noteChunks.length,
-        message: 'Low confidence detected — suggesting new folders...',
-      });
-
-      const lowConfNotes = allPlacements
-        .filter(p => p.confidence < REORG_LOW_CONFIDENCE_THRESHOLD)
-        .map(p => noteEntries.find(n => n.path === p.path))
-        .filter((n): n is NoteMetadataEntry => n !== undefined);
-
-      const lowConfStr = await this.buildNoteChunkString(lowConfNotes, privacyRules);
-
-      try {
-        const tier2Response = await this.ai.callCompletion({
-          systemPrompt: REFACTOR_PROMPTS.noteReorganize.tier2System,
-          prompt: (prefCtx ? prefCtx + '\n\n' : '') + REFACTOR_PROMPTS.noteReorganize.tier2User(lowConfStr, foldersStr),
-          maxTokens: 2000,
-          temperature: 0.3,
-          jsonMode: true,
+      for (let i = 0; i < orphanChunks.length; i++) {
+        this.checkAborted(signal);
+        onProgress({
+          phase: 'analyzing',
+          currentStep: i + 1,
+          totalSteps: orphanChunks.length + (emptyNonOrphans.length > 0 ? 1 : 0),
+          message: `Analyzing orphan batch ${i + 1}/${orphanChunks.length}...`,
         });
-        const tier2 = JSON.parse(tier2Response.content) as {
-          newFolders: Array<{ path: string; notes: string[]; confidence: number }>;
-        };
 
-        for (const folder of tier2.newFolders) {
-          for (const notePath of folder.notes) {
-            const existing = allPlacements.find(p => p.path === notePath);
-            if (existing) {
-              existing.suggestedFolder = folder.path;
-              existing.confidence = folder.confidence;
-              existing.rationale = `Moved to new folder: ${folder.path}`;
+        const chunkStr = await this.buildNoteChunkString(orphanChunks[i], privacyRules);
+
+        try {
+          const response = await this.ai.callCompletion({
+            systemPrompt: REFACTOR_PROMPTS.noteReorganize.system,
+            prompt: (prefCtx ? prefCtx + '\n\n' : '') + REFACTOR_PROMPTS.noteReorganize.user(chunkStr, foldersStr),
+            maxTokens: 2000,
+            temperature: 0.3,
+            jsonMode: true,
+          });
+          aiSuccessCount++;
+          const parsed = JSON.parse(response.content) as PlacementResult[];
+          if (Array.isArray(parsed)) allPlacements.push(...parsed);
+        } catch (err) {
+          lastReorgError = err;
+          console.warn(`[Vaultend] Reorganize orphan chunk ${i + 1} failed:`, err instanceof Error ? err.message : err);
+        }
+      }
+
+      if (aiSuccessCount === 0 && lastReorgError) throw lastReorgError;
+
+      const lowConfCount = allPlacements.filter(p => p.confidence < REORG_LOW_CONFIDENCE_THRESHOLD).length;
+      const lowConfRatio = allPlacements.length > 0 ? lowConfCount / allPlacements.length : 0;
+
+      if (lowConfRatio >= REORG_TIER2_TRIGGER_RATIO) {
+        this.checkAborted(signal);
+        onProgress({
+          phase: 'analyzing',
+          currentStep: orphanChunks.length,
+          totalSteps: orphanChunks.length,
+          message: 'Low confidence detected — suggesting new folders...',
+        });
+
+        const lowConfNotes = allPlacements
+          .filter(p => p.confidence < REORG_LOW_CONFIDENCE_THRESHOLD)
+          .map(p => orphans.find(n => n.path === p.path))
+          .filter((n): n is NoteMetadataEntry => n !== undefined);
+
+        const lowConfStr = await this.buildNoteChunkString(lowConfNotes, privacyRules);
+
+        try {
+          const tier2Response = await this.ai.callCompletion({
+            systemPrompt: REFACTOR_PROMPTS.noteReorganize.tier2System,
+            prompt: (prefCtx ? prefCtx + '\n\n' : '') + REFACTOR_PROMPTS.noteReorganize.tier2User(lowConfStr, foldersStr),
+            maxTokens: 2000,
+            temperature: 0.3,
+            jsonMode: true,
+          });
+          const tier2 = JSON.parse(tier2Response.content) as {
+            newFolders: Array<{ path: string; notes: string[]; confidence: number }>;
+          };
+
+          for (const folder of tier2.newFolders) {
+            for (const notePath of folder.notes) {
+              const existing = allPlacements.find(p => p.path === notePath);
+              if (existing) {
+                existing.suggestedFolder = folder.path;
+                existing.confidence = folder.confidence;
+                existing.rationale = `Moved to new folder: ${folder.path}`;
+              }
             }
           }
+        } catch (err) {
+          console.warn('[Vaultend] Tier 2 folder suggestion failed:', err instanceof Error ? err.message : err);
         }
-      } catch (err) {
-        console.warn('[Vaultend] Tier 2 folder suggestion failed:', err instanceof Error ? err.message : err);
       }
+
+      proposals.push(...this.convertReorganizeProposals(allPlacements, noteEntries, folderTree));
+    }
+
+    // Phase 2: Empty notes with 0 backlinks → auto-archive (no AI needed)
+    for (const empty of emptyNonOrphans) {
+      proposals.push(createProposal({
+        type: 'archive-empty',
+        targetPath: createNotePath(empty.path),
+        diffs: [{ field: 'folder', before: empty.folder || '/', after: archiveFolder }],
+        affectedPaths: [createNotePath(empty.path)],
+        confidence: 0.9,
+        rationale: 'Empty note (no content after frontmatter) with no backlinks',
+        metadata: { source: 'refactor', suggestedFolder: archiveFolder },
+      }));
+    }
+
+    // Also archive orphan empty notes not already captured by AI placement
+    const orphanEmptyPaths = new Set(
+      orphans.filter(n => n.wordCount === 0).map(n => n.path),
+    );
+    const alreadyProposed = new Set(proposals.map(p => p.targetPath as string));
+    for (const path of orphanEmptyPaths) {
+      if (alreadyProposed.has(path)) continue;
+      const entry = noteEntries.find(n => n.path === path);
+      if (!entry) continue;
+      proposals.push(createProposal({
+        type: 'archive-empty',
+        targetPath: createNotePath(path),
+        diffs: [{ field: 'folder', before: entry.folder || '/', after: archiveFolder }],
+        affectedPaths: [createNotePath(path)],
+        confidence: 0.9,
+        rationale: 'Empty orphan note — no content and no connections',
+        metadata: { source: 'refactor', suggestedFolder: archiveFolder },
+      }));
     }
 
     this.checkAborted(signal);
     onProgress({ phase: 'synthesizing', currentStep: 1, totalSteps: 1, message: 'Building proposals...' });
 
-    return this.convertReorganizeProposals(allPlacements, noteEntries, folderTree);
+    return proposals;
   }
 
   private async buildNoteChunkString(
@@ -453,8 +593,27 @@ export class GenerateRefactorPlanUseCase {
     const orphans = snapshot.noteEntries.filter(
       n => n.backlinks.length === 0 && n.links.length === 0,
     );
-    if (orphans.length === 0) return [];
 
+    const proposals: OrganizeVaultProposal[] = [];
+
+    // Phase 1: Orphan link suggestions (AI-powered)
+    if (orphans.length > 0) {
+      const orphanProposals = await this.suggestLinksForOrphans(orphans, signal, onProgress);
+      proposals.push(...orphanProposals);
+    }
+
+    // Phase 2: Broken link detection and fix proposals
+    const brokenLinkProposals = await this.detectAndFixBrokenLinks(snapshot, signal, onProgress);
+    proposals.push(...brokenLinkProposals);
+
+    return proposals;
+  }
+
+  private async suggestLinksForOrphans(
+    orphans: ReadonlyArray<NoteMetadataEntry>,
+    signal: AbortSignal,
+    onProgress: (p: RefactorProgress) => void,
+  ): Promise<OrganizeVaultProposal[]> {
     const prefCtx = this.preference ? await this.preference.getPreferenceContext('refactor') : '';
     const settings = await this.config.getSettings();
     const privacyRules = [...settings.privacyRules];
@@ -543,6 +702,121 @@ export class GenerateRefactorPlanUseCase {
     }
 
     if (linkAiSuccessCount === 0 && lastLinkError) throw lastLinkError;
+    return proposals;
+  }
+
+  private async detectAndFixBrokenLinks(
+    snapshot: VaultMetadataSnapshot,
+    signal: AbortSignal,
+    onProgress: (p: RefactorProgress) => void,
+  ): Promise<OrganizeVaultProposal[]> {
+    const notePathSet = new Set(snapshot.noteEntries.map(n => n.path));
+    const basenameSet = new Map<string, string>();
+    for (const entry of snapshot.noteEntries) {
+      const basename = entry.path.split('/').pop()?.replace('.md', '') ?? '';
+      basenameSet.set(basename.toLowerCase(), entry.path);
+    }
+
+    type BrokenLinkEntry = { sourcePath: string; brokenTarget: string; lineNumber: number };
+    const brokenLinks: BrokenLinkEntry[] = [];
+    const WIKI_LINK_RE = /\[\[([^\]|#^]+)(?:[#|^][^\]]*)?]]/g;
+
+    for (const entry of snapshot.noteEntries) {
+      if (brokenLinks.length >= 200) break;
+      const note = await this.vault.readNote(createNotePath(entry.path));
+      if (!note) continue;
+
+      const lines = note.content.split('\n');
+      for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+        const line = lines[lineIdx];
+        let match: RegExpExecArray | null;
+        WIKI_LINK_RE.lastIndex = 0;
+        while ((match = WIKI_LINK_RE.exec(line)) !== null) {
+          const target = match[1].trim();
+          if (!target) continue;
+
+          const targetWithExt = target.endsWith('.md') ? target : `${target}.md`;
+          const targetLower = target.toLowerCase();
+
+          const exists =
+            notePathSet.has(targetWithExt) ||
+            notePathSet.has(target) ||
+            basenameSet.has(targetLower);
+
+          if (!exists) {
+            brokenLinks.push({
+              sourcePath: entry.path,
+              brokenTarget: target,
+              lineNumber: lineIdx + 1,
+            });
+          }
+        }
+      }
+    }
+
+    if (brokenLinks.length === 0) return [];
+
+    this.checkAborted(signal);
+    onProgress({
+      phase: 'analyzing',
+      currentStep: 1,
+      totalSteps: 1,
+      message: `Fixing ${brokenLinks.length} broken links...`,
+    });
+
+    const proposals: OrganizeVaultProposal[] = [];
+    const BROKEN_LINK_BATCH = 20;
+
+    for (let i = 0; i < brokenLinks.length; i += BROKEN_LINK_BATCH) {
+      this.checkAborted(signal);
+      const batch = brokenLinks.slice(i, i + BROKEN_LINK_BATCH);
+
+      for (const bl of batch) {
+        const candidates = await this.searchIndex.search(bl.brokenTarget, 5);
+        const BROKEN_LINK_SCORE_THRESHOLD = 0.4;
+
+        if (candidates.length === 0 || (candidates[0].score ?? 0) < BROKEN_LINK_SCORE_THRESHOLD) {
+          proposals.push(createProposal({
+            type: 'fix-broken-link',
+            targetPath: createNotePath(bl.sourcePath),
+            diffs: [{
+              field: 'link',
+              before: `[[${bl.brokenTarget}]]`,
+              after: '(remove link)',
+            }],
+            affectedPaths: [createNotePath(bl.sourcePath)],
+            confidence: 0.7,
+            rationale: `Link target "${bl.brokenTarget}" does not exist and no similar note found`,
+            metadata: { source: 'refactor', brokenLink: bl.brokenTarget, action: 'remove', lineNumber: bl.lineNumber },
+          }));
+          continue;
+        }
+
+        const bestMatch = candidates[0];
+        const bestBasename = (bestMatch.notePath as string).split('/').pop()?.replace('.md', '') ?? '';
+
+        proposals.push(createProposal({
+          type: 'fix-broken-link',
+          targetPath: createNotePath(bl.sourcePath),
+          diffs: [{
+            field: 'link',
+            before: `[[${bl.brokenTarget}]]`,
+            after: `[[${bestBasename}]]`,
+          }],
+          affectedPaths: [createNotePath(bl.sourcePath), bestMatch.notePath],
+          confidence: clamp(bestMatch.score ?? 0.6),
+          rationale: `Broken link likely refers to "${bestBasename}" (search match)`,
+          metadata: {
+            source: 'refactor',
+            brokenLink: bl.brokenTarget,
+            suggestedTarget: bestMatch.notePath as string,
+            action: 'replace',
+            lineNumber: bl.lineNumber,
+          },
+        }));
+      }
+    }
+
     return proposals;
   }
 

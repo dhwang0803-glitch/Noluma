@@ -135,6 +135,7 @@ describe('GenerateRefactorPlanUseCase', () => {
 
       vi.mocked(vault.listNotesWithMetadata).mockResolvedValue(entries);
       vi.mocked(vault.listAllTags).mockResolvedValue([{ tag: '#python', count: 5 }]);
+      vi.mocked(vault.readNote).mockResolvedValue(makeNote('untagged.md', 'Python tutorial content about decorators'));
 
       const chunkResponse = JSON.stringify({ mergeGroups: [] });
       const synthResponse = JSON.stringify({
@@ -143,15 +144,21 @@ describe('GenerateRefactorPlanUseCase', () => {
           { notePath: 'untagged.md', tags: ['#python'], confidence: 0.8, rationale: 'Content about Python' },
         ],
       });
+      const untaggedResponse = JSON.stringify({
+        suggestions: [
+          { notePath: 'untagged.md', tags: ['#python'], confidence: 0.85, rationale: 'Detected from content' },
+        ],
+      });
 
       vi.mocked(ai.callCompletion)
         .mockResolvedValueOnce(mockCompletionResponse(chunkResponse))
-        .mockResolvedValueOnce(mockCompletionResponse(synthResponse));
+        .mockResolvedValueOnce(mockCompletionResponse(synthResponse))
+        .mockResolvedValueOnce(mockCompletionResponse(untaggedResponse));
 
       const plan = await useCase.execute(goal, signal, onProgress);
 
-      expect(plan.proposals.length).toBe(1);
-      expect(plan.proposals[0].type).toBe('apply-missing-tags');
+      const tagProposals = plan.proposals.filter(p => p.type === 'apply-missing-tags');
+      expect(tagProposals.length).toBeGreaterThanOrEqual(1);
     });
 
     it('falls back when synthesis AI fails', async () => {
@@ -172,15 +179,15 @@ describe('GenerateRefactorPlanUseCase', () => {
 
       const plan = await useCase.execute(goal, signal, onProgress);
 
-      expect(plan.proposals.length).toBe(1);
-      expect(plan.proposals[0].type).toBe('merge-duplicate-tags');
+      const mergeProposals = plan.proposals.filter(p => p.type === 'merge-duplicate-tags');
+      expect(mergeProposals.length).toBe(1);
     });
   });
 
-  describe('Mode 1: Note Reorganize', () => {
+  describe('Mode 1: Note Reorganize (orphan-focused)', () => {
     const goal: RefactorGoal = { goalType: 'reorganize-notes', parameters: {} };
 
-    it('generates reposition proposals for misplaced notes', async () => {
+    it('generates reposition proposals for orphan notes', async () => {
       const entries = [
         makeEntry('Inbox/cooking-recipe.md', { folder: 'Inbox', tags: ['#cooking'] }),
       ];
@@ -190,25 +197,19 @@ describe('GenerateRefactorPlanUseCase', () => {
       vi.mocked(vault.readNote).mockResolvedValue(makeNote('Inbox/cooking-recipe.md', 'A delicious pasta recipe...'));
 
       const aiResponse = JSON.stringify([
-        { path: 'Inbox/cooking-recipe.md', suggestedFolder: 'Recipes', confidence: 0.85, rationale: 'Cooking content' },
+        { path: 'Inbox/cooking-recipe.md', suggestedFolder: 'Recipes', confidence: 0.85, rationale: 'Cooking content belongs in Recipes' },
       ]);
 
-      const synthResponse = JSON.stringify({
-        moves: [{ path: 'Inbox/cooking-recipe.md', from: 'Inbox', to: 'Recipes', confidence: 0.85, rationale: 'Cooking', isNewFolder: false }],
-        newFolders: [],
-      });
-
-      vi.mocked(ai.callCompletion)
-        .mockResolvedValueOnce(mockCompletionResponse(aiResponse))
-        .mockResolvedValueOnce(mockCompletionResponse(synthResponse));
+      vi.mocked(ai.callCompletion).mockResolvedValue(mockCompletionResponse(aiResponse));
 
       const plan = await useCase.execute(goal, signal, onProgress);
 
       const repositions = plan.proposals.filter(p => p.type === 'reposition');
-      expect(repositions.length).toBeGreaterThanOrEqual(1);
+      expect(repositions.length).toBe(1);
+      expect(repositions[0].metadata?.suggestedFolder).toBe('Recipes');
     });
 
-    it('skips notes already in best folder', async () => {
+    it('skips orphan notes already in best folder', async () => {
       const entries = [
         makeEntry('Recipes/pasta.md', { folder: 'Recipes' }),
       ];
@@ -226,6 +227,34 @@ describe('GenerateRefactorPlanUseCase', () => {
       const plan = await useCase.execute(goal, signal, onProgress);
 
       expect(plan.proposals.filter(p => p.type === 'reposition').length).toBe(0);
+    });
+
+    it('generates archive proposals for empty notes', async () => {
+      const entries = [
+        makeEntry('Notes/empty.md', { folder: 'Notes', wordCount: 0, links: ['other.md'] }),
+      ];
+
+      vi.mocked(vault.listNotesWithMetadata).mockResolvedValue(entries);
+      vi.mocked(vault.listAllTags).mockResolvedValue([]);
+
+      const plan = await useCase.execute(goal, signal, onProgress);
+
+      const archiveProposals = plan.proposals.filter(p => p.type === 'archive-empty');
+      expect(archiveProposals.length).toBe(1);
+      expect(archiveProposals[0].rationale).toContain('Empty note');
+    });
+
+    it('returns empty when no orphans or empty notes exist', async () => {
+      const entries = [
+        makeEntry('Notes/connected.md', { folder: 'Notes', links: ['other.md'], backlinks: ['another.md'] }),
+      ];
+
+      vi.mocked(vault.listNotesWithMetadata).mockResolvedValue(entries);
+      vi.mocked(vault.listAllTags).mockResolvedValue([]);
+
+      const plan = await useCase.execute(goal, signal, onProgress);
+
+      expect(plan.proposals.length).toBe(0);
     });
   });
 
@@ -275,6 +304,36 @@ describe('GenerateRefactorPlanUseCase', () => {
       const plan = await useCase.execute(goal, signal, onProgress);
 
       expect(plan.proposals.length).toBe(0);
+    });
+
+    it('detects broken wiki-links and suggests fixes', async () => {
+      const entries = [
+        makeEntry('doc.md', { links: ['existing.md'], backlinks: ['other.md'] }),
+        makeEntry('existing.md', { links: [], backlinks: ['doc.md'] }),
+      ];
+
+      vi.mocked(vault.listNotesWithMetadata).mockResolvedValue(entries);
+      vi.mocked(vault.listAllTags).mockResolvedValue([]);
+      vi.mocked(vault.readNote).mockImplementation(async (path) => {
+        if ((path as string) === 'doc.md') {
+          return makeNote('doc.md', 'See [[non-existent-note]] for details.');
+        }
+        return null;
+      });
+
+      const search = createMockSearch([
+        { notePath: createNotePath('existing.md'), score: 0.7, highlights: [] },
+      ]);
+      const config = createMockConfig();
+      const clock = createMockClock();
+      useCase = new GenerateRefactorPlanUseCase(clock, vault, search, store, ai, config);
+
+      const plan = await useCase.execute(goal, signal, onProgress);
+
+      const fixProposals = plan.proposals.filter(p => p.type === 'fix-broken-link');
+      expect(fixProposals.length).toBe(1);
+      expect(fixProposals[0].metadata?.brokenLink).toBe('non-existent-note');
+      expect(fixProposals[0].metadata?.suggestedTarget).toBe('existing.md');
     });
   });
 

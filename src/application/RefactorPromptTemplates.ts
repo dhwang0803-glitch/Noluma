@@ -41,25 +41,48 @@ Return JSON:
     { "notePath": "path/to/note.md", "tags": ["#tag1", "#tag2"], "confidence": 0.8, "rationale": "..." }
   ]
 }`,
+    untaggedSystem: 'You are a tag taxonomy expert. Analyze untagged notes and suggest appropriate tags based on their content and context within the vault. Respond ONLY with valid JSON.',
+    untaggedUser: (noteChunk: string, knownTags: string) =>
+      `These notes have NO tags. Suggest appropriate tags for each based on their content.
+
+Known tags in this vault (use these preferentially):
+${knownTags}
+
+Untagged notes:
+${noteChunk}
+
+Rules:
+1. Prefer existing vault tags over inventing new ones
+2. Suggest 1-3 tags per note
+3. Tags must be relevant to the note's actual content
+4. confidence reflects how well the tags match (0.0-1.0)
+5. Use hierarchical tags (e.g., #dev/frontend) when appropriate
+
+Return JSON:
+{
+  "suggestions": [
+    { "notePath": "path/to/note.md", "tags": ["#tag1", "#tag2"], "confidence": 0.8, "rationale": "..." }
+  ]
+}`,
   },
 
   noteReorganize: {
-    system: 'You are a vault organizer. Analyze notes and suggest the best existing folder for each. Respond ONLY with valid JSON.',
+    system: 'You are a vault organizer specializing in orphan note triage. Analyze disconnected and problematic notes, then suggest the best existing folder or archive destination. Respond ONLY with valid JSON.',
     user: (noteChunk: string, folders: string) =>
-      `Analyze these notes and suggest the best folder for each within the EXISTING folder structure.
+      `These notes are ORPHANS — they have zero incoming links (backlinks) and zero outgoing links. They are completely disconnected from the rest of the vault. Suggest where each should be placed.
 
 Existing folders:
 ${folders}
 
-Notes:
+Orphan notes:
 ${noteChunk}
 
 Rules:
-1. ONLY suggest folders from the existing list above
-2. If a note is already in its best folder, set suggestedFolder to its current folder
-3. Consider the note's content, tags, and existing links to determine the best placement
-4. confidence should reflect how well the note fits the suggested folder (0.0-1.0)
-5. Be conservative — only suggest moves when clearly beneficial
+1. Prefer folders from the existing list. You may suggest "Archive" for notes that are outdated or irrelevant.
+2. Consider the note's content, tags, and folder context to determine the best placement
+3. Notes about specific projects/topics should go to their relevant folder
+4. Very short or stub notes with no clear purpose → suggest "Archive"
+5. confidence should reflect how clearly the note belongs in the suggested folder (0.0-1.0)
 
 Return JSON array:
 [
@@ -131,6 +154,27 @@ Return JSON:
 {
   "suggestedLinks": [
     { "targetPath": "candidate.md", "confidence": 0.8, "rationale": "..." }
+  ]
+}`,
+    brokenLinkSystem: 'You fix broken links in a knowledge vault. Given a broken link and search candidates, suggest the best replacement target. Respond ONLY with valid JSON.',
+    brokenLinkUser: (brokenLinks: string, candidates: string) =>
+      `These notes contain broken wiki-links (targets that do not exist in the vault). Suggest fixes.
+
+Broken links:
+${brokenLinks}
+
+Available candidate notes found by search:
+${candidates}
+
+Rules:
+1. For each broken link, suggest the most likely intended target from candidates
+2. If no good match exists, suggest "remove" as the action
+3. confidence reflects how likely the suggested fix is correct (0.0-1.0)
+
+Return JSON:
+{
+  "fixes": [
+    { "sourcePath": "note.md", "brokenLink": "[[non-existent]]", "suggestedTarget": "actual-note.md", "action": "replace", "confidence": 0.8, "rationale": "..." }
   ]
 }`,
   },
