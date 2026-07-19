@@ -357,7 +357,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     // Organize Vault adapter — file-based storage for OrganizeVault plans
     this.organizeVaultAdapter = new FileOrganizeVaultAdapter(this.vaultAdapter);
 
-    this.preferenceAdapter = new FilePreferenceAdapter(this.vaultAdapter, this.configPort);
+    if (ENABLE_PRO) {
+      this.preferenceAdapter = new FilePreferenceAdapter(this.vaultAdapter, this.configPort);
+    }
     this.tagEmbeddingCacheAdapter = new FileTagEmbeddingCacheAdapter(this.vaultAdapter);
   }
 
@@ -376,12 +378,14 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.tagEmbeddingCacheAdapter,
     );
 
-    this.organizeFolderUseCase = new OrganizeFolderUseCase(
-      this.organizeNoteUseCase, this.vaultAdapter,
-      this.configPort, this.historyAdapter, this.clockAdapter,
-      this.aiAdapter,
-      this.tagEmbeddingCacheAdapter,
-    );
+    if (ENABLE_PRO) {
+      this.organizeFolderUseCase = new OrganizeFolderUseCase(
+        this.organizeNoteUseCase, this.vaultAdapter,
+        this.configPort, this.historyAdapter, this.clockAdapter,
+        this.aiAdapter,
+        this.tagEmbeddingCacheAdapter,
+      );
+    }
 
     this.runMaintenanceUseCase = new RunMaintenanceUseCase(
       this.vaultAdapter, this.searchIndex,
@@ -403,34 +407,36 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       this.vaultAdapter, this.changeTracker,
     );
 
-    this.generateOrganizeVaultUseCase = new GenerateOrganizeVaultUseCase(
-      this.clockAdapter, this.vaultAdapter,
-      this.searchIndex, this.organizeVaultAdapter,
-      this.aiAdapter, this.configPort,
-      this.preferenceAdapter,
-    );
+    if (ENABLE_PRO) {
+      this.generateOrganizeVaultUseCase = new GenerateOrganizeVaultUseCase(
+        this.clockAdapter, this.vaultAdapter,
+        this.searchIndex, this.organizeVaultAdapter,
+        this.aiAdapter, this.configPort,
+        this.preferenceAdapter,
+      );
 
-    this.applyOrganizeVaultUseCase = new ApplyOrganizeVaultUseCase(
-      this.vaultAdapter, this.historyAdapter,
-      this.clockAdapter, this.organizeVaultAdapter, this.configPort,
-    );
+      this.applyOrganizeVaultUseCase = new ApplyOrganizeVaultUseCase(
+        this.vaultAdapter, this.historyAdapter,
+        this.clockAdapter, this.organizeVaultAdapter, this.configPort,
+      );
 
-    this.rollbackOrganizeVaultUseCase = new RollbackOrganizeVaultUseCase(
-      this.historyAdapter, this.clockAdapter, this.organizeVaultAdapter,
-    );
+      this.rollbackOrganizeVaultUseCase = new RollbackOrganizeVaultUseCase(
+        this.historyAdapter, this.clockAdapter, this.organizeVaultAdapter,
+      );
 
-    this.estimateRefactorCostUseCase = new EstimateRefactorCostUseCase(this.configPort);
+      this.estimateRefactorCostUseCase = new EstimateRefactorCostUseCase(this.configPort);
 
-    this.recordPreferenceUseCase = new RecordPreferenceUseCase(
-      this.preferenceAdapter, this.clockAdapter,
-    );
+      this.recordPreferenceUseCase = new RecordPreferenceUseCase(
+        this.preferenceAdapter, this.clockAdapter,
+      );
 
-    this.generateRefactorPlanUseCase = new GenerateRefactorPlanUseCase(
-      this.clockAdapter, this.vaultAdapter,
-      this.searchIndex, this.organizeVaultAdapter,
-      this.aiAdapter, this.configPort,
-      this.preferenceAdapter,
-    );
+      this.generateRefactorPlanUseCase = new GenerateRefactorPlanUseCase(
+        this.clockAdapter, this.vaultAdapter,
+        this.searchIndex, this.organizeVaultAdapter,
+        this.aiAdapter, this.configPort,
+        this.preferenceAdapter,
+      );
+    }
   }
 
   private registerViews(): void {
@@ -462,42 +468,44 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       ),
     );
 
-    this.registerView(
-      ORGANIZE_FOLDER_VIEW_TYPE,
-      (leaf: WorkspaceLeaf) => new OrganizeFolderResultView(
-        leaf,
-        this.organizeFolderUseCase,
-        this.buildOrganizeApplyActions(),
-        this.configPort,
-        this.historyAdapter,
-        this.vaultAdapter,
-        (path: string) => {
-          const file = this.app.vault.getAbstractFileByPath(path);
-          if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
-        },
-        (v: boolean) => { this.isOrganizing = v; },
-      ),
-    );
+    if (ENABLE_PRO) {
+      this.registerView(
+        ORGANIZE_FOLDER_VIEW_TYPE,
+        (leaf: WorkspaceLeaf) => new OrganizeFolderResultView(
+          leaf,
+          this.organizeFolderUseCase,
+          this.buildOrganizeApplyActions(),
+          this.configPort,
+          this.historyAdapter,
+          this.vaultAdapter,
+          (path: string) => {
+            const file = this.app.vault.getAbstractFileByPath(path);
+            if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
+          },
+          (v: boolean) => { this.isOrganizing = v; },
+        ),
+      );
 
-    this.registerView(
-      ORGANIZE_VAULT_VIEW_TYPE,
-      (leaf: WorkspaceLeaf) => new OrganizeVaultView(
-        leaf,
-        this.runMaintenanceUseCase,
-        this.generateOrganizeVaultUseCase,
-        this.applyOrganizeVaultUseCase,
-        this.rollbackOrganizeVaultUseCase,
-        this.organizeVaultAdapter,
-        (path: string) => {
-          const file = this.app.vault.getAbstractFileByPath(path);
-          if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
-        },
-        this.vaultAdapter,
-        this.estimateRefactorCostUseCase,
-        this.generateRefactorPlanUseCase,
-        this.recordPreferenceUseCase,
-      ),
-    );
+      this.registerView(
+        ORGANIZE_VAULT_VIEW_TYPE,
+        (leaf: WorkspaceLeaf) => new OrganizeVaultView(
+          leaf,
+          this.runMaintenanceUseCase,
+          this.generateOrganizeVaultUseCase,
+          this.applyOrganizeVaultUseCase,
+          this.rollbackOrganizeVaultUseCase,
+          this.organizeVaultAdapter,
+          (path: string) => {
+            const file = this.app.vault.getAbstractFileByPath(path);
+            if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
+          },
+          this.vaultAdapter,
+          this.estimateRefactorCostUseCase,
+          this.generateRefactorPlanUseCase,
+          this.recordPreferenceUseCase,
+        ),
+      );
+    }
   }
 
 
@@ -548,24 +556,26 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       },
     });
 
-    this.addCommand({
-      id: 'organize-folder',
-      name: t('command.organizeFolder'),
-      callback: async () => {
-        if (this.isOrganizing) {
-          new Notice(t('notice.organizeAlreadyRunning'));
-          return;
-        }
-        new FolderSuggestModal(this.app, async (folder) => {
-          await this.activateView(ORGANIZE_FOLDER_VIEW_TYPE);
-          const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_FOLDER_VIEW_TYPE);
-          if (leaves.length > 0) {
-            const view = leaves[0].view as OrganizeFolderResultView;
-            view.triggerScan(folder.path);
+    if (ENABLE_PRO) {
+      this.addCommand({
+        id: 'organize-folder',
+        name: t('command.organizeFolder'),
+        callback: async () => {
+          if (this.isOrganizing) {
+            new Notice(t('notice.organizeAlreadyRunning'));
+            return;
           }
-        }).open();
-      },
-    });
+          new FolderSuggestModal(this.app, async (folder) => {
+            await this.activateView(ORGANIZE_FOLDER_VIEW_TYPE);
+            const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_FOLDER_VIEW_TYPE);
+            if (leaves.length > 0) {
+              const view = leaves[0].view as OrganizeFolderResultView;
+              view.triggerScan(folder.path);
+            }
+          }).open();
+        },
+      });
+    }
 
     this.addCommand({
       id: 'open-maintenance-log',
@@ -573,18 +583,20 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       callback: () => this.activateView(MAINTENANCE_LOG_VIEW_TYPE),
     });
 
-    this.addCommand({
-      id: COMMAND_VAULT_REFACTOR,
-      name: t('command.vaultRefactor'),
-      callback: async () => {
-        await this.activateView(ORGANIZE_VAULT_VIEW_TYPE);
-        const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_VAULT_VIEW_TYPE);
-        if (leaves.length > 0) {
-          const view = leaves[0].view as OrganizeVaultView;
-          view.openRefactorModal();
-        }
-      },
-    });
+    if (ENABLE_PRO) {
+      this.addCommand({
+        id: COMMAND_VAULT_REFACTOR,
+        name: t('command.vaultRefactor'),
+        callback: async () => {
+          await this.activateView(ORGANIZE_VAULT_VIEW_TYPE);
+          const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_VAULT_VIEW_TYPE);
+          if (leaves.length > 0) {
+            const view = leaves[0].view as OrganizeVaultView;
+            view.openRefactorModal();
+          }
+        },
+      });
+    }
 
   }
 
@@ -640,23 +652,25 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
               }
             });
         });
-        menu.addItem(item => {
-          item
-            .setTitle(t('command.organizeFolder'))
-            .setIcon('wand')
-            .onClick(async () => {
-              if (this.isOrganizing) {
-                new Notice(t('notice.organizeAlreadyRunning'));
-                return;
-              }
-              await this.activateView(ORGANIZE_FOLDER_VIEW_TYPE);
-              const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_FOLDER_VIEW_TYPE);
-              if (leaves.length > 0) {
-                const view = leaves[0].view as OrganizeFolderResultView;
-                view.triggerScan(file.path);
-              }
-            });
-        });
+        if (ENABLE_PRO) {
+          menu.addItem(item => {
+            item
+              .setTitle(t('command.organizeFolder'))
+              .setIcon('wand')
+              .onClick(async () => {
+                if (this.isOrganizing) {
+                  new Notice(t('notice.organizeAlreadyRunning'));
+                  return;
+                }
+                await this.activateView(ORGANIZE_FOLDER_VIEW_TYPE);
+                const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_FOLDER_VIEW_TYPE);
+                if (leaves.length > 0) {
+                  const view = leaves[0].view as OrganizeFolderResultView;
+                  view.triggerScan(file.path);
+                }
+              });
+          });
+        }
       }),
     );
   }
@@ -703,6 +717,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   }
 
   private async scheduleMaintenanceIfEnabled(): Promise<void> {
+    if (!ENABLE_PRO) return;
     if (this.maintenanceInterval !== null) {
       window.clearInterval(this.maintenanceInterval);
       this.maintenanceInterval = null;
@@ -800,6 +815,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   }
 
   private async triggerMergeForPair(pair: DuplicatePair): Promise<void> {
+    if (!ENABLE_PRO) return;
     const minPlan: MaintenancePlan = {
       orphanNotes: [],
       duplicateCandidates: [pair],
