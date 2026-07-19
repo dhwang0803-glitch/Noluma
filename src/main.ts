@@ -582,20 +582,11 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       id: 'run-maintenance',
       name: t('command.runMaintenance'),
       callback: async () => {
-        if (await this.licenseAdapter.canUseFeature('organize-vault')) {
-          await this.activateView(ORGANIZE_VAULT_VIEW_TYPE);
-          const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_VAULT_VIEW_TYPE);
-          if (leaves.length > 0) {
-            const view = leaves[0].view as OrganizeVaultView;
-            await view.triggerScan();
-          }
-        } else {
-          await this.activateView(MAINTENANCE_RESULT_VIEW_TYPE);
-          const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
-          if (leaves.length > 0) {
-            const view = leaves[0].view as MaintenanceResultView;
-            await view.triggerScan();
-          }
+        await this.activateView(MAINTENANCE_RESULT_VIEW_TYPE);
+        const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
+        if (leaves.length > 0) {
+          const view = leaves[0].view as MaintenanceResultView;
+          await view.triggerScan();
         }
       },
     });
@@ -671,20 +662,11 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
             .setTitle(t('command.scanFolder'))
             .setIcon('shield-check')
             .onClick(async () => {
-              if (await this.licenseAdapter.canUseFeature('organize-vault')) {
-                await this.activateView(ORGANIZE_VAULT_VIEW_TYPE);
-                const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_VAULT_VIEW_TYPE);
-                if (leaves.length > 0) {
-                  const view = leaves[0].view as OrganizeVaultView;
-                  await view.triggerScan(file.path);
-                }
-              } else {
-                await this.activateView(MAINTENANCE_RESULT_VIEW_TYPE);
-                const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
-                if (leaves.length > 0) {
-                  const view = leaves[0].view as MaintenanceResultView;
-                  await view.triggerScanForFolder(file.path);
-                }
+              await this.activateView(MAINTENANCE_RESULT_VIEW_TYPE);
+              const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
+              if (leaves.length > 0) {
+                const view = leaves[0].view as MaintenanceResultView;
+                await view.triggerScanForFolder(file.path);
               }
             });
         });
@@ -804,12 +786,12 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       + plan.duplicateTags.length;
     if (totalIssues === 0) return;
 
-    const organizeVaultPlan = await this.generateOrganizeVaultUseCase.execute(plan);
-    const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_VAULT_VIEW_TYPE);
+    await this.activateView(MAINTENANCE_RESULT_VIEW_TYPE);
+    const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
     if (leaves.length > 0) {
-      const view = leaves[0].view as OrganizeVaultView;
+      const view = leaves[0].view as MaintenanceResultView;
       if (view.isScanInProgress()) return;
-      view.showPlan(organizeVaultPlan);
+      view.showPlan(plan);
     }
     new Notice(t('notice.autoMaintenanceFound', { count: totalIssues }));
   }
