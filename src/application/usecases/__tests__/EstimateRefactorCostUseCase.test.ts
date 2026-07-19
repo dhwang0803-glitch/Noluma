@@ -30,56 +30,64 @@ describe('EstimateRefactorCostUseCase', () => {
   const useCase = new EstimateRefactorCostUseCase();
 
   describe('reorganize-notes', () => {
-    it('estimates based on note count and batch size', () => {
+    it('estimates based on orphan count and batch size', () => {
       const goal: RefactorGoal = { goalType: 'reorganize-notes', parameters: {} };
-      const snapshot = buildSnapshot({ totalNotes: 120 });
+      const orphans = Array.from({ length: 120 }, (_, i) => makeEntry(`orphan${i}.md`));
+      const snapshot = buildSnapshot({ noteEntries: orphans, totalNotes: 120 });
 
       const result = useCase.execute(goal, snapshot);
 
       expect(result.noteCount).toBe(120);
       expect(result.chunkCount).toBe(3); // 120 / 50 = 2.4 → ceil = 3
-      expect(result.estimatedAICalls).toBe(4); // 3 chunks + 1 synthesis
+      expect(result.estimatedAICalls).toBe(4); // 3 chunks + 1 tier2
       expect(result.estimatedCostUsd).toBeGreaterThan(0);
       expect(result.estimatedDurationSeconds).toBeGreaterThan(0);
     });
 
-    it('handles zero notes', () => {
+    it('handles zero orphans', () => {
       const goal: RefactorGoal = { goalType: 'reorganize-notes', parameters: {} };
-      const result = useCase.execute(goal, buildSnapshot({ totalNotes: 0 }));
+      const linked = [makeEntry('linked.md', { links: ['other.md'] })];
+      const result = useCase.execute(goal, buildSnapshot({ noteEntries: linked, totalNotes: 1 }));
 
       expect(result.noteCount).toBe(0);
-      expect(result.estimatedAICalls).toBe(1); // 0 chunks + 1 synthesis
+      expect(result.estimatedAICalls).toBe(1); // 0 chunks + 1 tier2
     });
   });
 
   describe('clean-up-tags', () => {
-    it('estimates based on tag count', () => {
+    it('estimates based on tag count including untagged notes', () => {
       const tags = Array.from({ length: 450 }, (_, i) => ({ tag: `#tag${i}`, count: 5 }));
+      const tagged = Array.from({ length: 80 }, (_, i) => makeEntry(`tagged${i}.md`, { tags: ['#tag0'] }));
+      const untagged = Array.from({ length: 20 }, (_, i) => makeEntry(`untagged${i}.md`, { tags: [] }));
       const goal: RefactorGoal = { goalType: 'clean-up-tags', parameters: {} };
-      const snapshot = buildSnapshot({ tagFrequencies: tags, totalNotes: 100 });
+      const snapshot = buildSnapshot({
+        noteEntries: [...tagged, ...untagged],
+        tagFrequencies: tags,
+        totalNotes: 100,
+      });
 
       const result = useCase.execute(goal, snapshot);
 
       expect(result.tagCount).toBe(450);
-      expect(result.chunkCount).toBe(3); // 450 / 200 = 2.25 → ceil = 3
-      expect(result.estimatedAICalls).toBe(4); // 3 + 1 synthesis
+      expect(result.chunkCount).toBe(4); // ceil(450/200)=3 tag chunks + ceil(20/50)=1 untagged chunk
+      expect(result.estimatedAICalls).toBe(5); // 3 tag + 1 synthesis + 1 untagged
     });
   });
 
   describe('suggest-links', () => {
-    it('estimates based on orphan count', () => {
+    it('estimates based on orphan count plus broken link scan', () => {
       const entries = [
         makeEntry('orphan1.md', { links: [] }),
         makeEntry('orphan2.md', { links: [] }),
         makeEntry('linked.md', { links: ['other.md'] }),
       ];
-      // orphan1 and orphan2 have 0 backlinks + 0 links
       const goal: RefactorGoal = { goalType: 'suggest-links', parameters: {} };
       const snapshot = buildSnapshot({ noteEntries: entries, totalNotes: 3 });
 
       const result = useCase.execute(goal, snapshot);
 
-      expect(result.noteCount).toBe(2); // 2 orphans
+      expect(result.noteCount).toBe(5); // 2 orphans + 3 total (broken link scan)
+      expect(result.estimatedAICalls).toBe(2); // ceil(2/50)=1 orphan chunk + 1 broken link scan
     });
   });
 

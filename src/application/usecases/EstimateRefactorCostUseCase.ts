@@ -24,11 +24,17 @@ export class EstimateRefactorCostUseCase {
   }
 
   private estimateReorganize(snapshot: VaultMetadataSnapshot): RefactorCostEstimate {
-    const noteCount = snapshot.totalNotes;
-    const chunkCount = Math.ceil(noteCount / REFACTOR_BATCH_SIZE);
+    const orphanCount = snapshot.noteEntries.filter(
+      n => n.backlinks.length === 0 && n.links.length === 0,
+    ).length;
+    const emptyCount = snapshot.noteEntries.filter(
+      n => n.wordCount === 0 && n.backlinks.length === 0 && n.links.length > 0,
+    ).length;
+    const noteCount = orphanCount + emptyCount;
+    const chunkCount = Math.ceil(orphanCount / REFACTOR_BATCH_SIZE);
     const analysisAICalls = chunkCount;
-    const synthesisAICalls = 1;
-    const estimatedAICalls = analysisAICalls + synthesisAICalls;
+    const tier2AICalls = 1;
+    const estimatedAICalls = analysisAICalls + tier2AICalls;
 
     return {
       estimatedAICalls,
@@ -41,17 +47,21 @@ export class EstimateRefactorCostUseCase {
 
   private estimateTagCleanup(snapshot: VaultMetadataSnapshot): RefactorCostEstimate {
     const tagCount = snapshot.tagFrequencies.length;
+    const untaggedCount = snapshot.noteEntries.filter(
+      n => n.tags.filter(t => t !== '#untagged').length === 0 && n.wordCount > 0,
+    ).length;
     const noteCount = snapshot.totalNotes;
     const tagChunkCount = Math.ceil(tagCount / REFACTOR_MAX_TAGS_IN_PROMPT);
+    const untaggedChunkCount = Math.ceil(untaggedCount / REFACTOR_BATCH_SIZE);
     const synthesisAICalls = 1;
-    const estimatedAICalls = tagChunkCount + synthesisAICalls;
+    const estimatedAICalls = tagChunkCount + synthesisAICalls + untaggedChunkCount;
 
     return {
       estimatedAICalls,
       estimatedCostUsd: round(estimatedAICalls * COST_PER_AI_CALL_USD),
       estimatedDurationSeconds: estimatedAICalls * SECONDS_PER_AI_CALL,
       noteCount,
-      chunkCount: tagChunkCount,
+      chunkCount: tagChunkCount + untaggedChunkCount,
       tagCount,
     };
   }
@@ -61,13 +71,14 @@ export class EstimateRefactorCostUseCase {
       n => n.backlinks.length === 0 && n.links.length === 0,
     ).length;
     const chunkCount = Math.ceil(orphanCount / REFACTOR_BATCH_SIZE);
-    const estimatedAICalls = chunkCount + 1;
+    const brokenLinkScanCalls = 1;
+    const estimatedAICalls = chunkCount + brokenLinkScanCalls;
 
     return {
       estimatedAICalls,
       estimatedCostUsd: round(estimatedAICalls * COST_PER_AI_CALL_USD),
       estimatedDurationSeconds: estimatedAICalls * SECONDS_PER_AI_CALL,
-      noteCount: orphanCount,
+      noteCount: orphanCount + snapshot.totalNotes,
       chunkCount,
     };
   }
