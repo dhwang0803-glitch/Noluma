@@ -130,6 +130,22 @@ export class PreferenceExtractor {
     return hasFolderDiff ? 'folder-routing' : 'tag-mapping';
   }
 
+  static computeProposalFingerprint(proposal: OrganizeVaultProposal): string {
+    const signalType = PreferenceExtractor.inferSignalType(proposal, 'rejected');
+    const mockSignal: PreferenceSignal = {
+      id: '', timestamp: 0, action: 'rejected',
+      signalType,
+      proposalType: proposal.type,
+      context: {
+        targetPath: proposal.targetPath as string,
+        diffs: proposal.diffs.map(d => ({ field: d.field, before: d.before, after: d.after })),
+        rationale: '', confidence: 0,
+      },
+    };
+    const pattern = PreferenceExtractor.extractPattern(mockSignal);
+    return `${signalType}|${pattern}|${proposal.type}`;
+  }
+
   private static isExclusionCandidate(proposal: OrganizeVaultProposal): boolean {
     const path = proposal.targetPath as string;
     return path.includes('Templates/') || path.includes('templates/');

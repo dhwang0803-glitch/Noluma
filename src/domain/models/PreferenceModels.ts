@@ -45,11 +45,20 @@ export interface FewShotExample {
   readonly action: PreferenceActionType;
 }
 
+export interface RejectDecayEntry {
+  readonly id: string;
+  readonly fingerprint: string;
+  readonly rejectedAt: number;
+  readonly expiresAt: number;
+  readonly label: string;
+}
+
 export interface PreferenceRuleSet {
   readonly version: number;
   readonly rules: ReadonlyArray<PreferenceRule>;
   readonly signals: ReadonlyArray<PreferenceSignal>;
   readonly fewShotExamples: ReadonlyArray<FewShotExample>;
+  readonly suppressions: ReadonlyArray<RejectDecayEntry>;
   readonly lastUpdated: number;
 }
 
@@ -59,6 +68,7 @@ export function createEmptyRuleSet(): PreferenceRuleSet {
     rules: [],
     signals: [],
     fewShotExamples: [],
+    suppressions: [],
     lastUpdated: 0,
   };
 }

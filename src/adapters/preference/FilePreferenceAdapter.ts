@@ -1,11 +1,13 @@
 import type { PreferencePort } from '../../application/ports/PreferencePort';
 import type { VaultAccessPort } from '../../application/ports/VaultAccessPort';
+import type { ConfigPort } from '../../application/ports/ConfigPort';
 import type {
   PreferenceRuleSet,
   PreferenceSignal,
   PreferenceSignalType,
   PreferenceActionType,
   PreferenceRule,
+  RejectDecayEntry,
 } from '../../domain/models/PreferenceModels';
 import { createEmptyRuleSet } from '../../domain/models/PreferenceModels';
 import { PreferenceExtractor } from '../../domain/services/PreferenceExtractor';
@@ -15,6 +17,7 @@ import {
   PREFERENCE_SIGNAL_MAX,
   PREFERENCE_FEWSHOT_MAX,
   PREFERENCE_RULE_THRESHOLD,
+  PREFERENCE_REJECT_DECAY_DAYS,
 } from '../../constants';
 
 export class FilePreferenceAdapter implements PreferencePort {
@@ -22,6 +25,7 @@ export class FilePreferenceAdapter implements PreferencePort {
 
   constructor(
     private readonly vault: VaultAccessPort,
+    private readonly config?: ConfigPort,
   ) {}
 
   private serialized<T>(fn: () => Promise<T>): Promise<T> {
@@ -34,10 +38,11 @@ export class FilePreferenceAdapter implements PreferencePort {
     const raw = await this.vault.readFileRaw(PREFERENCES_PATH);
     if (!raw) return null;
     try {
-      const parsed = JSON.parse(raw) as PreferenceRuleSet;
+      const parsed = JSON.parse(raw) as PreferenceRuleSet & { suppressions?: ReadonlyArray<RejectDecayEntry> };
       return {
         ...parsed,
         rules: parsed.rules.map(r => ({ ...r, source: r.source ?? 'learned' })),
+        suppressions: parsed.suppressions ?? [],
       };
     } catch {
       return null;
@@ -61,17 +66,47 @@ export class FilePreferenceAdapter implements PreferencePort {
       const learnedRules = PreferenceExtractor.deriveRules(allSignals, PREFERENCE_RULE_THRESHOLD);
       const fewShotExamples = PreferenceExtractor.buildFewShotExamples(allSignals, PREFERENCE_FEWSHOT_MAX);
 
+      let suppressions = [...existing.suppressions].filter(s => s.expiresAt > signal.timestamp);
+
+      if (signal.action === 'rejected') {
+        const fingerprint = this.computeFingerprint(signal);
+        const promotedPatterns = new Set(learnedRules.filter(r => r.action === 'rejected').map(r => `${r.ruleType}|${r.pattern}`));
+        const isPromoted = promotedPatterns.has(`${signal.signalType}|${PreferenceExtractor.extractPattern(signal)}`);
+
+        if (!isPromoted && !suppressions.some(s => s.fingerprint === fingerprint)) {
+          const decayDays = this.config
+            ? (await this.config.getSettings()).rejectDecayDays
+            : PREFERENCE_REJECT_DECAY_DAYS;
+          const entry: RejectDecayEntry = {
+            id: crypto.randomUUID(),
+            fingerprint,
+            rejectedAt: signal.timestamp,
+            expiresAt: signal.timestamp + decayDays * 86_400_000,
+            label: `${signal.signalType}: ${signal.context.targetPath}`,
+          };
+          suppressions.push(entry);
+        }
+
+        suppressions = suppressions.filter(s => !promotedPatterns.has(s.fingerprint.split('|').slice(0, 2).join('|')));
+      }
+
       const updated: PreferenceRuleSet = {
         version: existing.version,
         rules: [...manualRules, ...learnedRules],
         signals: allSignals,
         fewShotExamples,
+        suppressions,
         lastUpdated: signal.timestamp,
       };
 
       await this.save(updated);
       return updated;
     });
+  }
+
+  private computeFingerprint(signal: PreferenceSignal): string {
+    const pattern = PreferenceExtractor.extractPattern(signal);
+    return `${signal.signalType}|${pattern}|${signal.proposalType}`;
   }
 
   async deleteRule(ruleId: string): Promise<void> {
@@ -143,5 +178,31 @@ export class FilePreferenceAdapter implements PreferencePort {
       ruleSet.fewShotExamples,
       mode,
     );
+  }
+
+  async getSuppressedFingerprints(now: number): Promise<ReadonlyArray<string>> {
+    const ruleSet = await this.load();
+    if (!ruleSet) return [];
+    return ruleSet.suppressions
+      .filter(s => s.expiresAt > now)
+      .map(s => s.fingerprint);
+  }
+
+  async unsuppress(id: string): Promise<void> {
+    return this.serialized(async () => {
+      const ruleSet = await this.load();
+      if (!ruleSet) return;
+      const updated: PreferenceRuleSet = {
+        ...ruleSet,
+        suppressions: ruleSet.suppressions.filter(s => s.id !== id),
+      };
+      await this.save(updated);
+    });
+  }
+
+  async getSuppressions(): Promise<ReadonlyArray<RejectDecayEntry>> {
+    const ruleSet = await this.load();
+    if (!ruleSet) return [];
+    return ruleSet.suppressions;
   }
 }
