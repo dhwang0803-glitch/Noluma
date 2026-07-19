@@ -6,7 +6,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased] (development)
+## [0.8.0] - 2026-07-20
 
 ### Removed
 - **Quick Ask module extracted**: AI chat feature (Quick Ask) has been removed from Vaultend and extracted to a standalone plugin — [obsidian-vault-chat](https://github.com/dhwang0803-glitch/obsidian-vault-chat). Vaultend now focuses exclusively on vault maintenance and organization.
