@@ -92,6 +92,9 @@ export class GenerateRefactorPlanUseCase {
     );
 
     console.log(`[Vaultend:refactor] collectMetadata: raw=${noteEntries.length}, afterPrivacy=${filtered.length}, privacyRules=${privacyRules.length}`);
+    if (privacyRules.length > 0) {
+      console.log(`[Vaultend:refactor]   rules:`, privacyRules.map(r => ({ type: r.type, patternLen: r.pattern.length, enabled: r.enabled })));
+    }
     if (filtered.length < noteEntries.length) {
       const excluded = noteEntries.filter(n => !isNoteAllowedByRules(n.path, n.tags, [], privacyRules));
       console.log(`[Vaultend:refactor]   excluded samples:`, excluded.slice(0, 3).map(n => n.path));
