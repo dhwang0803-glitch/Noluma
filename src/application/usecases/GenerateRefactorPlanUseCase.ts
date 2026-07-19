@@ -411,6 +411,8 @@ export class GenerateRefactorPlanUseCase {
           });
           aiSuccessCount++;
           const parsed = tryParseJsonArray<PlacementResult>(response.content);
+          const expected = orphanChunks[i].length;
+          console.log(`[Vaultend:refactor] orphan chunk ${i + 1}: sent=${expected}, returned=${parsed.length}${parsed.length < expected ? ' ⚠️ PARTIAL' : ''}`);
           if (parsed.length > 0) allPlacements.push(...parsed);
         } catch (err) {
           lastReorgError = err;
@@ -538,14 +540,17 @@ export class GenerateRefactorPlanUseCase {
     folderTree: ReadonlyArray<string>,
   ): OrganizeVaultProposal[] {
     const proposals: OrganizeVaultProposal[] = [];
+    let sameFolderCount = 0;
+    let lowConfCount = 0;
+    let notFoundCount = 0;
 
     for (const placement of placements) {
       const entry = noteEntries.find(n => n.path === placement.path);
-      if (!entry) continue;
+      if (!entry) { notFoundCount++; continue; }
 
       const currentFolder = entry.folder || '/';
-      if (placement.suggestedFolder === currentFolder) continue;
-      if (placement.confidence < 0.3) continue;
+      if (placement.suggestedFolder === currentFolder) { sameFolderCount++; continue; }
+      if (placement.confidence < 0.3) { lowConfCount++; continue; }
 
       const fileName = placement.path.split('/').pop() ?? '';
       const newPath = placement.suggestedFolder
@@ -589,6 +594,7 @@ export class GenerateRefactorPlanUseCase {
       }));
     }
 
+    console.log(`[Vaultend:refactor] convertReorganize: total=${placements.length}, proposals=${proposals.length}, sameFolder=${sameFolderCount}, lowConf=${lowConfCount}, notFound=${notFoundCount}`);
     return proposals;
   }
 
