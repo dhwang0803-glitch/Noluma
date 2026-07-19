@@ -750,9 +750,9 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         this.maintenanceInterval = null;
         return;
       }
-      const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_VAULT_VIEW_TYPE);
+      const leaves = this.app.workspace.getLeavesOfType(MAINTENANCE_RESULT_VIEW_TYPE);
       if (leaves.length > 0) {
-        const view = leaves[0].view as OrganizeVaultView;
+        const view = leaves[0].view as MaintenanceResultView;
         if (view.isScanInProgress()) return;
       }
       this.isMaintenanceRunning = true;
