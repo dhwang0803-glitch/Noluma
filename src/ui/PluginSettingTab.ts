@@ -246,6 +246,21 @@ export class PluginSettingTab extends ObsidianSettingTab {
           });
       });
 
+    new Setting(containerEl)
+      .setName(t('settings.rejectDecayDays'))
+      .setDesc(t('settings.rejectDecayDaysDesc'))
+      .addText(text => {
+        text
+          .setPlaceholder('7')
+          .setValue(String(this.settings!.rejectDecayDays))
+          .onChange(async (value) => {
+            const parsed = parseInt(value, 10);
+            if (!isNaN(parsed) && parsed >= 1) {
+              await this.config.updateSettings({ rejectDecayDays: parsed });
+            }
+          });
+      });
+
     this.renderChipSetting(containerEl, {
       label: t('settings.excludeFolders'),
       desc: t('settings.excludeFoldersDesc'),
@@ -451,6 +466,40 @@ export class PluginSettingTab extends ObsidianSettingTab {
             .onClick(async () => {
               await this.preference!.resetAll();
               new Notice(t('settings.aiLearningResetConfirm'));
+              this.renderAILearningSection(container);
+            });
+        });
+    }
+
+    await this.renderSuppressionsSection(container);
+  }
+
+  private async renderSuppressionsSection(container: HTMLElement): Promise<void> {
+    if (!this.preference) return;
+    const suppressions = await this.preference.getSuppressions();
+    if (suppressions.length === 0) return;
+
+    container.createEl('h4', { text: t('settings.suppressionsTitle') });
+    container.createEl('p', {
+      text: t('settings.suppressionsDesc'),
+      cls: 'setting-item-description',
+    });
+
+    const now = Date.now();
+    for (const entry of suppressions) {
+      const remaining = Math.max(0, Math.ceil((entry.expiresAt - now) / 86_400_000));
+      const desc = remaining > 0
+        ? t('settings.suppressionExpires', { days: remaining })
+        : t('settings.suppressionExpired');
+
+      new Setting(container)
+        .setName(entry.label)
+        .setDesc(desc)
+        .addExtraButton(btn => {
+          btn.setIcon('x')
+            .setTooltip(t('settings.suppressionRemove'))
+            .onClick(async () => {
+              await this.preference!.unsuppress(entry.id);
               this.renderAILearningSection(container);
             });
         });

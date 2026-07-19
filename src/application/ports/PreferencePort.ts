@@ -3,6 +3,7 @@ import type {
   PreferenceSignal,
   PreferenceSignalType,
   PreferenceActionType,
+  RejectDecayEntry,
 } from '../../domain/models/PreferenceModels';
 
 export interface PreferencePort {
@@ -13,4 +14,7 @@ export interface PreferencePort {
   deleteRule(ruleId: string): Promise<void>;
   resetAll(): Promise<void>;
   addManualRule(ruleType: PreferenceSignalType, pattern: string, action: PreferenceActionType): Promise<void>;
+  getSuppressedFingerprints(now: number): Promise<ReadonlyArray<string>>;
+  unsuppress(id: string): Promise<void>;
+  getSuppressions(): Promise<ReadonlyArray<RejectDecayEntry>>;
 }

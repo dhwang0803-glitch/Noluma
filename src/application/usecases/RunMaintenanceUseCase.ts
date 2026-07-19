@@ -9,6 +9,7 @@ import { CorpusStatsPort } from '../ports/CorpusStatsPort';
 import { TfIdfCorpus } from '../../domain/services/TfIdfCorpus';
 import { tokenizeForTfIdf } from '../../domain/services/tokenize';
 import { TagNormalizationService, CanonicalTagGroup } from '../../domain/services/TagNormalizationService';
+import { FuzzyLinkMatcher } from '../../domain/services/FuzzyLinkMatcher';
 import type { TagEmbeddingCachePort } from '../ports/TagEmbeddingCachePort';
 import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { createTagName } from '../../domain/values/TagName';
@@ -308,7 +309,15 @@ export class RunMaintenanceUseCase {
       }
     }
 
-    return broken;
+    const vaultBasenames = [...basenameSet];
+    return broken.map(bl => {
+      const hashIdx = bl.targetLink.indexOf('#');
+      const baseTarget = hashIdx !== -1 ? bl.targetLink.substring(0, hashIdx) : bl.targetLink;
+      if (!baseTarget) return bl;
+      const match = FuzzyLinkMatcher.findBestMatch(baseTarget, vaultBasenames);
+      if (!match) return bl;
+      return { ...bl, suggestedFix: match.target, fixConfidence: match.score };
+    });
   }
 
   private async scanWikiLinks(

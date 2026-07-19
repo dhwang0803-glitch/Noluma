@@ -2,7 +2,7 @@ import { ItemView, Notice, Setting, WorkspaceLeaf } from 'obsidian';
 import { RunMaintenanceUseCase } from '../application/usecases/RunMaintenanceUseCase';
 import { ApplyMaintenanceActionUseCase, type ApplyResult } from '../application/usecases/ApplyMaintenanceActionUseCase';
 import { MaintenancePlan, BrokenLink, MissingTagSuggestion, DuplicatePair, OrphanNoteEntry, EmptyNoteEntry, DuplicateTagGroup } from '../domain/models/OrganizeModels';
-import type { MaintenanceAction, MaintenanceIssueType } from '../domain/models/MaintenanceAction';
+import type { MaintenanceAction, MaintenanceIssueType, LinkOrphan, FixBrokenLink } from '../domain/models/MaintenanceAction';
 import { NotePath } from '../domain/values/NotePath';
 import type { SeverityLevel } from '../domain/values/Severity';
 import { ISSUE_SEVERITY, getSeverity } from '../domain/values/Severity';
@@ -57,6 +57,7 @@ export class MaintenanceResultView extends ItemView {
     private readonly openFile: (path: string) => void,
     private readonly openFileSplit: (pathA: string, pathB: string) => void,
     private readonly onMergeRequest: (pair: DuplicatePair) => void,
+    private readonly onLinkOrphan?: (notePath: NotePath) => Promise<ReadonlyArray<NotePath>>,
   ) {
     super(leaf);
   }
@@ -512,17 +513,30 @@ export class MaintenanceResultView extends ItemView {
     if (filtered.length === 0) return;
     this.renderSectionHeading(container, 'broken-link', t('issue.brokenLinks', { count: filtered.length }));
 
+    const hasFixes = filtered.some(i => i.suggestedFix);
     const entries: BatchEntry[] = [];
-    this.renderBatchControls(container, entries, t('batch.selectedRemoveLinks'));
+    this.renderBatchControls(
+      container, entries,
+      hasFixes ? t('batch.selectedFixLinks') : t('batch.selectedRemoveLinks'),
+      false,
+      hasFixes ? t('batch.selectedRemoveLinks') : undefined,
+      hasFixes ? (e) => this.executeBatchWithAction(e, { kind: 'remove-broken-link' }) : undefined,
+      hasFixes,
+    );
 
     for (const item of filtered) {
+      const desc = item.suggestedFix
+        ? `[[${item.targetLink}]] → [[${item.suggestedFix}]] (${Math.round((item.fixConfidence ?? 0) * 100)}%)`
+        : `[[${item.targetLink}]]`;
       const settingEl = new Setting(container)
         .setName(`${this.basename(item.sourcePath)}:${item.lineNumber}`)
-        .setDesc(`[[${item.targetLink}]]`);
+        .setDesc(desc);
 
       entries.push({
         checkbox: this.prependCheckbox(settingEl),
-        action: { kind: 'remove-broken-link', sourcePath: item.sourcePath, targetLink: item.targetLink, lineNumber: item.lineNumber },
+        action: item.suggestedFix
+          ? { kind: 'fix-broken-link', sourcePath: item.sourcePath, targetLink: item.targetLink, fixedTarget: item.suggestedFix, lineNumber: item.lineNumber } satisfies FixBrokenLink
+          : { kind: 'remove-broken-link', sourcePath: item.sourcePath, targetLink: item.targetLink, lineNumber: item.lineNumber },
         setting: settingEl,
         issueType: 'broken-link',
         identifier: `${item.sourcePath as string}:${item.lineNumber}:${item.targetLink}`,
@@ -531,6 +545,19 @@ export class MaintenanceResultView extends ItemView {
       const linkEntry = entries[entries.length - 1];
 
       const brokenLinkKey = `broken-link:${item.sourcePath as string}:${item.lineNumber}:${item.targetLink}`;
+
+      if (item.suggestedFix) {
+        settingEl.addButton(btn => btn
+          .setButtonText(t('btn.fixLink'))
+          .setCta()
+          .onClick(() => this.executeAction(
+            { kind: 'fix-broken-link', sourcePath: item.sourcePath, targetLink: item.targetLink, fixedTarget: item.suggestedFix!, lineNumber: item.lineNumber } satisfies FixBrokenLink,
+            settingEl,
+            brokenLinkKey,
+            linkEntry,
+          )),
+        );
+      }
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.removeLink'))
@@ -584,6 +611,26 @@ export class MaintenanceResultView extends ItemView {
         .setButtonText(t('btn.open'))
         .onClick(() => this.openFile(entry.notePath as string)),
       );
+
+      if (this.onLinkOrphan) {
+        settingEl.addButton(btn => btn
+          .setButtonText(t('btn.linkOrphan'))
+          .setCta()
+          .onClick(async () => {
+            const links = await this.onLinkOrphan!(entry.notePath);
+            if (links.length === 0) {
+              new Notice(t('notice.noRelatedNotes'));
+              return;
+            }
+            await this.executeAction(
+              { kind: 'link-orphan', notePath: entry.notePath, suggestedLinks: links } satisfies LinkOrphan,
+              settingEl,
+              `orphan:${entry.notePath as string}`,
+              orphanEntry,
+            );
+          }),
+        );
+      }
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.archive'))

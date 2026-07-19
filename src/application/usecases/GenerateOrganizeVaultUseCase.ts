@@ -22,6 +22,7 @@ import { OrganizeVaultPort } from '../ports/OrganizeVaultPort';
 import { AIProviderPort } from '../ports/AIProviderPort';
 import { ConfigPort } from '../ports/ConfigPort';
 import type { PreferencePort } from '../ports/PreferencePort';
+import { PreferenceExtractor } from '../../domain/services/PreferenceExtractor';
 
 const AI_BATCH_SIZE = 10;
 const MERGE_BATCH_SIZE = 3;
@@ -52,7 +53,9 @@ export class GenerateOrganizeVaultUseCase {
     proposals.push(...this.generateEmptyNoteProposals(plan.emptyNotes));
     proposals.push(...await this.generateMergeProposals(plan.duplicateCandidates));
 
-    const result = createOrganizeVaultPlan(proposals, this.clock.now());
+    const now = this.clock.now();
+    const filtered = await this.filterSuppressed(proposals, now);
+    const result = createOrganizeVaultPlan(filtered, now);
     await this.store.save(result);
     return result;
   }
@@ -695,5 +698,16 @@ Return a JSON array where each element has:
       if (slash > 0) folderSet.add(pathStr.substring(0, slash));
     }
     return [...folderSet].sort();
+  }
+
+  private async filterSuppressed(
+    proposals: OrganizeVaultProposal[],
+    now: number,
+  ): Promise<OrganizeVaultProposal[]> {
+    if (!this.preference) return proposals;
+    const suppressed = await this.preference.getSuppressedFingerprints(now);
+    if (suppressed.length === 0) return proposals;
+    const suppressedSet = new Set(suppressed);
+    return proposals.filter(p => !suppressedSet.has(PreferenceExtractor.computeProposalFingerprint(p)));
   }
 }
