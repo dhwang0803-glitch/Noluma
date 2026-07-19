@@ -736,13 +736,15 @@ export class MaintenanceResultView extends ItemView {
         .onClick(() => this.openFileSplit(pair.noteA as string, pair.noteB as string)),
       );
 
-      settingEl.addButton(btn => btn
-        .setButtonText(t('btn.mergeWithAI'))
-        .setCta()
-        .onClick(async () => {
-          this.onMergeRequest(pair);
-        }),
-      );
+      if (ENABLE_PRO) {
+        settingEl.addButton(btn => btn
+          .setButtonText(t('btn.mergeWithAI'))
+          .setCta()
+          .onClick(async () => {
+            this.onMergeRequest(pair);
+          }),
+        );
+      }
 
       this.addDismissButton(settingEl, 'duplicate', `${pair.noteA as string}|${pair.noteB as string}`);
       this.applyPersistedState(entries[entries.length - 1]);

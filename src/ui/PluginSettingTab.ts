@@ -183,34 +183,36 @@ export class PluginSettingTab extends ObsidianSettingTab {
     new Setting(containerEl)
       .setDesc(t('settings.maintenanceScopeNote'));
 
-    const autoMaintenanceSetting = new Setting(containerEl)
-      .setName(t('settings.autoMaintenance'))
-      .setDesc(t('settings.autoMaintenanceDesc'));
+    if (ENABLE_PRO) {
+      const autoMaintenanceSetting = new Setting(containerEl)
+        .setName(t('settings.autoMaintenance'))
+        .setDesc(t('settings.autoMaintenanceDesc'));
 
-    autoMaintenanceSetting.addToggle(toggle => {
-      toggle
-        .setValue(this.settings!.maintenanceEnabled)
-        .onChange(async (value) => {
-          await this.config.updateSettings({ maintenanceEnabled: value });
-          this.onMaintenanceSettingsChanged?.();
-        });
-    });
-
-    new Setting(containerEl)
-      .setName(t('settings.maintenanceInterval'))
-      .setDesc(t('settings.maintenanceIntervalDesc'))
-      .addText(text => {
-        text
-          .setPlaceholder('60')
-          .setValue(String(this.settings!.maintenanceIntervalMinutes))
+      autoMaintenanceSetting.addToggle(toggle => {
+        toggle
+          .setValue(this.settings!.maintenanceEnabled)
           .onChange(async (value) => {
-            const parsed = parseInt(value, 10);
-            if (!isNaN(parsed) && parsed > 0) {
-              await this.config.updateSettings({ maintenanceIntervalMinutes: parsed });
-              this.onMaintenanceSettingsChanged?.();
-            }
+            await this.config.updateSettings({ maintenanceEnabled: value });
+            this.onMaintenanceSettingsChanged?.();
           });
       });
+
+      new Setting(containerEl)
+        .setName(t('settings.maintenanceInterval'))
+        .setDesc(t('settings.maintenanceIntervalDesc'))
+        .addText(text => {
+          text
+            .setPlaceholder('60')
+            .setValue(String(this.settings!.maintenanceIntervalMinutes))
+            .onChange(async (value) => {
+              const parsed = parseInt(value, 10);
+              if (!isNaN(parsed) && parsed > 0) {
+                await this.config.updateSettings({ maintenanceIntervalMinutes: parsed });
+                this.onMaintenanceSettingsChanged?.();
+              }
+            });
+        });
+    }
 
     new Setting(containerEl)
       .setName(t('settings.rejectDecayDays'))
