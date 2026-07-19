@@ -22,6 +22,7 @@ const en = {
   'notice.actionApplied': 'Action applied',
   'notice.noChangeNeeded': 'No changes to apply',
   'notice.noRelatedNotes': 'No related notes found',
+  'untagged.noMatchingTags': 'No matching tags',
   'notice.actionFailed': 'Action failed: {{error}}',
   'notice.noSelection': 'No items selected',
   'notice.batchResult': '{{success}} applied, {{failed}} failed',
