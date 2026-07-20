@@ -368,8 +368,16 @@ export class OrganizeNoteUseCase {
           for (const [path, emb] of context.cachedNoteEmbeddings) {
             if (path !== notePath) candidates.set(path, emb);
           }
+          const similar = NoteEmbeddingService.findSimilarNotes(currentEmb, candidates);
+          // DEBUG: log top similarities to diagnose threshold
+          const allSims: Array<{ path: string; sim: number }> = [];
+          for (const [path, emb] of candidates) {
+            allSims.push({ path: path as string, sim: TagNormalizationService.cosineSimilarity(currentEmb, emb) });
+          }
+          allSims.sort((a, b) => b.sim - a.sim);
+          console.debug(`Vaultend: [${notePath}] top-5 similarities:`, allSims.slice(0, 5).map(s => `${s.path}=${s.sim.toFixed(4)}`));
           return {
-            links: NoteEmbeddingService.findSimilarNotes(currentEmb, candidates).map(c => c.notePath),
+            links: similar.map(c => c.notePath),
             tokenUsage: noUsage,
           };
         }
@@ -413,7 +421,8 @@ export class OrganizeNoteUseCase {
         links: NoteEmbeddingService.findSimilarNotes(currentEmb, candidateEmbMap).map(c => c.notePath),
         tokenUsage: linkTokenUsage,
       };
-    } catch {
+    } catch (err) {
+      console.error('Vaultend: embedding link computation failed', err);
       return { links: [], tokenUsage: noUsage };
     }
   }

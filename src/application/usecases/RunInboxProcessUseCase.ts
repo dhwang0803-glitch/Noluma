@@ -147,8 +147,8 @@ export class OrganizeFolderUseCase {
 
         this.noteEmbeddingCache.retainOnly(cachedAllNotes);
         await this.noteEmbeddingCache.flush();
-      } catch {
-        // embedding 실패 시 링크 제안 없이 진행
+      } catch (err) {
+        console.error('Vaultend: note embedding batch failed', err);
       }
     }
 
