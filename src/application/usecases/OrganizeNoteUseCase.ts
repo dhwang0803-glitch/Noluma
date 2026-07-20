@@ -60,11 +60,18 @@ export class OrganizeNoteUseCase {
     const freqTags = allVaultTags.slice(0, MAX_FREQ_TAGS);
     const remainingTags = allVaultTags.slice(MAX_FREQ_TAGS);
 
-    const vaultTagEntries = remainingTags.length > 0 && this.tagEmbeddingCache
-      ? [...freqTags, ...await this.selectRelevantTagsByContent(
-          truncatedContent, remainingTags, context?.cachedTagEmbeddings, MAX_RELEVANCE_TAGS,
-        )]
-      : freqTags;
+    const zeroUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
+    let relevanceTokenUsage: TokenUsage = zeroUsage;
+    let vaultTagEntries: ReadonlyArray<{ tag: string; count: number }>;
+    if (remainingTags.length > 0 && this.tagEmbeddingCache) {
+      const relevanceResult = await this.selectRelevantTagsByContent(
+        truncatedContent, remainingTags, context?.cachedTagEmbeddings, MAX_RELEVANCE_TAGS,
+      );
+      vaultTagEntries = [...freqTags, ...relevanceResult.tags];
+      relevanceTokenUsage = relevanceResult.tokenUsage;
+    } else {
+      vaultTagEntries = freqTags;
+    }
 
     // Canonical index — use cache or build, then merge session tags
     let canonicalIndex = context?.cachedCanonicalIndex
@@ -128,19 +135,22 @@ export class OrganizeNoteUseCase {
     const newSuggestedTags = classification.suggestedTags
       .filter(t => !currentTagsLower.has(t.toLowerCase()) && !currentTagsLower.has(`#${t}`.toLowerCase()));
 
-    // 1차: 문자열 정규화 (형태 차이 해결)
-    const sanitizedTags = newSuggestedTags
-      .map(t => sanitizeTagName(t))
-      .filter(t => /^#[\w가-힣\-/]+$/.test(t))
-      .filter(t => !currentTagsLower.has(t.toLowerCase()))
-      .map(t => TagNormalizationService.resolveToCanonical(t, canonicalIndex));
+    // 1차: 문자열 정규화 — track original AI tag for reason propagation
+    const tagTransforms: Array<{ original: string; resolved: string }> = [];
+    for (const t of newSuggestedTags) {
+      const sanitized = sanitizeTagName(t);
+      if (!/^#[\w가-힣\-/]+$/.test(sanitized)) continue;
+      if (currentTagsLower.has(sanitized.toLowerCase())) continue;
+      const canonical = TagNormalizationService.resolveToCanonical(sanitized, canonicalIndex);
+      tagTransforms.push({ original: t, resolved: canonical });
+    }
+    const sanitizedTags = tagTransforms.map(x => x.resolved);
 
     // 2차: 임베딩 유사도 (교차 언어 해결) — 정규화에서 매칭 안 된 새 태그만
     const canonicalSet = new Set(canonicalIndex.map(g => g.canonical.toLowerCase()));
     const trulyNewTags = sanitizedTags.filter(t => !canonicalSet.has(t.toLowerCase()));
     let embeddingResolved = new Map<string, string>();
-    const emptyUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
-    let embeddingTokenUsage: TokenUsage = emptyUsage;
+    let embeddingTokenUsage: TokenUsage = zeroUsage;
     if (trulyNewTags.length > 0) {
       const embeddingResult = await this.resolveByEmbedding(
         trulyNewTags, canonicalIndex, context?.cachedTagEmbeddings,
@@ -149,21 +159,35 @@ export class OrganizeNoteUseCase {
       embeddingTokenUsage = embeddingResult.tokenUsage;
     }
 
-    const resolvedTags = sanitizedTags.map(t =>
-      embeddingResolved.get(t) ?? t,
-    );
+    // Apply embedding resolution and update transforms
+    for (const tx of tagTransforms) {
+      const emb = embeddingResolved.get(tx.resolved);
+      if (emb) tx.resolved = emb;
+    }
+    const resolvedTags = tagTransforms.map(tx => tx.resolved);
     const uniqueSanitized = [...new Set(resolvedTags)]
       .filter(t => !currentTagsLower.has(t.toLowerCase()));
 
-    // Build tagReasons map (resolved tag name → reason)
+    // Build tagReasons — use original AI tag names for lookup (survives canonical/embedding resolution)
     let tagReasons: ReadonlyMap<string, TagReason> | undefined;
     if (detailMap.size > 0) {
       const reasonMap = new Map<string, TagReason>();
       for (const tag of uniqueSanitized) {
-        const lookup = detailMap.get(tag.toLowerCase())
-          ?? detailMap.get(tag.replace(/^#/, '').toLowerCase());
-        if (lookup) {
-          reasonMap.set(tag, { score: lookup.score, isNew: lookup.isNew, reason: lookup.reason });
+        const originals = tagTransforms
+          .filter(tx => tx.resolved === tag)
+          .map(tx => tx.original);
+        let best: { score: number; isNew: boolean; reason: string } | undefined;
+        for (const orig of originals) {
+          const lookup = detailMap.get(orig.toLowerCase())
+            ?? detailMap.get(orig.replace(/^#/, '').toLowerCase());
+          if (lookup && (!best || lookup.score > best.score)) best = lookup;
+        }
+        if (!best) {
+          best = detailMap.get(tag.toLowerCase())
+            ?? detailMap.get(tag.replace(/^#/, '').toLowerCase());
+        }
+        if (best) {
+          reasonMap.set(tag, { score: best.score, isNew: best.isNew, reason: best.reason });
         }
       }
       if (reasonMap.size > 0) {
@@ -181,10 +205,10 @@ export class OrganizeNoteUseCase {
       suggestedLinks,
       summary: classification.summary,
       tokenUsage: {
-        promptTokens: classification.tokenUsage.promptTokens + embeddingTokenUsage.promptTokens,
-        completionTokens: classification.tokenUsage.completionTokens + embeddingTokenUsage.completionTokens,
-        totalTokens: classification.tokenUsage.totalTokens + embeddingTokenUsage.totalTokens,
-        estimatedCostUsd: classification.tokenUsage.estimatedCostUsd + embeddingTokenUsage.estimatedCostUsd,
+        promptTokens: classification.tokenUsage.promptTokens + embeddingTokenUsage.promptTokens + relevanceTokenUsage.promptTokens,
+        completionTokens: classification.tokenUsage.completionTokens + embeddingTokenUsage.completionTokens + relevanceTokenUsage.completionTokens,
+        totalTokens: classification.tokenUsage.totalTokens + embeddingTokenUsage.totalTokens + relevanceTokenUsage.totalTokens,
+        estimatedCostUsd: classification.tokenUsage.estimatedCostUsd + embeddingTokenUsage.estimatedCostUsd + relevanceTokenUsage.estimatedCostUsd,
       },
       tagReasons,
     };
@@ -201,13 +225,23 @@ export class OrganizeNoteUseCase {
     candidates: ReadonlyArray<{ tag: string; count: number }>,
     cachedEmbeddings?: Map<string, Float32Array>,
     maxRelevance: number = 50,
-  ): Promise<ReadonlyArray<{ tag: string; count: number }>> {
+  ): Promise<{ tags: ReadonlyArray<{ tag: string; count: number }>; tokenUsage: TokenUsage }> {
+    const noUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
     try {
       const contentResp = await this.aiProvider.callEmbedding({
         texts: [noteContent.slice(0, 2000)],
       });
+      let totalUsage = { ...contentResp.tokenUsage };
+      const addUsage = (u: TokenUsage) => {
+        totalUsage = {
+          promptTokens: totalUsage.promptTokens + u.promptTokens,
+          completionTokens: totalUsage.completionTokens + u.completionTokens,
+          totalTokens: totalUsage.totalTokens + u.totalTokens,
+          estimatedCostUsd: totalUsage.estimatedCostUsd + u.estimatedCostUsd,
+        };
+      };
       const contentEmb = contentResp.embeddings[0];
-      if (!contentEmb) return candidates.slice(0, maxRelevance);
+      if (!contentEmb) return { tags: candidates.slice(0, maxRelevance), tokenUsage: totalUsage };
 
       const tagNames = candidates.map(t => t.tag);
 
@@ -225,6 +259,7 @@ export class OrganizeNoteUseCase {
         }
         if (missing.length > 0) {
           const resp = await this.aiProvider.callEmbedding({ texts: missing });
+          addUsage(resp.tokenUsage);
           for (let i = 0; i < missing.length; i++) {
             fromCache.set(missing[i], resp.embeddings[i]);
           }
@@ -236,6 +271,7 @@ export class OrganizeNoteUseCase {
         const missing = tagNames.filter(t => !fromDisk.has(t));
         if (missing.length > 0) {
           const resp = await this.aiProvider.callEmbedding({ texts: missing });
+          addUsage(resp.tokenUsage);
           for (let i = 0; i < missing.length; i++) {
             fromDisk.set(missing[i], resp.embeddings[i]);
           }
@@ -249,9 +285,9 @@ export class OrganizeNoteUseCase {
         return { ...c, sim };
       });
       scored.sort((a, b) => b.sim - a.sim);
-      return scored.slice(0, maxRelevance);
+      return { tags: scored.slice(0, maxRelevance), tokenUsage: totalUsage };
     } catch {
-      return candidates.slice(0, maxRelevance);
+      return { tags: candidates.slice(0, maxRelevance), tokenUsage: noUsage };
     }
   }
 
