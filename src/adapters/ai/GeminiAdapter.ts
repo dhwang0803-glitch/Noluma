@@ -78,7 +78,7 @@ export class GeminiAdapter implements AIProviderPort {
 
   async callClassification(request: ClassificationRequest): Promise<ClassificationResponse> {
     const lang = request.locale ?? detectContentLanguage(request.text);
-    const prompt = PromptTemplates.classifyAndTag(request.text, request.existingTags ?? [], request.folderProfiles, request.currentFolder, request.locale, request.availableNotes);
+    const prompt = PromptTemplates.classifyAndTag(request.text, request.existingTags ?? [], request.locale, request.availableNotes);
     const completionResponse = await this.callCompletion({
       prompt,
       systemPrompt: PromptTemplates.classificationSystemPrompt(lang),
@@ -88,16 +88,12 @@ export class GeminiAdapter implements AIProviderPort {
     });
 
     const parsed = await this.parseJsonWithRetry(completionResponse.content, prompt);
-    const folder = (parsed.folder as string) || undefined;
-    const folderReason = (parsed.folderReason as string) || undefined;
     const relatedNotes = Array.isArray(parsed.relatedNotes)
       ? (parsed.relatedNotes as unknown[]).filter((n): n is string => typeof n === 'string')
       : [];
     return {
-      category: (parsed.category as string) ?? folder ?? '미분류',
+      category: (parsed.category as string) ?? '미분류',
       suggestedTags: this.parseTagsWithConfidence(parsed.tags),
-      suggestedFolder: folder,
-      folderReason,
       suggestedLinks: relatedNotes,
       summary: (parsed.summary as string) ?? '',
       confidence: (parsed.confidence as number) ?? 0.5,

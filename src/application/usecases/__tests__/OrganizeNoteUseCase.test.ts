@@ -16,7 +16,6 @@ describe('OrganizeNoteUseCase', () => {
     return {
       category: 'technology',
       suggestedTags: ['#typescript'],
-      suggestedFolder: undefined,
       suggestedLinks: [],
       summary: 'A note about TypeScript',
       confidence: 0.9,
@@ -261,26 +260,6 @@ describe('OrganizeNoteUseCase', () => {
         np('test.md'),
         expect.stringContaining('[[React]]'),
       );
-    });
-
-    it('suggestedFolder가 있으면 노트를 해당 폴더로 이동한다', async () => {
-      const vault = createMockVault({
-        readNote: vi.fn().mockResolvedValue(
-          createTestNote({ content: 'content' }),
-        ),
-        listNotes: vi.fn().mockResolvedValue([np('Projects/existing.md')]),
-      });
-      const ai = createMockAI({
-        callClassification: vi.fn().mockResolvedValue(
-          makeClassification({ suggestedFolder: 'Projects', suggestedTags: [] }),
-        ),
-      });
-
-      const uc = new OrganizeNoteUseCase(ai, vault, createMockHistory(), createMockConfig());
-      await uc.execute(np('inbox/note.md'), true);
-
-      expect(vault.writeNote).toHaveBeenCalledWith(np('Projects/note.md'), 'content');
-      expect(vault.deleteNote).toHaveBeenCalledWith(np('inbox/note.md'));
     });
 
     it('이력을 기록한다', async () => {

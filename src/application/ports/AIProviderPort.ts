@@ -31,9 +31,6 @@ export interface ClassificationRequest {
   readonly task: 'classify-and-tag' | 'suggest-tags' | 'suggest-links' | 'summarize';
   readonly existingTags?: ReadonlyArray<string>;
   readonly existingCategories?: ReadonlyArray<string>;
-  readonly existingFolders?: ReadonlyArray<string>;
-  readonly folderProfiles?: ReadonlyArray<{ folder: string; topTags: ReadonlyArray<string> }>;
-  readonly currentFolder?: string;
   readonly locale?: 'en' | 'ko';
   readonly availableNotes?: ReadonlyArray<string>;
 }
@@ -41,8 +38,6 @@ export interface ClassificationRequest {
 export interface ClassificationResponse {
   readonly category: string;
   readonly suggestedTags: ReadonlyArray<string>;
-  readonly suggestedFolder?: string;
-  readonly folderReason?: string;
   readonly suggestedLinks?: ReadonlyArray<string>;
   readonly summary: string;
   readonly confidence: number;

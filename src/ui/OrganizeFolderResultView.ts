@@ -23,9 +23,7 @@ interface OrganizeFolderEntry {
   historyEntryId?: string;
   selectedTags: string[];
   selectedLinks: NotePath[];
-  selectedFolder: string | undefined;
   container: HTMLElement;
-  currentPath?: string;
 }
 
 export class OrganizeFolderResultView extends ItemView {
@@ -315,8 +313,7 @@ export class OrganizeFolderResultView extends ItemView {
     const entryContainer = container.createDiv({ cls: 'organize-folder-entry' });
 
     const hasChanges = result.addedTags.length > 0
-      || result.suggestedLinks.length > 0
-      || result.suggestedMoveTarget;
+      || result.suggestedLinks.length > 0;
 
     const setting = new Setting(entryContainer);
     setting.setName(basename);
@@ -334,13 +331,9 @@ export class OrganizeFolderResultView extends ItemView {
       checkbox.addClass('vaultend-hidden');
     }
 
-    // Open button — uses currentPath after move
     setting.addButton(btn =>
       btn.setButtonText(t('btn.open'))
-        .onClick(() => {
-          const openPath = entry?.currentPath ?? pathStr;
-          this.openFile(openPath);
-        }),
+        .onClick(() => this.openFile(pathStr)),
     );
 
     const entry: OrganizeFolderEntry = {
@@ -351,7 +344,6 @@ export class OrganizeFolderResultView extends ItemView {
       historyEntryId: result.historyEntryId,
       selectedTags: result.addedTags.map(tag => tag as string),
       selectedLinks: [...result.suggestedLinks],
-      selectedFolder: result.suggestedMoveTarget,
       container: entryContainer,
     };
     this.entries.push(entry);
@@ -407,9 +399,6 @@ export class OrganizeFolderResultView extends ItemView {
       this.renderLinkSection(detailsEl, entry);
     }
 
-    // Move section (always shown — "keep current" when no move suggested)
-    this.renderMoveSection(detailsEl, entry);
-
     // Action buttons
     if (entry.status === 'applied') {
       this.markEntryApplied(entry);
@@ -457,35 +446,6 @@ export class OrganizeFolderResultView extends ItemView {
     }
   }
 
-  private renderMoveSection(container: HTMLElement, entry: OrganizeFolderEntry): void {
-    const section = container.createDiv({ cls: 'organize-folder-section' });
-    section.createEl('span', { text: t('organizeFolder.moveSection'), cls: 'organize-folder-section-label' });
-
-    if (!entry.result.suggestedMoveTarget) {
-      section.createEl('span', {
-        text: t('organize.keepCurrent'),
-        cls: 'organize-folder-keep-current',
-      });
-    } else if (entry.status === 'pending' && !this.autoApplyMode) {
-      section.createEl('span', {
-        text: `→ ${entry.selectedFolder}/`,
-        cls: 'organize-folder-move-target',
-      });
-    } else {
-      section.createEl('span', {
-        text: `→ ${entry.result.suggestedMoveTarget}/`,
-        cls: 'organize-folder-move-target',
-      });
-    }
-
-    if (entry.result.folderReason) {
-      section.createEl('span', {
-        text: t('organizeFolder.folderReason', { reason: entry.result.folderReason }),
-        cls: 'organize-folder-reason',
-      });
-    }
-  }
-
   private async applyEntry(entry: OrganizeFolderEntry): Promise<boolean> {
     if (entry.status !== 'pending') return false;
 
@@ -499,12 +459,11 @@ export class OrganizeFolderResultView extends ItemView {
         action: 'classify',
         notePath: entry.result.notePath,
         timestamp: createTimestamp(Date.now()),
-        description: `Organized: folder=${entry.selectedFolder ?? 'keep'}, tags=${entry.selectedTags.length}`,
+        description: `Organized: tags=${entry.selectedTags.length}, links=${entry.selectedLinks.length}`,
         previousContent,
         metadata: {
           tags: entry.selectedTags,
           links: entry.selectedLinks.map(l => l as string),
-          moveTarget: entry.selectedFolder,
         },
       });
 
@@ -514,13 +473,8 @@ export class OrganizeFolderResultView extends ItemView {
       if (entry.selectedLinks.length > 0) {
         await this.applyActions.addLinks(entry.result.notePath, entry.selectedLinks);
       }
-      if (entry.selectedFolder) {
-        await this.applyActions.moveNote(entry.result.notePath, entry.selectedFolder);
-        entry.currentPath = `${entry.selectedFolder}/${(entry.result.notePath as string).split('/').pop() ?? ''}`;
-      }
-
       // Mark as processed
-      const currentNotePath = entry.currentPath ?? (entry.result.notePath as string);
+      const currentNotePath = entry.result.notePath as string;
       const stillExists = await this.vault.exists(currentNotePath as unknown as NotePath);
       if (stillExists) {
         await this.vault.updateFrontmatter(currentNotePath as unknown as NotePath, { processed: true });

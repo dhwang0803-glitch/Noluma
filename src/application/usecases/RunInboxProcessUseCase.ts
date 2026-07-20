@@ -1,4 +1,4 @@
-import { OrganizeNoteUseCase, OrganizeContext, FolderProfile } from './OrganizeNoteUseCase';
+import { OrganizeNoteUseCase, OrganizeContext } from './OrganizeNoteUseCase';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { ConfigPort } from '../ports/ConfigPort';
 import { HistoryPort } from '../ports/HistoryPort';
@@ -65,26 +65,7 @@ export class OrganizeFolderUseCase {
     const MAX_TAGS = 200;
     const cachedVaultTags = (await this.vault.listAllTags()).slice(0, MAX_TAGS);
     const cachedAllNotes = await this.vault.listNotes();
-    const cachedFolders = await this.vault.listFolders();
     const cachedCanonicalIndex = TagNormalizationService.buildCanonicalIndex(cachedVaultTags);
-
-    // Folder profiles — batch cache to avoid per-note listNotesWithMetadata
-    const noteEntries = await this.vault.listNotesWithMetadata();
-    const tagCountByFolder = new Map<string, Map<string, number>>();
-    for (const entry of noteEntries) {
-      if (!entry.folder) continue;
-      let tagMap = tagCountByFolder.get(entry.folder);
-      if (!tagMap) { tagMap = new Map(); tagCountByFolder.set(entry.folder, tagMap); }
-      for (const t of entry.tags) {
-        tagMap.set(t, (tagMap.get(t) ?? 0) + 1);
-      }
-    }
-    const cachedFolderProfiles: FolderProfile[] = (cachedFolders as string[]).map(f => {
-      const tagMap = tagCountByFolder.get(f);
-      if (!tagMap || tagMap.size === 0) return { folder: f, topTags: [] };
-      const sorted = [...tagMap.entries()].sort((a, b) => b[1] - a[1]);
-      return { folder: f, topTags: sorted.slice(0, 3).map(([tag]) => tag) };
-    });
 
     // canonical 태그 임베딩: 영속 캐시 우선 조회 → miss만 API 호출
     let cachedTagEmbeddings: Map<string, Float32Array> | undefined;
@@ -131,9 +112,7 @@ export class OrganizeFolderUseCase {
           cachedCanonicalIndex,
           cachedTagEmbeddings,
           cachedVaultTags,
-          cachedFolders,
           cachedAllNotes,
-          cachedFolderProfiles,
         };
 
         const result = await this.organizeNote.execute(

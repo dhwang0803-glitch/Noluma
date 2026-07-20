@@ -1,4 +1,4 @@
-import { NotePath, createNotePath } from '../../domain/values/NotePath';
+import { NotePath } from '../../domain/values/NotePath';
 import { createTagName, sanitizeTagName } from '../../domain/values/TagName';
 import { createTimestamp } from '../../domain/values/Timestamp';
 import { OrganizeResult } from '../../domain/models/OrganizeModels';
@@ -18,19 +18,12 @@ import {
 
 const EMBEDDING_SIMILARITY_THRESHOLD = 0.85;
 
-export interface FolderProfile {
-  readonly folder: string;
-  readonly topTags: ReadonlyArray<string>;
-}
-
 export interface OrganizeContext {
   readonly sessionTags?: ReadonlyArray<string>;
   readonly cachedCanonicalIndex?: ReadonlyArray<CanonicalTagGroup>;
   readonly cachedTagEmbeddings?: Map<string, Float32Array>;
   readonly cachedVaultTags?: ReadonlyArray<{ tag: string; count: number }>;
-  readonly cachedFolders?: ReadonlyArray<string>;
   readonly cachedAllNotes?: ReadonlyArray<NotePath>;
-  readonly cachedFolderProfiles?: ReadonlyArray<FolderProfile>;
 }
 
 export class OrganizeNoteUseCase {
@@ -42,15 +35,6 @@ export class OrganizeNoteUseCase {
     private readonly tagEmbeddingCache?: TagEmbeddingCachePort,
   ) {}
 
-  /**
-   * 단일 노트를 정리한다: 분류, 태깅, 링크 제안.
-   *
-   * 1. 노트 내용 읽기
-   * 2. AI에게 분류 및 태그 제안 요청
-   * 3. 기존 Vault 노트 목록과 대조하여 링크 제안
-   * 4. 프론트매터에 태그 추가 (옵션)
-   * 5. 결과 반환
-   */
   async execute(notePath: NotePath, autoApply: boolean, context?: OrganizeContext): Promise<OrganizeResult> {
     const note = await this.vault.readNote(notePath);
     if (!note) {
@@ -62,7 +46,6 @@ export class OrganizeNoteUseCase {
 
     // Note list — use cache or fetch
     const allNotes = context?.cachedAllNotes ?? await this.vault.listNotes();
-    const existingFolders = context?.cachedFolders ?? await this.vault.listFolders();
 
     // Vault-wide tags — use cache or fetch
     const MAX_TAGS = 200;
@@ -77,15 +60,6 @@ export class OrganizeNoteUseCase {
     }
     const deduplicatedTags = canonicalIndex.map(g => g.canonical);
 
-    // Extract current folder for AI context
-    const currentFolder = (notePath as string).includes('/')
-      ? (notePath as string).substring(0, (notePath as string).lastIndexOf('/'))
-      : '';
-
-    // Folder profiles — use cache or build
-    const folderProfiles = context?.cachedFolderProfiles
-      ?? await this.buildFolderProfiles(existingFolders as string[]);
-
     // Prepare available notes for combined classification + link suggestion
     const MAX_NOTES = 200;
     const linkCandidates = allNotes.filter(n => n !== notePath);
@@ -99,8 +73,6 @@ export class OrganizeNoteUseCase {
       text: redactedContent,
       task: 'classify-and-tag',
       existingTags: deduplicatedTags,
-      folderProfiles: folderProfiles.slice(0, 50),
-      currentFolder: currentFolder || undefined,
       locale: getLocale(),
       availableNotes: noteNames.length > 0 ? noteNames : undefined,
     });
@@ -119,8 +91,6 @@ export class OrganizeNoteUseCase {
         classifiedCategory: classification.category,
         addedTags: [],
         suggestedLinks: [],
-        suggestedMoveTarget: undefined,
-        folderReason: classification.folderReason,
         summary: classification.summary,
         tokenUsage: classification.tokenUsage,
         lowConfidence: true,
@@ -131,12 +101,6 @@ export class OrganizeNoteUseCase {
     const currentTagsLower = new Set(currentTags.map(t => t.toLowerCase()));
     const newSuggestedTags = classification.suggestedTags
       .filter(t => !currentTagsLower.has(t.toLowerCase()) && !currentTagsLower.has(`#${t}`.toLowerCase()));
-
-    // Folder suggestion — prefer existing folders, allow new folder creation
-    const rawFolder = classification.suggestedFolder;
-    const suggestedFolder = rawFolder && rawFolder !== currentFolder
-      ? rawFolder
-      : undefined;
 
     // 1차: 문자열 정규화 (형태 차이 해결)
     const sanitizedTags = newSuggestedTags
@@ -165,9 +129,6 @@ export class OrganizeNoteUseCase {
     const uniqueSanitized = [...new Set(resolvedTags)]
       .filter(t => !currentTagsLower.has(t.toLowerCase()));
 
-    const folderSetForCheck = new Set(existingFolders as string[]);
-    const isNewFolder = suggestedFolder ? !folderSetForCheck.has(suggestedFolder) : false;
-
     let historyEntryId: string | undefined;
 
     const result: OrganizeResult = {
@@ -176,9 +137,6 @@ export class OrganizeNoteUseCase {
       classifiedCategory: classification.category,
       addedTags: uniqueSanitized.map(t => createTagName(t)),
       suggestedLinks,
-      suggestedMoveTarget: suggestedFolder,
-      folderReason: classification.folderReason,
-      isNewFolder,
       summary: classification.summary,
       tokenUsage: {
         promptTokens: classification.tokenUsage.promptTokens + embeddingTokenUsage.promptTokens,
@@ -193,25 +151,6 @@ export class OrganizeNoteUseCase {
     }
 
     return historyEntryId ? { ...result, historyEntryId } : result;
-  }
-
-  private async buildFolderProfiles(folders: ReadonlyArray<string>): Promise<ReadonlyArray<FolderProfile>> {
-    const noteEntries = await this.vault.listNotesFolderAndTags();
-    const tagCountByFolder = new Map<string, Map<string, number>>();
-    for (const entry of noteEntries) {
-      if (!entry.folder) continue;
-      let tagMap = tagCountByFolder.get(entry.folder);
-      if (!tagMap) { tagMap = new Map(); tagCountByFolder.set(entry.folder, tagMap); }
-      for (const t of entry.tags) {
-        tagMap.set(t, (tagMap.get(t) ?? 0) + 1);
-      }
-    }
-    return folders.map(f => {
-      const tagMap = tagCountByFolder.get(f);
-      if (!tagMap || tagMap.size === 0) return { folder: f, topTags: [] };
-      const sorted = [...tagMap.entries()].sort((a, b) => b[1] - a[1]);
-      return { folder: f, topTags: sorted.slice(0, 3).map(([tag]) => tag) };
-    });
   }
 
   private async resolveByEmbedding(
@@ -356,29 +295,17 @@ export class OrganizeNoteUseCase {
       }
     }
 
-    if (result.suggestedMoveTarget) {
-      const filename = (notePath as string).split('/').pop() ?? '';
-      const newPath = createNotePath(`${result.suggestedMoveTarget as string}/${filename}`);
-      const currentNote = await this.vault.readNote(notePath);
-      if (currentNote) {
-        await this.vault.writeNote(newPath, currentNote.content);
-        await this.vault.updateFrontmatter(newPath, { processed: true });
-        await this.vault.deleteNote(notePath);
-      }
-    }
-
     const entryId = crypto.randomUUID();
     await this.history.record({
       id: entryId,
       action: 'classify',
       notePath,
       timestamp: createTimestamp(Date.now()),
-      description: `Organized: folder=${result.suggestedMoveTarget ?? 'keep'}, tags=${result.addedTags.length}`,
+      description: `Organized: tags=${result.addedTags.length}, links=${result.suggestedLinks.length}`,
       previousContent,
       metadata: {
         tags: result.addedTags.map(t => t as string),
         links: result.suggestedLinks.map(l => l as string),
-        moveTarget: result.suggestedMoveTarget,
       },
     });
     return entryId;
