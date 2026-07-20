@@ -252,6 +252,10 @@ const en = {
   'settings.archiveFolder': 'Archive Folder',
   'settings.archiveFolderDesc': 'Target folder for archived notes',
 
+  'settings.linkSimilarity': 'Link Suggestion',
+  'settings.linkSimilarityThreshold': 'Similarity Threshold',
+  'settings.linkSimilarityThresholdDesc': 'Minimum cosine similarity for embedding-based link suggestions (0.40–0.80). Lower values suggest more links but may include noise.',
+
   'settings.search': 'Search (Advanced)',
   'settings.rrfEmbeddingWeight': 'Embedding weight',
   'settings.rrfEmbeddingWeightDesc': 'Weight multiplier for embedding results in hybrid search (default: 4.0). Higher values favor semantic similarity over keyword match.',

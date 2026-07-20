@@ -107,6 +107,7 @@ const DEFAULT_SETTINGS: PluginSettings = {
   organizeConfidenceThreshold: 0,
   embeddingsEnabled: false,
   embeddingsModel: '',
+  linkSimilarityThreshold: 0.55,
   rrfEmbeddingWeight: 4.0,
   rrfK: 20,
   privacyRules: [],

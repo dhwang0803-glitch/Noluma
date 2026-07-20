@@ -18,6 +18,7 @@ import {
   CanonicalTagGroup,
 } from '../../domain/services/TagNormalizationService';
 import { NoteEmbeddingService } from '../../domain/services/NoteEmbeddingService';
+import { stripFrontmatter } from '../../domain/services/tokenize';
 
 const EMBEDDING_SIMILARITY_THRESHOLD = 0.85;
 
@@ -96,7 +97,7 @@ export class OrganizeNoteUseCase {
 
     // Embedding-based link suggestion (deterministic)
     const linkResult = await this.computeEmbeddingLinks(
-      notePath, truncatedContent, allNotes, context,
+      notePath, truncatedContent, allNotes, context, settings.linkSimilarityThreshold,
     );
     const suggestedLinks = linkResult.links;
     const linkTokenUsage = linkResult.tokenUsage;
@@ -358,6 +359,7 @@ export class OrganizeNoteUseCase {
     content: string,
     allNotes: ReadonlyArray<NotePath>,
     context?: OrganizeContext,
+    threshold?: number,
   ): Promise<{ links: NotePath[]; tokenUsage: TokenUsage }> {
     const noUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
     try {
@@ -368,7 +370,7 @@ export class OrganizeNoteUseCase {
           for (const [path, emb] of context.cachedNoteEmbeddings) {
             if (path !== notePath) candidates.set(path, emb);
           }
-          const similar = NoteEmbeddingService.findSimilarNotes(currentEmb, candidates);
+          const similar = NoteEmbeddingService.findSimilarNotes(currentEmb, candidates, threshold);
           return {
             links: similar.map(c => c.notePath),
             tokenUsage: noUsage,
@@ -384,7 +386,7 @@ export class OrganizeNoteUseCase {
       if (topNames.length === 0) return { links: [], tokenUsage: noUsage };
 
       const safeTitle = title || 'untitled';
-      const safeBody = content.slice(0, 8000) || title || 'empty';
+      const safeBody = stripFrontmatter(content).slice(0, 8000) || title || 'empty';
       const [titleResp, bodyResp, candidateResp] = await Promise.all([
         this.aiProvider.callEmbedding({ texts: [safeTitle] }),
         this.aiProvider.callEmbedding({ texts: [safeBody] }),
@@ -413,7 +415,7 @@ export class OrganizeNoteUseCase {
       }
 
       return {
-        links: NoteEmbeddingService.findSimilarNotes(currentEmb, candidateEmbMap).map(c => c.notePath),
+        links: NoteEmbeddingService.findSimilarNotes(currentEmb, candidateEmbMap, threshold).map(c => c.notePath),
         tokenUsage: linkTokenUsage,
       };
     } catch (err) {
