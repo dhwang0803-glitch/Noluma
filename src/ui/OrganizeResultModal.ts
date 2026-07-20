@@ -83,8 +83,21 @@ export class OrganizeResultModal extends Modal {
       return;
     }
     for (const tag of this.selectedTags) {
-      const chip = tagListEl.createDiv('organize-chip');
+      const reason = this.result.tagReasons?.get(tag) ?? this.result.tagReasons?.get(`#${tag}`);
+      const chipClasses = ['organize-chip'];
+      if (reason?.isNew) chipClasses.push('organize-chip-new');
+
+      const chip = tagListEl.createDiv(chipClasses.join(' '));
+      if (reason?.reason) {
+        chip.setAttribute('title', reason.reason);
+      }
       chip.createEl('span', { text: `#${tag}` });
+      if (reason) {
+        chip.createEl('span', {
+          text: String(reason.score),
+          cls: 'organize-chip-score',
+        });
+      }
       const removeBtn = chip.createEl('span', { text: '×', cls: 'organize-chip-remove' });
       removeBtn.addEventListener('click', () => {
         this.selectedTags = this.selectedTags.filter(t2 => t2 !== tag);
