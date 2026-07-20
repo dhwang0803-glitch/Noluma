@@ -80,6 +80,7 @@ export interface PluginSettings {
   // Embeddings
   readonly embeddingsEnabled: boolean;
   readonly embeddingsModel: string;
+  readonly linkSimilarityThreshold: number;
 
   // Hybrid search (RRF) tuning
   readonly rrfEmbeddingWeight: number;

@@ -30,7 +30,7 @@ export function tokenizeForTfIdf(text: string): string[] {
   return tokens.filter(t => !EN_STOPWORDS.has(t) && !KO_STOPWORDS.has(t));
 }
 
-function stripFrontmatter(text: string): string {
+export function stripFrontmatter(text: string): string {
   return text.replace(/^---[\s\S]*?---\s*/, '');
 }
 

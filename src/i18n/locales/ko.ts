@@ -252,6 +252,10 @@ const ko: { [K in keyof typeof en]: string } = {
   'settings.archiveFolder': '아카이브 폴더',
   'settings.archiveFolderDesc': '노트 아카이브 시 이동할 대상 폴더',
 
+  'settings.linkSimilarity': '링크 제안',
+  'settings.linkSimilarityThreshold': '유사도 임계값',
+  'settings.linkSimilarityThresholdDesc': '임베딩 기반 링크 제안의 최소 코사인 유사도 (0.40–0.80). 낮을수록 더 많은 링크를 제안하지만 노이즈가 포함될 수 있습니다.',
+
   'settings.search': '검색 (고급)',
   'settings.rrfEmbeddingWeight': '임베딩 가중치',
   'settings.rrfEmbeddingWeightDesc': '하이브리드 검색에서 임베딩 결과의 가중치 배율 (기본: 4.0). 높을수록 의미적 유사성을 우선합니다.',
