@@ -29,10 +29,10 @@
 | 0005 | [Quick Ask 원샷 → 멀티턴 채팅 전환](./adr/ADR-0005-quickask-multiturn-chat.md) | Superseded (ADR-0009) | 2026-07-15 |
 | 0006 | [클립보드 캡처 기능 제거](./adr/ADR-0006-clipboard-capture-removal.md) | Accepted | 2026-07-16 |
 | 0007 | [Free/Pro 기능 게이팅 시스템](./adr/ADR-0007-free-pro-gating.md) | Accepted | 2026-07-17 |
-| 0008 | [임베딩 → LLM 기반 링크 제안 전환](./adr/ADR-0008-llm-link-suggestion.md) | Accepted | 2026-07-21 |
 | 0008 | [AI API 배치 처리 + Rate Limit Circuit Breaker](./adr/ADR-0008-ai-batch-rate-limit-circuit-breaker.md) | Accepted | 2026-07-19 |
 | 0009 | [Quick Ask 모듈 분리 — obsidian-vault-chat로 이전](./adr/ADR-0009-quickask-extraction.md) | Accepted | 2026-07-20 |
 | 0010 | [Organize Note/Folder 폴더 이동 제안 제거](./adr/ADR-0010-remove-folder-move-suggestion.md) | Accepted | 2026-07-20 |
+| 0011 | [임베딩 → LLM 기반 링크 제안 전환](./adr/ADR-0011-llm-link-suggestion.md) | Accepted | 2026-07-21 |
 
 ## 구현 결정 메모 (비-ADR)
 
@@ -53,3 +53,4 @@
 - **AI Rate Limit Circuit Breaker + 배치 처리** (2026-07-19, ADR-0008): Gemini Free RPM 10 제한으로 제안서 생성 6분+ 행 발생. 429 즉시 실패(circuit breaker) + broken link·merge 배치 처리(29회→8회)로 해결. 503만 재시도 유지.
 - **Quick Ask 모듈 분리** (2026-07-20, PR #169, ADR-0009): "Vault Dependabot" 포지셔닝에 맞지 않는 AI 채팅 기능을 별도 플러그인(obsidian-vault-chat)으로 이전. QuickAskUseCase, QuickAskModal, QuickAskModels, 관련 프롬프트·CSS·i18n·설정 전체 삭제 (-2,425줄). TokenUsage 인터페이스는 공유 타입으로 `src/domain/models/TokenUsage.ts`에 보존.
 - **Organize 폴더 이동 제안 제거** (2026-07-20, PR #192, ADR-0010): 커뮤니티 리서치 결과 대다수 유저가 flat/Zettelkasten 구조 사용. 폴더 이동 제안 제거하고 절약된 토큰 예산을 태그/링크 정확도 향상에 재투자. 21개 파일 -419줄. Vault Refactor(Pro)의 폴더 코드는 유지.
+- **LLM 기반 링크 제안 구현 상세** (2026-07-21, PR #208, ADR-0011): `callClassification` 응답에 `onelineSummary` 필드를 피기백하여 추가 API 호출 없이 요약 수집. `NoteEmbeddingCachePort`에 요약 캐시. Organize Folder는 2-pass 배치(Pass 1: 분류+태그+요약 수집, Pass 2: 단일 `callCompletion`으로 LLM 링크 선택). 단일 노트 모드는 캐시된 요약으로 LLM 호출, 캐시 없으면 임베딩 폴백. 토큰 안전장치: `MAX_VAULT_NOTES_FOR_LINK=200`, `maxTokens≤4000`. Provider-agnostic — 기존 `callCompletion` 재사용으로 OpenAI/Gemini/DeepSeek/Ollama 모두 지원.
