@@ -161,7 +161,6 @@ describe('GeminiAdapter', () => {
       const aiJson = {
         category: 'science',
         tags: ['#physics'],
-        folder: 'Science',
         summary: 'Physics note',
         confidence: 0.88,
       };
@@ -183,17 +182,15 @@ describe('GeminiAdapter', () => {
 
       expect(result.category).toBe('science');
       expect(result.suggestedTags).toEqual(['#physics']);
-      expect(result.suggestedFolder).toBe('Science');
     });
 
-    it('per-tag confidence 형식을 파싱하고 0.7 미만을 필터링한다', async () => {
+    it('per-tag score 형식을 파싱하고 70 미만을 필터링한다', async () => {
       const aiJson = {
         tags: [
-          { tag: '#physics', confidence: 0.95 },
-          { tag: '#weak-match', confidence: 0.3 },
-          { tag: '#quantum', confidence: 0.82 },
+          { tag: '#physics', score: 95, isNew: false, reason: 'core physics topic' },
+          { tag: '#weak-match', score: 30, isNew: true, reason: 'loosely related' },
+          { tag: '#quantum', score: 82, isNew: true, reason: 'quantum mechanics content' },
         ],
-        folder: 'Science',
         summary: 'Quantum note',
         confidence: 0.88,
       };
@@ -215,6 +212,11 @@ describe('GeminiAdapter', () => {
 
       expect(result.suggestedTags).toEqual(['#physics', '#quantum']);
       expect(result.suggestedTags).not.toContain('#weak-match');
+      expect(result.tagDetails).toBeDefined();
+      expect(result.tagDetails).toHaveLength(2);
+      expect(result.tagDetails![1]).toEqual({
+        tag: '#quantum', score: 82, isNew: true, reason: 'quantum mechanics content',
+      });
     });
   });
 

@@ -1,7 +1,8 @@
 import { requestUrl, RequestUrlParam } from 'obsidian';
 import { AIProviderPort, CompletionRequest, CompletionResponse,
          ClassificationRequest, ClassificationResponse,
-         EmbeddingRequest, EmbeddingResponse } from '../../application/ports/AIProviderPort';
+         EmbeddingRequest, EmbeddingResponse,
+         TagDetail } from '../../application/ports/AIProviderPort';
 import { AIProviderError, AIParseError, RateLimitError } from '../../domain/errors/DomainErrors';
 import { PromptTemplates } from '../../application/PromptTemplates';
 import { detectContentLanguage } from '../../application/utils/detectContentLanguage';
@@ -67,8 +68,6 @@ export class OpenAICompatAdapter implements AIProviderPort {
     const prompt = PromptTemplates.classifyAndTag(
       request.text,
       request.existingTags ?? [],
-      request.folderProfiles,
-      request.currentFolder,
       request.locale,
       request.availableNotes,
     );
@@ -76,27 +75,25 @@ export class OpenAICompatAdapter implements AIProviderPort {
     const completionResponse = await this.callCompletion({
       prompt,
       systemPrompt: PromptTemplates.classificationSystemPrompt(lang),
-      maxTokens: 700,
+      maxTokens: 1000,
       temperature: 0.1,
       jsonMode: true,
     });
 
     const parsed = this.parseJson(completionResponse.content);
 
-    const folder = (parsed.folder as string) || undefined;
-    const folderReason = (parsed.folderReason as string) || undefined;
     const relatedNotes = Array.isArray(parsed.relatedNotes)
       ? (parsed.relatedNotes as unknown[]).filter((n): n is string => typeof n === 'string')
       : [];
+    const { tags, details } = this.parseTagsWithDetails(parsed.tags, request.existingTags);
     return {
-      category: (parsed.category as string) ?? folder ?? '미분류',
-      suggestedTags: this.parseTags(parsed.tags),
-      suggestedFolder: folder,
-      folderReason,
+      category: (parsed.category as string) ?? '미분류',
+      suggestedTags: tags,
       suggestedLinks: relatedNotes,
       summary: (parsed.summary as string) ?? '',
       confidence: (parsed.confidence as number) ?? 0.5,
       tokenUsage: completionResponse.tokenUsage,
+      tagDetails: details.length > 0 ? details : undefined,
     };
   }
 
@@ -144,14 +141,40 @@ export class OpenAICompatAdapter implements AIProviderPort {
     }
   }
 
-  private parseTags(rawTags: unknown): string[] {
-    if (!Array.isArray(rawTags)) return [];
+  private parseTagsWithDetails(
+    rawTags: unknown,
+    existingTags?: ReadonlyArray<string>,
+  ): { tags: string[]; details: TagDetail[] } {
+    if (!Array.isArray(rawTags)) return { tags: [], details: [] };
+
+    const TAG_SCORE_THRESHOLD = 70;
+    const existingSet = new Set((existingTags ?? []).map(t => t.toLowerCase()));
+
     if (rawTags.length > 0 && typeof rawTags[0] === 'object' && rawTags[0] !== null) {
-      return (rawTags as Array<{ tag: string; confidence?: number }>)
-        .filter(t => typeof t.tag === 'string' && (t.confidence ?? 1) >= 0.7)
-        .map(t => t.tag);
+      const tags: string[] = [];
+      const details: TagDetail[] = [];
+
+      for (const item of rawTags as Array<Record<string, unknown>>) {
+        if (typeof item.tag !== 'string') continue;
+
+        const rawScore = typeof item.score === 'number' ? item.score
+          : typeof item.confidence === 'number' ? Math.round(item.confidence * 100)
+          : 100;
+        const score = Math.min(100, Math.max(0, rawScore));
+        if (score < TAG_SCORE_THRESHOLD) continue;
+
+        const isNew = typeof item.isNew === 'boolean' ? item.isNew
+          : !existingSet.has(item.tag.toLowerCase());
+        const reason = typeof item.reason === 'string' ? item.reason : '';
+
+        tags.push(item.tag);
+        details.push({ tag: item.tag, score, isNew, reason });
+      }
+      return { tags, details };
     }
-    return rawTags.filter((t): t is string => typeof t === 'string');
+
+    const tags = rawTags.filter((t): t is string => typeof t === 'string');
+    return { tags, details: [] };
   }
 
   private async makeRequest(endpoint: string, body: unknown): Promise<unknown> {

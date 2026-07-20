@@ -33,7 +33,7 @@ import { GenerateRefactorPlanUseCase } from './application/usecases/GenerateRefa
 import { RecordPreferenceUseCase } from './application/usecases/RecordPreferenceUseCase';
 
 // UI
-import { OrganizeResultModal, OrganizeApplyActions, OrganizeModalContext } from './ui/OrganizeResultModal';
+import { OrganizeResultModal, OrganizeApplyActions } from './ui/OrganizeResultModal';
 import { MaintenanceLogView, MAINTENANCE_LOG_VIEW_TYPE } from './ui/MaintenanceLogView';
 import { MaintenanceResultView, MAINTENANCE_RESULT_VIEW_TYPE } from './ui/MaintenanceResultView';
 import { OrganizeFolderResultView, ORGANIZE_FOLDER_VIEW_TYPE } from './ui/OrganizeFolderResultView';
@@ -523,11 +523,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           .execute(notePath, false)
           .then(async result => {
             const actions = this.buildOrganizeApplyActions();
-            const folders = await this.vaultAdapter.listFolders();
-            const ctx: OrganizeModalContext = {
-              existingFolders: [...folders],
-            };
-            new OrganizeResultModal(this.app, notePath, result, actions, ctx).open();
+            new OrganizeResultModal(this.app, notePath, result, actions).open();
           })
           .catch(err => {
             new Notice(t('notice.organizeFailed', { error: localizeError(err) }));
@@ -612,15 +608,6 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         });
         const section = `\n\n## Related Notes\n\n${linkLines.join('\n')}`;
         await this.vaultAdapter.writeNote(path, note.content + section);
-      },
-      moveNote: async (path, targetFolder) => {
-        const filename = (path as string).split('/').pop() ?? '';
-        const newPath = createNotePath(`${targetFolder}/${filename}`);
-        const existing = await this.vaultAdapter.readNote(newPath);
-        if (existing) {
-          throw new Error(`Note already exists: ${newPath as string}`);
-        }
-        await this.vaultAdapter.moveNote(path, newPath);
       },
     };
   }

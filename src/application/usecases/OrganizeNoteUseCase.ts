@@ -1,10 +1,12 @@
-import { NotePath, createNotePath } from '../../domain/values/NotePath';
+import { NotePath } from '../../domain/values/NotePath';
 import { createTagName, sanitizeTagName } from '../../domain/values/TagName';
 import { createTimestamp } from '../../domain/values/Timestamp';
-import { OrganizeResult } from '../../domain/models/OrganizeModels';
+import { OrganizeResult, TagReason } from '../../domain/models/OrganizeModels';
 import { TokenUsage } from '../../domain/models/TokenUsage';
 import { NoteNotFoundError } from '../../domain/errors/DomainErrors';
 import { applyContentRedaction } from '../../domain/models/PrivacyRule';
+import { truncateNoteContent, extractHeadings } from '../utils/truncateNoteContent';
+import { scoreLinkCandidates } from '../utils/scoreLinkCandidates';
 import { AIProviderPort } from '../ports/AIProviderPort';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { HistoryPort } from '../ports/HistoryPort';
@@ -18,19 +20,12 @@ import {
 
 const EMBEDDING_SIMILARITY_THRESHOLD = 0.85;
 
-export interface FolderProfile {
-  readonly folder: string;
-  readonly topTags: ReadonlyArray<string>;
-}
-
 export interface OrganizeContext {
   readonly sessionTags?: ReadonlyArray<string>;
   readonly cachedCanonicalIndex?: ReadonlyArray<CanonicalTagGroup>;
   readonly cachedTagEmbeddings?: Map<string, Float32Array>;
   readonly cachedVaultTags?: ReadonlyArray<{ tag: string; count: number }>;
-  readonly cachedFolders?: ReadonlyArray<string>;
   readonly cachedAllNotes?: ReadonlyArray<NotePath>;
-  readonly cachedFolderProfiles?: ReadonlyArray<FolderProfile>;
 }
 
 export class OrganizeNoteUseCase {
@@ -42,15 +37,6 @@ export class OrganizeNoteUseCase {
     private readonly tagEmbeddingCache?: TagEmbeddingCachePort,
   ) {}
 
-  /**
-   * 단일 노트를 정리한다: 분류, 태깅, 링크 제안.
-   *
-   * 1. 노트 내용 읽기
-   * 2. AI에게 분류 및 태그 제안 요청
-   * 3. 기존 Vault 노트 목록과 대조하여 링크 제안
-   * 4. 프론트매터에 태그 추가 (옵션)
-   * 5. 결과 반환
-   */
   async execute(notePath: NotePath, autoApply: boolean, context?: OrganizeContext): Promise<OrganizeResult> {
     const note = await this.vault.readNote(notePath);
     if (!note) {
@@ -62,12 +48,30 @@ export class OrganizeNoteUseCase {
 
     // Note list — use cache or fetch
     const allNotes = context?.cachedAllNotes ?? await this.vault.listNotes();
-    const existingFolders = context?.cachedFolders ?? await this.vault.listFolders();
 
-    // Vault-wide tags — use cache or fetch
-    const MAX_TAGS = 200;
-    const vaultTagEntries = context?.cachedVaultTags
-      ?? (await this.vault.listAllTags()).slice(0, MAX_TAGS);
+    // Redact + truncate before any AI call (privacy: no raw content to external APIs)
+    const redactedContent = applyContentRedaction(note.content, [...settings.privacyRules]);
+    const { content: truncatedContent } = truncateNoteContent(redactedContent);
+
+    // Vault-wide tags — freq top 100 + relevance top 50
+    const MAX_FREQ_TAGS = 100;
+    const MAX_RELEVANCE_TAGS = 50;
+    const allVaultTags = context?.cachedVaultTags ?? await this.vault.listAllTags();
+    const freqTags = allVaultTags.slice(0, MAX_FREQ_TAGS);
+    const remainingTags = allVaultTags.slice(MAX_FREQ_TAGS);
+
+    const zeroUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
+    let relevanceTokenUsage: TokenUsage = zeroUsage;
+    let vaultTagEntries: ReadonlyArray<{ tag: string; count: number }>;
+    if (remainingTags.length > 0 && this.tagEmbeddingCache) {
+      const relevanceResult = await this.selectRelevantTagsByContent(
+        truncatedContent, remainingTags, context?.cachedTagEmbeddings, MAX_RELEVANCE_TAGS,
+      );
+      vaultTagEntries = [...freqTags, ...relevanceResult.tags];
+      relevanceTokenUsage = relevanceResult.tokenUsage;
+    } else {
+      vaultTagEntries = freqTags;
+    }
 
     // Canonical index — use cache or build, then merge session tags
     let canonicalIndex = context?.cachedCanonicalIndex
@@ -75,32 +79,25 @@ export class OrganizeNoteUseCase {
     if (context?.sessionTags && context.sessionTags.length > 0) {
       canonicalIndex = TagNormalizationService.mergeSessionTags(canonicalIndex, context.sessionTags);
     }
-    const deduplicatedTags = canonicalIndex.map(g => g.canonical);
-
-    // Extract current folder for AI context
-    const currentFolder = (notePath as string).includes('/')
-      ? (notePath as string).substring(0, (notePath as string).lastIndexOf('/'))
-      : '';
-
-    // Folder profiles — use cache or build
-    const folderProfiles = context?.cachedFolderProfiles
-      ?? await this.buildFolderProfiles(existingFolders as string[]);
+    // AI prompt tags — only freq + relevance selected subset
+    const selectedTagSet = new Set(vaultTagEntries.map(e => e.tag.toLowerCase()));
+    const deduplicatedTags = canonicalIndex
+      .filter(g => g.variants.some(v => selectedTagSet.has(v.tag.toLowerCase())))
+      .map(g => g.canonical);
 
     // Prepare available notes for combined classification + link suggestion
-    const MAX_NOTES = 200;
+    const MAX_LINK_CANDIDATES = 50;
     const linkCandidates = allNotes.filter(n => n !== notePath);
-    const noteNames = linkCandidates
-      .slice(0, MAX_NOTES)
-      .map(n => (n as string).replace(/\.md$/, ''));
+    const allNoteNames = linkCandidates.map(n => (n as string).replace(/\.md$/, ''));
 
-    // AI classification + link suggestion (single API call, prefix-cacheable)
-    const redactedContent = applyContentRedaction(note.content, [...settings.privacyRules]);
+    const noteTitle = (notePath as string).split('/').pop()?.replace(/\.md$/, '') ?? '';
+    const headings = extractHeadings(truncatedContent);
+    const noteNames = scoreLinkCandidates(noteTitle, headings, allNoteNames, MAX_LINK_CANDIDATES);
+
     const classification = await this.aiProvider.callClassification({
-      text: redactedContent,
+      text: truncatedContent,
       task: 'classify-and-tag',
       existingTags: deduplicatedTags,
-      folderProfiles: folderProfiles.slice(0, 50),
-      currentFolder: currentFolder || undefined,
       locale: getLocale(),
       availableNotes: noteNames.length > 0 ? noteNames : undefined,
     });
@@ -119,12 +116,18 @@ export class OrganizeNoteUseCase {
         classifiedCategory: classification.category,
         addedTags: [],
         suggestedLinks: [],
-        suggestedMoveTarget: undefined,
-        folderReason: classification.folderReason,
         summary: classification.summary,
         tokenUsage: classification.tokenUsage,
         lowConfidence: true,
       };
+    }
+
+    // Build reason lookup from tagDetails
+    const detailMap = new Map<string, { score: number; isNew: boolean; reason: string }>();
+    if (classification.tagDetails) {
+      for (const d of classification.tagDetails) {
+        detailMap.set(d.tag.toLowerCase(), { score: d.score, isNew: d.isNew, reason: d.reason });
+      }
     }
 
     // Filter out tags already on the note
@@ -132,25 +135,22 @@ export class OrganizeNoteUseCase {
     const newSuggestedTags = classification.suggestedTags
       .filter(t => !currentTagsLower.has(t.toLowerCase()) && !currentTagsLower.has(`#${t}`.toLowerCase()));
 
-    // Folder suggestion — prefer existing folders, allow new folder creation
-    const rawFolder = classification.suggestedFolder;
-    const suggestedFolder = rawFolder && rawFolder !== currentFolder
-      ? rawFolder
-      : undefined;
-
-    // 1차: 문자열 정규화 (형태 차이 해결)
-    const sanitizedTags = newSuggestedTags
-      .map(t => sanitizeTagName(t))
-      .filter(t => /^#[\w가-힣\-/]+$/.test(t))
-      .filter(t => !currentTagsLower.has(t.toLowerCase()))
-      .map(t => TagNormalizationService.resolveToCanonical(t, canonicalIndex));
+    // 1차: 문자열 정규화 — track original AI tag for reason propagation
+    const tagTransforms: Array<{ original: string; resolved: string }> = [];
+    for (const t of newSuggestedTags) {
+      const sanitized = sanitizeTagName(t);
+      if (!/^#[\w가-힣\-/]+$/.test(sanitized)) continue;
+      if (currentTagsLower.has(sanitized.toLowerCase())) continue;
+      const canonical = TagNormalizationService.resolveToCanonical(sanitized, canonicalIndex);
+      tagTransforms.push({ original: t, resolved: canonical });
+    }
+    const sanitizedTags = tagTransforms.map(x => x.resolved);
 
     // 2차: 임베딩 유사도 (교차 언어 해결) — 정규화에서 매칭 안 된 새 태그만
     const canonicalSet = new Set(canonicalIndex.map(g => g.canonical.toLowerCase()));
     const trulyNewTags = sanitizedTags.filter(t => !canonicalSet.has(t.toLowerCase()));
     let embeddingResolved = new Map<string, string>();
-    const emptyUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
-    let embeddingTokenUsage: TokenUsage = emptyUsage;
+    let embeddingTokenUsage: TokenUsage = zeroUsage;
     if (trulyNewTags.length > 0) {
       const embeddingResult = await this.resolveByEmbedding(
         trulyNewTags, canonicalIndex, context?.cachedTagEmbeddings,
@@ -159,14 +159,41 @@ export class OrganizeNoteUseCase {
       embeddingTokenUsage = embeddingResult.tokenUsage;
     }
 
-    const resolvedTags = sanitizedTags.map(t =>
-      embeddingResolved.get(t) ?? t,
-    );
+    // Apply embedding resolution and update transforms
+    for (const tx of tagTransforms) {
+      const emb = embeddingResolved.get(tx.resolved);
+      if (emb) tx.resolved = emb;
+    }
+    const resolvedTags = tagTransforms.map(tx => tx.resolved);
     const uniqueSanitized = [...new Set(resolvedTags)]
       .filter(t => !currentTagsLower.has(t.toLowerCase()));
 
-    const folderSetForCheck = new Set(existingFolders as string[]);
-    const isNewFolder = suggestedFolder ? !folderSetForCheck.has(suggestedFolder) : false;
+    // Build tagReasons — use original AI tag names for lookup (survives canonical/embedding resolution)
+    let tagReasons: ReadonlyMap<string, TagReason> | undefined;
+    if (detailMap.size > 0) {
+      const reasonMap = new Map<string, TagReason>();
+      for (const tag of uniqueSanitized) {
+        const originals = tagTransforms
+          .filter(tx => tx.resolved === tag)
+          .map(tx => tx.original);
+        let best: { score: number; isNew: boolean; reason: string } | undefined;
+        for (const orig of originals) {
+          const lookup = detailMap.get(orig.toLowerCase())
+            ?? detailMap.get(orig.replace(/^#/, '').toLowerCase());
+          if (lookup && (!best || lookup.score > best.score)) best = lookup;
+        }
+        if (!best) {
+          best = detailMap.get(tag.toLowerCase())
+            ?? detailMap.get(tag.replace(/^#/, '').toLowerCase());
+        }
+        if (best) {
+          reasonMap.set(tag, { score: best.score, isNew: best.isNew, reason: best.reason });
+        }
+      }
+      if (reasonMap.size > 0) {
+        tagReasons = reasonMap;
+      }
+    }
 
     let historyEntryId: string | undefined;
 
@@ -176,16 +203,14 @@ export class OrganizeNoteUseCase {
       classifiedCategory: classification.category,
       addedTags: uniqueSanitized.map(t => createTagName(t)),
       suggestedLinks,
-      suggestedMoveTarget: suggestedFolder,
-      folderReason: classification.folderReason,
-      isNewFolder,
       summary: classification.summary,
       tokenUsage: {
-        promptTokens: classification.tokenUsage.promptTokens + embeddingTokenUsage.promptTokens,
-        completionTokens: classification.tokenUsage.completionTokens + embeddingTokenUsage.completionTokens,
-        totalTokens: classification.tokenUsage.totalTokens + embeddingTokenUsage.totalTokens,
-        estimatedCostUsd: classification.tokenUsage.estimatedCostUsd + embeddingTokenUsage.estimatedCostUsd,
+        promptTokens: classification.tokenUsage.promptTokens + embeddingTokenUsage.promptTokens + relevanceTokenUsage.promptTokens,
+        completionTokens: classification.tokenUsage.completionTokens + embeddingTokenUsage.completionTokens + relevanceTokenUsage.completionTokens,
+        totalTokens: classification.tokenUsage.totalTokens + embeddingTokenUsage.totalTokens + relevanceTokenUsage.totalTokens,
+        estimatedCostUsd: classification.tokenUsage.estimatedCostUsd + embeddingTokenUsage.estimatedCostUsd + relevanceTokenUsage.estimatedCostUsd,
       },
+      tagReasons,
     };
 
     if (autoApply) {
@@ -195,23 +220,75 @@ export class OrganizeNoteUseCase {
     return historyEntryId ? { ...result, historyEntryId } : result;
   }
 
-  private async buildFolderProfiles(folders: ReadonlyArray<string>): Promise<ReadonlyArray<FolderProfile>> {
-    const noteEntries = await this.vault.listNotesFolderAndTags();
-    const tagCountByFolder = new Map<string, Map<string, number>>();
-    for (const entry of noteEntries) {
-      if (!entry.folder) continue;
-      let tagMap = tagCountByFolder.get(entry.folder);
-      if (!tagMap) { tagMap = new Map(); tagCountByFolder.set(entry.folder, tagMap); }
-      for (const t of entry.tags) {
-        tagMap.set(t, (tagMap.get(t) ?? 0) + 1);
+  private async selectRelevantTagsByContent(
+    noteContent: string,
+    candidates: ReadonlyArray<{ tag: string; count: number }>,
+    cachedEmbeddings?: Map<string, Float32Array>,
+    maxRelevance: number = 50,
+  ): Promise<{ tags: ReadonlyArray<{ tag: string; count: number }>; tokenUsage: TokenUsage }> {
+    const noUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
+    try {
+      const contentResp = await this.aiProvider.callEmbedding({
+        texts: [noteContent.slice(0, 2000)],
+      });
+      let totalUsage = { ...contentResp.tokenUsage };
+      const addUsage = (u: TokenUsage) => {
+        totalUsage = {
+          promptTokens: totalUsage.promptTokens + u.promptTokens,
+          completionTokens: totalUsage.completionTokens + u.completionTokens,
+          totalTokens: totalUsage.totalTokens + u.totalTokens,
+          estimatedCostUsd: totalUsage.estimatedCostUsd + u.estimatedCostUsd,
+        };
+      };
+      const contentEmb = contentResp.embeddings[0];
+      if (!contentEmb) return { tags: candidates.slice(0, maxRelevance), tokenUsage: totalUsage };
+
+      const tagNames = candidates.map(t => t.tag);
+
+      let tagEmbeddings: Map<string, Float32Array>;
+      if (cachedEmbeddings && cachedEmbeddings.size > 0) {
+        const fromCache = new Map<string, Float32Array>();
+        const missing: string[] = [];
+        for (const name of tagNames) {
+          const cached = cachedEmbeddings.get(name);
+          if (cached) {
+            fromCache.set(name, cached);
+          } else {
+            missing.push(name);
+          }
+        }
+        if (missing.length > 0) {
+          const resp = await this.aiProvider.callEmbedding({ texts: missing });
+          addUsage(resp.tokenUsage);
+          for (let i = 0; i < missing.length; i++) {
+            fromCache.set(missing[i], resp.embeddings[i]);
+          }
+        }
+        tagEmbeddings = fromCache;
+      } else {
+        const fromDisk = this.tagEmbeddingCache?.getMany(tagNames)
+          ?? new Map<string, Float32Array>();
+        const missing = tagNames.filter(t => !fromDisk.has(t));
+        if (missing.length > 0) {
+          const resp = await this.aiProvider.callEmbedding({ texts: missing });
+          addUsage(resp.tokenUsage);
+          for (let i = 0; i < missing.length; i++) {
+            fromDisk.set(missing[i], resp.embeddings[i]);
+          }
+        }
+        tagEmbeddings = fromDisk;
       }
+
+      const scored = candidates.map(c => {
+        const emb = tagEmbeddings.get(c.tag);
+        const sim = emb ? TagNormalizationService.cosineSimilarity(contentEmb, emb) : 0;
+        return { ...c, sim };
+      });
+      scored.sort((a, b) => b.sim - a.sim);
+      return { tags: scored.slice(0, maxRelevance), tokenUsage: totalUsage };
+    } catch {
+      return { tags: candidates.slice(0, maxRelevance), tokenUsage: noUsage };
     }
-    return folders.map(f => {
-      const tagMap = tagCountByFolder.get(f);
-      if (!tagMap || tagMap.size === 0) return { folder: f, topTags: [] };
-      const sorted = [...tagMap.entries()].sort((a, b) => b[1] - a[1]);
-      return { folder: f, topTags: sorted.slice(0, 3).map(([tag]) => tag) };
-    });
   }
 
   private async resolveByEmbedding(
@@ -356,29 +433,17 @@ export class OrganizeNoteUseCase {
       }
     }
 
-    if (result.suggestedMoveTarget) {
-      const filename = (notePath as string).split('/').pop() ?? '';
-      const newPath = createNotePath(`${result.suggestedMoveTarget as string}/${filename}`);
-      const currentNote = await this.vault.readNote(notePath);
-      if (currentNote) {
-        await this.vault.writeNote(newPath, currentNote.content);
-        await this.vault.updateFrontmatter(newPath, { processed: true });
-        await this.vault.deleteNote(notePath);
-      }
-    }
-
     const entryId = crypto.randomUUID();
     await this.history.record({
       id: entryId,
       action: 'classify',
       notePath,
       timestamp: createTimestamp(Date.now()),
-      description: `Organized: folder=${result.suggestedMoveTarget ?? 'keep'}, tags=${result.addedTags.length}`,
+      description: `Organized: tags=${result.addedTags.length}, links=${result.suggestedLinks.length}`,
       previousContent,
       metadata: {
         tags: result.addedTags.map(t => t as string),
         links: result.suggestedLinks.map(l => l as string),
-        moveTarget: result.suggestedMoveTarget,
       },
     });
     return entryId;

@@ -43,52 +43,37 @@ describe('PromptTemplates', () => {
       expect(result).toContain('existing tags');
     });
 
-    it('JSON 형식 가이드를 포함한다', () => {
+    it('JSON 형식 가이드를 포함한다 (score/isNew/reason)', () => {
       const result = PromptTemplates.classifyAndTag('내용', []);
       expect(result).toContain('JSON');
-      expect(result).toContain('folder');
       expect(result).toContain('tags');
-      expect(result).toContain('confidence');
+      expect(result).toContain('"score"');
+      expect(result).toContain('"isNew"');
+      expect(result).toContain('"reason"');
     });
 
-    it('현재 폴더 정보를 프롬프트에 포함한다', () => {
-      const result = PromptTemplates.classifyAndTag('내용', [], [{ folder: 'Projects', topTags: [] }, { folder: 'Work', topTags: [] }], 'Projects');
-      expect(result).toContain('현재 위치: "Projects"');
-      expect(result).toContain('현재 폴더가 이미 적합하면');
-    });
-
-    it('영어 프롬프트에 현재 폴더 정보를 포함한다', () => {
-      const result = PromptTemplates.classifyAndTag('Content about coding', [], [{ folder: 'Projects', topTags: [] }, { folder: 'Work', topTags: [] }], 'Projects', 'en');
-      expect(result).toContain('currently in folder: "Projects"');
-      expect(result).toContain('current folder is already appropriate');
-    });
-
-    it('Inbox 폴더일 때 이동 편향 프롬프트를 생성한다 (KO)', () => {
-      const result = PromptTemplates.classifyAndTag('내용', [], [{ folder: 'Inbox', topTags: [] }, { folder: 'Learning', topTags: ['#study'] }], 'Inbox');
-      expect(result).toContain('Inbox(임시)');
-      expect(result).toContain('이동을 제안');
-    });
-
-    it('Inbox 폴더일 때 이동 편향 프롬프트를 생성한다 (EN)', () => {
-      const result = PromptTemplates.classifyAndTag('Content', [], [{ folder: 'Inbox', topTags: [] }, { folder: 'Learning', topTags: ['#study'] }], 'Inbox', 'en');
-      expect(result).toContain('Inbox (temporary)');
-      expect(result).toContain('suggest moving it');
+    it('영어 프롬프트에도 score/isNew/reason 형식을 포함한다', () => {
+      const result = PromptTemplates.classifyAndTag('Content about programming', [], 'en');
+      expect(result).toContain('"score": 92');
+      expect(result).toContain('"isNew": false');
+      expect(result).toContain('"reason"');
+      expect(result).not.toContain('"confidence": 0.92');
     });
 
     it('locale 파라미터가 content 언어 감지를 오버라이드한다', () => {
-      const result = PromptTemplates.classifyAndTag('English content with code samples', [], undefined, undefined, 'ko');
+      const result = PromptTemplates.classifyAndTag('English content with code samples', [], 'ko');
       expect(result).toContain('분석 절차');
       expect(result).toContain('한국어로');
     });
 
     it('locale=en이면 영어 프롬프트를 생성한다', () => {
-      const result = PromptTemplates.classifyAndTag('한글 노트인데 영어 설정', [], undefined, undefined, 'en');
+      const result = PromptTemplates.classifyAndTag('한글 노트인데 영어 설정', [], 'en');
       expect(result).toContain('Analysis procedure');
       expect(result).toContain('in English');
     });
 
     it('availableNotes가 있으면 링크 섹션을 포함한다 (EN)', () => {
-      const result = PromptTemplates.classifyAndTag('Content about React', [], undefined, undefined, 'en', ['React Patterns', 'TypeScript Guide']);
+      const result = PromptTemplates.classifyAndTag('Content about React', [], 'en', ['React Patterns', 'TypeScript Guide']);
       expect(result).toContain('Available notes for linking');
       expect(result).toContain('- React Patterns');
       expect(result).toContain('- TypeScript Guide');
@@ -96,14 +81,14 @@ describe('PromptTemplates', () => {
     });
 
     it('availableNotes가 있으면 링크 섹션을 포함한다 (KO)', () => {
-      const result = PromptTemplates.classifyAndTag('리액트 노트', [], undefined, undefined, 'ko', ['리액트 패턴', '타입스크립트']);
+      const result = PromptTemplates.classifyAndTag('리액트 노트', [], 'ko', ['리액트 패턴', '타입스크립트']);
       expect(result).toContain('링크 가능한 노트 목록');
       expect(result).toContain('- 리액트 패턴');
       expect(result).toContain('relatedNotes');
     });
 
     it('availableNotes가 없으면 링크 섹션을 생략한다', () => {
-      const result = PromptTemplates.classifyAndTag('Content', [], undefined, undefined, 'en');
+      const result = PromptTemplates.classifyAndTag('Content', [], 'en');
       expect(result).not.toContain('Available notes for linking');
       expect(result).not.toContain('relatedNotes');
     });

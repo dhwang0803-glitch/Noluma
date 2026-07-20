@@ -7,29 +7,21 @@ import { localizeError } from './localizeError';
 export interface OrganizeApplyActions {
   applyTags(notePath: NotePath, tags: string[]): Promise<void>;
   addLinks(notePath: NotePath, links: NotePath[]): Promise<void>;
-  moveNote(notePath: NotePath, targetFolder: string): Promise<void>;
-}
-
-export interface OrganizeModalContext {
-  existingFolders: string[];
 }
 
 export class OrganizeResultModal extends Modal {
   private selectedTags: string[];
   private selectedLinks: NotePath[];
-  private selectedFolder: string | undefined;
 
   constructor(
     app: App,
     private readonly notePath: NotePath,
     private readonly result: OrganizeResult,
     private readonly actions: OrganizeApplyActions,
-    private readonly context: OrganizeModalContext,
   ) {
     super(app);
     this.selectedTags = result.addedTags.map(tag => tag as string);
     this.selectedLinks = [...result.suggestedLinks];
-    this.selectedFolder = result.suggestedMoveTarget;
   }
 
   onOpen(): void {
@@ -50,7 +42,6 @@ export class OrganizeResultModal extends Modal {
     }
     this.renderTags(contentEl);
     this.renderLinks(contentEl);
-    this.renderMove(contentEl);
     this.renderFooter(contentEl);
   }
 
@@ -92,8 +83,21 @@ export class OrganizeResultModal extends Modal {
       return;
     }
     for (const tag of this.selectedTags) {
-      const chip = tagListEl.createDiv('organize-chip');
+      const reason = this.result.tagReasons?.get(tag) ?? this.result.tagReasons?.get(`#${tag}`);
+      const chipClasses = ['organize-chip'];
+      if (reason?.isNew) chipClasses.push('organize-chip-new');
+
+      const chip = tagListEl.createDiv(chipClasses.join(' '));
+      if (reason?.reason) {
+        chip.setAttribute('title', reason.reason);
+      }
       chip.createEl('span', { text: `#${tag}` });
+      if (reason) {
+        chip.createEl('span', {
+          text: String(reason.score),
+          cls: 'organize-chip-score',
+        });
+      }
       const removeBtn = chip.createEl('span', { text: '×', cls: 'organize-chip-remove' });
       removeBtn.addEventListener('click', () => {
         this.selectedTags = this.selectedTags.filter(t2 => t2 !== tag);
@@ -166,46 +170,6 @@ export class OrganizeResultModal extends Modal {
     input.setValue('');
   }
 
-  private renderMove(container: HTMLElement): void {
-    const section = container.createDiv('organize-section');
-    section.createEl('h4', { text: t('organize.suggestedMove') });
-
-    const folders = [...this.context.existingFolders];
-
-    // If AI suggested a new folder not in the existing list, add it with "(New)" label
-    const aiFolder = this.selectedFolder;
-    const isNewFolder = this.result.isNewFolder ?? (aiFolder ? !folders.includes(aiFolder) : false);
-
-    const selectEl = section.createEl('select', { cls: 'organize-folder-select' });
-
-    const noneOption = selectEl.createEl('option', { text: t('organize.keepCurrent'), value: '' });
-    if (!this.selectedFolder) noneOption.selected = true;
-
-    if (isNewFolder) {
-      const newOpt = selectEl.createEl('option', {
-        text: `${aiFolder} (New)`,
-        value: aiFolder,
-      });
-      newOpt.selected = true;
-    }
-
-    for (const folder of folders) {
-      const opt = selectEl.createEl('option', { text: folder, value: folder });
-      if (folder === this.selectedFolder && !isNewFolder) opt.selected = true;
-    }
-
-    selectEl.addEventListener('change', () => {
-      this.selectedFolder = selectEl.value || undefined;
-    });
-
-    if (this.result.folderReason) {
-      section.createEl('p', {
-        text: t('organize.folderReason', { reason: this.result.folderReason }),
-        cls: 'organize-folder-reason',
-      });
-    }
-  }
-
   private renderTokenUsage(container: HTMLElement): void {
     const usage = this.result.tokenUsage;
     const costText = usage.estimatedCostUsd < 0
@@ -248,12 +212,6 @@ export class OrganizeResultModal extends Modal {
         await this.actions.addLinks(this.notePath, this.selectedLinks);
         applied.push(t('organize.linksAdded', { count: String(this.selectedLinks.length) }));
         this.selectedLinks = [];
-      }
-
-      if (this.selectedFolder) {
-        await this.actions.moveNote(this.notePath, this.selectedFolder);
-        applied.push(t('organize.noteMoved', { folder: this.selectedFolder }));
-        this.selectedFolder = undefined;
       }
 
       if (applied.length > 0) {
