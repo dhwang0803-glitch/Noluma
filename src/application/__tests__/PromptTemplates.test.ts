@@ -52,13 +52,13 @@ describe('PromptTemplates', () => {
     });
 
     it('현재 폴더 정보를 프롬프트에 포함한다', () => {
-      const result = PromptTemplates.classifyAndTag('내용', [], undefined, ['Projects', 'Work'], 'Projects');
+      const result = PromptTemplates.classifyAndTag('내용', [], undefined, [{ folder: 'Projects', topTags: [] }, { folder: 'Work', topTags: [] }], 'Projects');
       expect(result).toContain('현재 위치: "Projects"');
       expect(result).toContain('현재 폴더가 이미 적합하면');
     });
 
     it('영어 프롬프트에 현재 폴더 정보를 포함한다', () => {
-      const result = PromptTemplates.classifyAndTag('Content about coding', [], undefined, ['Projects', 'Work'], 'Projects', 'en');
+      const result = PromptTemplates.classifyAndTag('Content about coding', [], undefined, [{ folder: 'Projects', topTags: [] }, { folder: 'Work', topTags: [] }], 'Projects', 'en');
       expect(result).toContain('currently in folder: "Projects"');
       expect(result).toContain('current folder is already appropriate');
     });

@@ -19,6 +19,11 @@ import {
 
 const EMBEDDING_SIMILARITY_THRESHOLD = 0.85;
 
+export interface FolderProfile {
+  readonly folder: string;
+  readonly topTags: ReadonlyArray<string>;
+}
+
 export interface OrganizeContext {
   readonly sessionTags?: ReadonlyArray<string>;
   readonly cachedCanonicalIndex?: ReadonlyArray<CanonicalTagGroup>;
@@ -26,6 +31,7 @@ export interface OrganizeContext {
   readonly cachedVaultTags?: ReadonlyArray<{ tag: string; count: number }>;
   readonly cachedFolders?: ReadonlyArray<string>;
   readonly cachedAllNotes?: ReadonlyArray<NotePath>;
+  readonly cachedFolderProfiles?: ReadonlyArray<FolderProfile>;
 }
 
 export class OrganizeNoteUseCase {
@@ -77,6 +83,10 @@ export class OrganizeNoteUseCase {
       ? (notePath as string).substring(0, (notePath as string).lastIndexOf('/'))
       : '';
 
+    // Folder profiles — use cache or build
+    const folderProfiles = context?.cachedFolderProfiles
+      ?? await this.buildFolderProfiles(existingFolders as string[]);
+
     // AI classification (content-redact applied)
     const redactedContent = applyContentRedaction(note.content, [...settings.privacyRules]);
     const classification = await this.aiProvider.callClassification({
@@ -84,7 +94,7 @@ export class OrganizeNoteUseCase {
       task: 'classify-and-tag',
       existingTags: deduplicatedTags,
       currentNoteTags: currentTags,
-      existingFolders: (existingFolders as string[]).slice(0, 50),
+      folderProfiles: folderProfiles.slice(0, 50),
       currentFolder: currentFolder || undefined,
       locale: getLocale(),
     });
@@ -170,6 +180,25 @@ export class OrganizeNoteUseCase {
     }
 
     return historyEntryId ? { ...result, historyEntryId } : result;
+  }
+
+  private async buildFolderProfiles(folders: ReadonlyArray<string>): Promise<ReadonlyArray<FolderProfile>> {
+    const noteEntries = await this.vault.listNotesFolderAndTags();
+    const tagCountByFolder = new Map<string, Map<string, number>>();
+    for (const entry of noteEntries) {
+      if (!entry.folder) continue;
+      let tagMap = tagCountByFolder.get(entry.folder);
+      if (!tagMap) { tagMap = new Map(); tagCountByFolder.set(entry.folder, tagMap); }
+      for (const t of entry.tags) {
+        tagMap.set(t, (tagMap.get(t) ?? 0) + 1);
+      }
+    }
+    return folders.map(f => {
+      const tagMap = tagCountByFolder.get(f);
+      if (!tagMap || tagMap.size === 0) return { folder: f, topTags: [] };
+      const sorted = [...tagMap.entries()].sort((a, b) => b[1] - a[1]);
+      return { folder: f, topTags: sorted.slice(0, 3).map(([tag]) => tag) };
+    });
   }
 
   private async resolveByEmbedding(

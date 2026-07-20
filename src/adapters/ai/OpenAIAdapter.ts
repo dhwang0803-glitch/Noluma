@@ -58,13 +58,13 @@ export class OpenAIAdapter implements AIProviderPort {
 
   async callClassification(request: ClassificationRequest): Promise<ClassificationResponse> {
     const lang = request.locale ?? detectContentLanguage(request.text);
-    const prompt = PromptTemplates.classifyAndTag(request.text, request.existingTags ?? [], request.currentNoteTags, request.existingFolders, request.currentFolder, request.locale);
+    const prompt = PromptTemplates.classifyAndTag(request.text, request.existingTags ?? [], request.currentNoteTags, request.folderProfiles, request.currentFolder, request.locale);
 
     const completionResponse = await this.callCompletion({
       prompt,
       systemPrompt: PromptTemplates.classificationSystemPrompt(lang),
       maxTokens: 500,
-      temperature: 0.3,
+      temperature: 0.1,
       jsonMode: true,
     });
 

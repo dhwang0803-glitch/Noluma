@@ -68,7 +68,7 @@ export class OpenAICompatAdapter implements AIProviderPort {
       request.text,
       request.existingTags ?? [],
       request.currentNoteTags,
-      request.existingFolders,
+      request.folderProfiles,
       request.currentFolder,
       request.locale,
     );
@@ -77,7 +77,7 @@ export class OpenAICompatAdapter implements AIProviderPort {
       prompt,
       systemPrompt: PromptTemplates.classificationSystemPrompt(lang),
       maxTokens: 500,
-      temperature: 0.3,
+      temperature: 0.1,
       jsonMode: true,
     });
 

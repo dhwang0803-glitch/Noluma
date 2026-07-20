@@ -66,7 +66,7 @@ export class OllamaAdapter implements AIProviderPort {
       request.text,
       request.existingTags ?? [],
       request.currentNoteTags,
-      request.existingFolders,
+      request.folderProfiles,
       request.currentFolder,
       request.locale,
     );
@@ -75,7 +75,7 @@ export class OllamaAdapter implements AIProviderPort {
       prompt,
       systemPrompt: PromptTemplates.classificationSystemPrompt(lang),
       maxTokens: 500,
-      temperature: 0.3,
+      temperature: 0.1,
       jsonMode: true,
     });
 

@@ -290,6 +290,35 @@ export class ObsidianVaultAdapter implements VaultAccessPort {
     return entries;
   }
 
+  async listNotesFolderAndTags(): Promise<ReadonlyArray<{ folder: string; tags: ReadonlyArray<string> }>> {
+    const files = this.app.vault.getMarkdownFiles();
+    const results: Array<{ folder: string; tags: ReadonlyArray<string> }> = [];
+
+    for (const file of files) {
+      const cache = this.app.metadataCache.getFileCache(file);
+      const frontmatter = cache?.frontmatter ?? {};
+
+      const rawTags: string[] = [];
+      if (cache?.tags) {
+        for (const t of cache.tags) rawTags.push(t.tag);
+      }
+      if (Array.isArray(frontmatter.tags)) {
+        for (const t of frontmatter.tags) {
+          const tag = String(t);
+          rawTags.push(tag.startsWith('#') ? tag : `#${tag}`);
+        }
+      }
+
+      const folder = file.path.includes('/')
+        ? file.path.substring(0, file.path.lastIndexOf('/'))
+        : '';
+
+      results.push({ folder, tags: [...new Set(rawTags)] });
+    }
+
+    return results;
+  }
+
   watchEvents(handler: VaultEventHandler): () => void {
     const createRef = this.app.vault.on('create', (file) => {
       if (file instanceof TFile && file.extension === 'md') {
