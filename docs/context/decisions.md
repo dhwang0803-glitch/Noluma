@@ -31,6 +31,7 @@
 | 0007 | [Free/Pro 기능 게이팅 시스템](./adr/ADR-0007-free-pro-gating.md) | Accepted | 2026-07-17 |
 | 0008 | [AI API 배치 처리 + Rate Limit Circuit Breaker](./adr/ADR-0008-ai-batch-rate-limit-circuit-breaker.md) | Accepted | 2026-07-19 |
 | 0009 | [Quick Ask 모듈 분리 — obsidian-vault-chat로 이전](./adr/ADR-0009-quickask-extraction.md) | Accepted | 2026-07-20 |
+| 0010 | [Organize Note/Folder 폴더 이동 제안 제거](./adr/ADR-0010-remove-folder-move-suggestion.md) | Accepted | 2026-07-20 |
 
 ## 구현 결정 메모 (비-ADR)
 
@@ -50,3 +51,4 @@
 - **Pro 게이팅 재분류** (2026-07-18, PRD v2): `smart-scheduling`은 `auto-maintenance`의 하위 동작으로 통합 (별도 `ProFeatureId` 제거). `batch-merge-tags`는 Free로 전환 (사용자 API를 쓰므로 게이팅 부당). 결과적으로 `ProFeatureId`는 `organize-folder`과 `auto-maintenance` 2개만 유지. ADR-0007 부분 수정.
 - **AI Rate Limit Circuit Breaker + 배치 처리** (2026-07-19, ADR-0008): Gemini Free RPM 10 제한으로 제안서 생성 6분+ 행 발생. 429 즉시 실패(circuit breaker) + broken link·merge 배치 처리(29회→8회)로 해결. 503만 재시도 유지.
 - **Quick Ask 모듈 분리** (2026-07-20, PR #169, ADR-0009): "Vault Dependabot" 포지셔닝에 맞지 않는 AI 채팅 기능을 별도 플러그인(obsidian-vault-chat)으로 이전. QuickAskUseCase, QuickAskModal, QuickAskModels, 관련 프롬프트·CSS·i18n·설정 전체 삭제 (-2,425줄). TokenUsage 인터페이스는 공유 타입으로 `src/domain/models/TokenUsage.ts`에 보존.
+- **Organize 폴더 이동 제안 제거** (2026-07-20, PR #192, ADR-0010): 커뮤니티 리서치 결과 대다수 유저가 flat/Zettelkasten 구조 사용. 폴더 이동 제안 제거하고 절약된 토큰 예산을 태그/링크 정확도 향상에 재투자. 21개 파일 -419줄. Vault Refactor(Pro)의 폴더 코드는 유지.
