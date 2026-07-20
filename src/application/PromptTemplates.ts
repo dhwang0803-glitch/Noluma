@@ -25,8 +25,14 @@ Core rules:
 5. 반드시 유효한 JSON 형식으로만 응답하세요.`;
   },
 
-  classifyAndTag(noteContent: string, existingTags: ReadonlyArray<string>, currentNoteTags?: ReadonlyArray<string>, existingFolders?: ReadonlyArray<string>, currentFolder?: string, locale?: 'en' | 'ko'): string {
+  classifyAndTag(noteContent: string, existingTags: ReadonlyArray<string>, currentNoteTags?: ReadonlyArray<string>, folderProfiles?: ReadonlyArray<{ folder: string; topTags: ReadonlyArray<string> }>, currentFolder?: string, locale?: 'en' | 'ko'): string {
     const lang = locale ?? detectContentLanguage(noteContent);
+
+    const formatFolderList = (profiles: ReadonlyArray<{ folder: string; topTags: ReadonlyArray<string> }>): string => {
+      return profiles.map(p =>
+        p.topTags.length > 0 ? `${p.folder} (${p.topTags.join(', ')})` : p.folder,
+      ).join(', ');
+    };
 
     if (lang === 'en') {
       const tagsInfo = existingTags.length > 0
@@ -36,8 +42,8 @@ Core rules:
         ? `\nTags already applied to this note: ${currentNoteTags.join(', ')}\nDo not suggest tags that are already applied. Only suggest new ones.`
         : '';
       const currentFolderInfo = currentFolder ? `\nThis note is currently in folder: "${currentFolder}"` : '';
-      const folderInfo = existingFolders && existingFolders.length > 0
-        ? `\nExisting folders: ${existingFolders.join(', ')}${currentFolderInfo}\nChoose the most appropriate folder for this note. If the current folder is already appropriate, return the current folder path. Only suggest a different folder if a clearly better one exists.`
+      const folderInfo = folderProfiles && folderProfiles.length > 0
+        ? `\nExisting folders (with their typical content tags):\n${formatFolderList(folderProfiles)}${currentFolderInfo}\nChoose the folder whose content theme best matches this note's topics — do NOT match by surface keywords in the folder name alone. If the current folder is already appropriate, return it. Only suggest a different folder if it is clearly more appropriate.`
         : '\nNo folders exist yet. Suggest a short, general folder name that could hold similar notes (e.g., "Projects", "Learning", "Work").';
 
       return `Read the "Note content" section below and suggest tags that match the topics this note actually covers.
@@ -46,7 +52,7 @@ ${tagsInfo}${currentInfo}${folderInfo}
 ## Analysis procedure (you MUST follow this)
 1. Read the note content and identify **2-3 unique key topics/concepts** the note covers.
 2. For each topic, check existing tags first. Only use an existing tag if it clearly and directly matches (confidence ≥ 0.7). If no existing tag is a strong match, create a new tag.
-3. Determine the best folder to store this note. If the note's current folder is already a good fit, keep it there. Only suggest a different folder if it is clearly more appropriate.
+3. Determine the best folder to store this note by comparing the note's topics against each folder's content tags — not its name. If the current folder is already a good fit, keep it there. Only suggest a different folder if it is clearly more appropriate.
 4. Summarize only what is written in the note. Write the summary in English.
 
 ## Response format (JSON only)
@@ -72,8 +78,8 @@ ${noteContent}`;
       ? `\n이 노트에 이미 적용된 태그: ${currentNoteTags.join(', ')}\n이미 적용된 태그는 제안하지 마세요. 새로운 태그만 제안하세요.`
       : '';
     const currentFolderInfo = currentFolder ? `\n이 노트의 현재 위치: "${currentFolder}"` : '';
-    const folderInfo = existingFolders && existingFolders.length > 0
-      ? `\n기존 폴더 목록: ${existingFolders.join(', ')}${currentFolderInfo}\n이 노트에 가장 적합한 폴더를 선택하세요. 현재 폴더가 이미 적합하면 현재 폴더 경로를 그대로 반환하세요. 명확히 더 적합한 폴더가 있을 때만 다른 폴더를 추천하세요.`
+    const folderInfo = folderProfiles && folderProfiles.length > 0
+      ? `\n기존 폴더 목록 (각 폴더의 주요 태그):\n${formatFolderList(folderProfiles)}${currentFolderInfo}\n폴더 이름의 표면적 키워드가 아니라, 각 폴더에 속한 노트들의 주제와 이 노트의 핵심 주제가 일치하는 폴더를 선택하세요. 현재 폴더가 이미 적합하면 그대로 반환하세요. 명확히 더 적합한 폴더가 있을 때만 다른 폴더를 추천하세요.`
       : '\n아직 폴더가 없습니다. 유사한 노트를 묶을 수 있는 짧고 일반적인 폴더명을 제안하세요 (예: "Projects", "Learning", "Work").';
 
     return `아래 "노트 내용" 섹션을 읽고, 이 노트가 실제로 다루는 주제에 맞는 태그를 제안하세요.
@@ -82,7 +88,7 @@ ${tagsInfo}${currentInfo}${folderInfo}
 ## 분석 절차 (반드시 따르세요)
 1. 노트 내용을 읽고, 이 노트가 다루는 **고유한 핵심 주제/개념 2~3개**를 파악하세요.
 2. 각 주제에 대해 기존 태그를 먼저 확인하세요. 명확하고 직접적으로 일치하는 경우(confidence ≥ 0.7)에만 기존 태그를 사용하세요. 강한 매칭이 없으면 새 태그를 만드세요.
-3. 이 노트를 저장할 최적의 폴더를 결정하세요. 현재 폴더가 이미 적절하면 그대로 유지하세요. 명확히 더 적합한 폴더가 있을 때만 다른 폴더를 추천하세요.
+3. 이 노트를 저장할 최적의 폴더를 결정하세요. 각 폴더의 주요 태그를 보고 노트의 주제와 비교하세요 — 폴더 이름으로 판단하지 마세요. 현재 폴더가 이미 적절하면 그대로 유지하세요. 명확히 더 적합한 폴더가 있을 때만 다른 폴더를 추천하세요.
 4. summary는 노트에 적힌 내용만 한국어로 요약하세요.
 
 ## 응답 형식 (JSON만)

@@ -106,6 +106,7 @@ function buildMockPorts(notes: Map<string, Note>) {
     writeFileRaw: vi.fn(),
     listFolders: vi.fn(async () => [...new Set([...notes.keys()].map(p => { const i = p.lastIndexOf('/'); return i > 0 ? p.substring(0, i) : ''; }).filter(Boolean))].sort()),
     listFiles: vi.fn(async () => []),
+    listNotesFolderAndTags: vi.fn(async () => []),
     watchEvents: vi.fn(() => () => {}),
   } as unknown as VaultAccessPort;
 

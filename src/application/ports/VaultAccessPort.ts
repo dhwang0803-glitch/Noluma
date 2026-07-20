@@ -48,6 +48,9 @@ export interface VaultAccessPort {
   /** Vault 전체 노트의 메타데이터를 일괄 반환. 콘텐츠 I/O 없이 메타데이터 캐시만 사용. */
   listNotesWithMetadata(): Promise<ReadonlyArray<NoteMetadataEntry>>;
 
+  /** 경량: 노트별 폴더+태그만 반환. backlinks/wordCount/links 생략. */
+  listNotesFolderAndTags(): Promise<ReadonlyArray<{ folder: string; tags: ReadonlyArray<string> }>>;
+
   /** 파일 이벤트 감시 등록. 해제를 위한 콜백 반환. */
   watchEvents(handler: VaultEventHandler): () => void;
 }
