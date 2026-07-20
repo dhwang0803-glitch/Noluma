@@ -140,7 +140,6 @@ describe('OpenAIAdapter', () => {
       const aiJson = {
         category: 'technology',
         tags: ['#typescript', '#react'],
-        folder: 'Tech',
         summary: 'About TS',
         confidence: 0.95,
       };
@@ -162,7 +161,6 @@ describe('OpenAIAdapter', () => {
 
       expect(result.category).toBe('technology');
       expect(result.suggestedTags).toEqual(['#typescript', '#react']);
-      expect(result.suggestedFolder).toBe('Tech');
       expect(result.summary).toBe('About TS');
       expect(result.confidence).toBe(0.95);
     });
@@ -174,7 +172,6 @@ describe('OpenAIAdapter', () => {
           { tag: '#vague-topic', confidence: 0.45 },
           { tag: '#typescript', confidence: 0.78 },
         ],
-        folder: 'Tech',
         summary: 'About TS and React',
         confidence: 0.9,
       };

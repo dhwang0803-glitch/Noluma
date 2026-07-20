@@ -161,7 +161,6 @@ describe('GeminiAdapter', () => {
       const aiJson = {
         category: 'science',
         tags: ['#physics'],
-        folder: 'Science',
         summary: 'Physics note',
         confidence: 0.88,
       };
@@ -183,7 +182,6 @@ describe('GeminiAdapter', () => {
 
       expect(result.category).toBe('science');
       expect(result.suggestedTags).toEqual(['#physics']);
-      expect(result.suggestedFolder).toBe('Science');
     });
 
     it('per-tag confidence 형식을 파싱하고 0.7 미만을 필터링한다', async () => {
@@ -193,7 +191,6 @@ describe('GeminiAdapter', () => {
           { tag: '#weak-match', confidence: 0.3 },
           { tag: '#quantum', confidence: 0.82 },
         ],
-        folder: 'Science',
         summary: 'Quantum note',
         confidence: 0.88,
       };

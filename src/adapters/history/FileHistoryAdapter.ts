@@ -128,15 +128,6 @@ export class FileHistoryAdapter implements HistoryPort {
       if (target.previousContent !== undefined) {
         await this.vault.writeNote(target.notePath, target.previousContent);
 
-        if (target.action === 'classify' && target.metadata?.moveTarget) {
-          const movedBasename = (target.notePath as string).split('/').pop() ?? '';
-          const movedPath = createNotePath(`${target.metadata.moveTarget as string}/${movedBasename}`);
-          const movedExists = await this.vault.exists(movedPath);
-          if (movedExists) {
-            await this.vault.deleteNote(movedPath);
-          }
-        }
-
         const idx = entries.indexOf(target);
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { previousContent: _cleared, ...rest } = target;

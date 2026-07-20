@@ -42,7 +42,6 @@ export function createMockAI(overrides?: Partial<AIProviderPort>): AIProviderPor
   const defaultClassification: ClassificationResponse = {
     category: 'general',
     suggestedTags: ['#tag1'],
-    suggestedFolder: undefined,
     summary: 'summary',
     confidence: 0.9,
     tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30, estimatedCostUsd: 0.001 },

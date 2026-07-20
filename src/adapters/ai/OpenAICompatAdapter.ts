@@ -67,8 +67,6 @@ export class OpenAICompatAdapter implements AIProviderPort {
     const prompt = PromptTemplates.classifyAndTag(
       request.text,
       request.existingTags ?? [],
-      request.folderProfiles,
-      request.currentFolder,
       request.locale,
       request.availableNotes,
     );
@@ -83,16 +81,12 @@ export class OpenAICompatAdapter implements AIProviderPort {
 
     const parsed = this.parseJson(completionResponse.content);
 
-    const folder = (parsed.folder as string) || undefined;
-    const folderReason = (parsed.folderReason as string) || undefined;
     const relatedNotes = Array.isArray(parsed.relatedNotes)
       ? (parsed.relatedNotes as unknown[]).filter((n): n is string => typeof n === 'string')
       : [];
     return {
-      category: (parsed.category as string) ?? folder ?? '미분류',
+      category: (parsed.category as string) ?? '미분류',
       suggestedTags: this.parseTags(parsed.tags),
-      suggestedFolder: folder,
-      folderReason,
       suggestedLinks: relatedNotes,
       summary: (parsed.summary as string) ?? '',
       confidence: (parsed.confidence as number) ?? 0.5,
