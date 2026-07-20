@@ -1,5 +1,5 @@
 import { App, ButtonComponent, Modal, Notice, TextComponent } from 'obsidian';
-import { OrganizeResult, TagReason } from '../domain/models/OrganizeModels';
+import { OrganizeResult } from '../domain/models/OrganizeModels';
 import { NotePath } from '../domain/values/NotePath';
 import { t } from '../i18n';
 import { localizeError } from './localizeError';
