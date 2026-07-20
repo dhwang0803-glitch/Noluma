@@ -29,6 +29,7 @@
 | 0005 | [Quick Ask 원샷 → 멀티턴 채팅 전환](./adr/ADR-0005-quickask-multiturn-chat.md) | Superseded (ADR-0009) | 2026-07-15 |
 | 0006 | [클립보드 캡처 기능 제거](./adr/ADR-0006-clipboard-capture-removal.md) | Accepted | 2026-07-16 |
 | 0007 | [Free/Pro 기능 게이팅 시스템](./adr/ADR-0007-free-pro-gating.md) | Accepted | 2026-07-17 |
+| 0008 | [임베딩 → LLM 기반 링크 제안 전환](./adr/ADR-0008-llm-link-suggestion.md) | Accepted | 2026-07-21 |
 | 0008 | [AI API 배치 처리 + Rate Limit Circuit Breaker](./adr/ADR-0008-ai-batch-rate-limit-circuit-breaker.md) | Accepted | 2026-07-19 |
 | 0009 | [Quick Ask 모듈 분리 — obsidian-vault-chat로 이전](./adr/ADR-0009-quickask-extraction.md) | Accepted | 2026-07-20 |
 | 0010 | [Organize Note/Folder 폴더 이동 제안 제거](./adr/ADR-0010-remove-folder-move-suggestion.md) | Accepted | 2026-07-20 |
