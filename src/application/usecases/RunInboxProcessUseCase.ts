@@ -11,6 +11,7 @@ import { NotePath } from '../../domain/values/NotePath';
 import { TagNormalizationService } from '../../domain/services/TagNormalizationService';
 import { NoteEmbeddingService } from '../../domain/services/NoteEmbeddingService';
 import { applyContentRedaction } from '../../domain/models/PrivacyRule';
+import { stripFrontmatter } from '../../domain/services/tokenize';
 
 export interface OrganizeFolderProgressInfo {
   readonly current: number;
@@ -107,7 +108,7 @@ export class OrganizeFolderUseCase {
           if (!note) continue;
           const title = (np as string).split('/').pop()?.replace(/\.md$/, '') ?? '';
           const redacted = applyContentRedaction(note.content, privacyRules);
-          const body = redacted.slice(0, 8000);
+          const body = stripFrontmatter(redacted).slice(0, 8000);
           const hash = await NoteEmbeddingService.computeContentHash(title, body);
 
           if (!this.noteEmbeddingCache.needsUpdate(np, hash)) {

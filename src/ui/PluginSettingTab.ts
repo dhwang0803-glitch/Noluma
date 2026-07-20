@@ -181,6 +181,25 @@ export class PluginSettingTab extends ObsidianSettingTab {
           });
       });
 
+    // --- Link Suggestion ---
+    containerEl.createEl('h3', { text: t('settings.linkSimilarity') });
+
+    new Setting(containerEl)
+      .setName(t('settings.linkSimilarityThreshold'))
+      .setDesc(
+        t('settings.linkSimilarityThresholdDesc')
+        + ` (${t('settings.linkSimilarityThreshold')}: ${this.settings!.linkSimilarityThreshold.toFixed(2)})`,
+      )
+      .addSlider(slider => {
+        slider
+          .setLimits(0.40, 0.80, 0.05)
+          .setValue(this.settings!.linkSimilarityThreshold)
+          .setDynamicTooltip()
+          .onChange(async (value) => {
+            await this.config.updateSettings({ linkSimilarityThreshold: value });
+          });
+      });
+
     // --- Maintenance ---
     containerEl.createEl('h3', { text: t('settings.maintenance') });
     new Setting(containerEl)
