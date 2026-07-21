@@ -228,4 +228,73 @@ describe('parseLinkSelectionResponse', () => {
 
     expect(result.get(np('note-a.md'))!.length).toBe(5);
   });
+
+  // --- Symmetry enforcement ---
+
+  it('adds reverse link when linked note is also a target', () => {
+    const json = JSON.stringify({
+      links: {
+        '1': [{ note: 3, score: 8, reason: 'same platform' }],
+      },
+    });
+    const result = parseLinkSelectionResponse(json, noteIndex, targetIndex);
+
+    expect(result.get(np('note-a.md'))).toEqual([np('note-c.md')]);
+    expect(result.get(np('note-c.md'))).toEqual([np('note-a.md')]);
+  });
+
+  it('does not add reverse link when linked note is not a target', () => {
+    const json = JSON.stringify({
+      links: {
+        '1': [{ note: 2, score: 8, reason: 'related' }],
+      },
+    });
+    const result = parseLinkSelectionResponse(json, noteIndex, targetIndex);
+
+    expect(result.get(np('note-a.md'))).toEqual([np('note-b.md')]);
+    expect(result.has(np('note-b.md'))).toBe(false);
+  });
+
+  it('does not duplicate existing reverse link', () => {
+    const json = JSON.stringify({
+      links: {
+        '1': [{ note: 3, score: 8, reason: 'forward' }],
+        '3': [{ note: 1, score: 9, reason: 'reverse' }],
+      },
+    });
+    const result = parseLinkSelectionResponse(json, noteIndex, targetIndex);
+
+    expect(result.get(np('note-a.md'))).toEqual([np('note-c.md')]);
+    expect(result.get(np('note-c.md'))).toEqual([np('note-a.md')]);
+  });
+
+  it('respects max links limit on reverse fill', () => {
+    const manyTargets = new Map<number, NotePath>([
+      [1, np('note-a.md')],
+      [2, np('note-b.md')],
+      [3, np('note-c.md')],
+      [4, np('note-d.md')],
+      [5, np('note-e.md')],
+      [6, np('note-f.md')],
+      [7, np('note-g.md')],
+    ]);
+    const json = JSON.stringify({
+      links: {
+        '1': [
+          { note: 3, score: 10, reason: 'a' },
+        ],
+        '3': [
+          { note: 2, score: 10, reason: 'a' },
+          { note: 4, score: 10, reason: 'b' },
+          { note: 5, score: 10, reason: 'c' },
+          { note: 6, score: 10, reason: 'd' },
+          { note: 7, score: 10, reason: 'e' },
+        ],
+      },
+    });
+    const result = parseLinkSelectionResponse(json, noteIndex, manyTargets);
+
+    expect(result.get(np('note-c.md'))!.length).toBe(5);
+    expect(result.get(np('note-c.md'))).not.toContain(np('note-a.md'));
+  });
 });
