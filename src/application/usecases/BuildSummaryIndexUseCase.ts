@@ -129,7 +129,6 @@ export class BuildSummaryIndexUseCase {
       for (const result of settled) {
         if (result.status === 'fulfilled') {
           for (const sr of result.value.results) {
-            const existing = this.noteEmbeddingCache.get(sr.notePath);
             const contentHash = hashMap.get(sr.notePath as string) ?? '';
             this.noteEmbeddingCache.put({
               notePath: sr.notePath,
