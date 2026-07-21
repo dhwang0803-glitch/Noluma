@@ -204,6 +204,8 @@ const ko: { [K in keyof typeof en]: string } = {
   'organize.tagsLabel': '태그: ',
   'organize.linksLabel': '링크: ',
   'organize.noChanges': '적용할 변경 사항 없음.',
+  'organize.addLinkBtn': '추가',
+  'organize.tagsComingSoon': '태그 정리 기능은 곧 출시됩니다.',
 
   'organizeFolder.placeholder': '정리할 폴더를 선택하세요...',
   'organizeFolder.cancel': '취소',

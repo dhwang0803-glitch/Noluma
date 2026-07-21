@@ -1,6 +1,6 @@
-import { App, ButtonComponent, Modal, Notice } from 'obsidian';
+import { App, ButtonComponent, Modal, Notice, TextComponent } from 'obsidian';
 import { OrganizeResult } from '../domain/models/OrganizeModels';
-import { NotePath } from '../domain/values/NotePath';
+import { NotePath, createNotePath } from '../domain/values/NotePath';
 import type { OrganizeApplyActions } from './OrganizeResultModal';
 import { t } from '../i18n';
 
@@ -21,8 +21,15 @@ export interface BatchOrganizeCallbacks {
   readonly recordHistory: (id: string, notePath: NotePath, previousContent: string, description: string, tags: string[], links: string[]) => Promise<void>;
 }
 
+interface EditableItem {
+  readonly notePath: NotePath;
+  readonly tags: ReadonlyArray<string>;
+  links: string[];
+}
+
 export class OrganizeBatchPreviewModal extends Modal {
   private onApplied?: (entries: ReadonlyArray<BatchAppliedEntry>) => void;
+  private editableItems: EditableItem[];
 
   constructor(
     app: App,
@@ -30,6 +37,11 @@ export class OrganizeBatchPreviewModal extends Modal {
     private readonly callbacks: BatchOrganizeCallbacks,
   ) {
     super(app);
+    this.editableItems = items.map(item => ({
+      notePath: item.notePath,
+      tags: item.result.addedTags.map(tag => tag as string),
+      links: item.result.suggestedLinks.map(link => link as string),
+    }));
   }
 
   setOnApplied(cb: (entries: ReadonlyArray<BatchAppliedEntry>) => void): this {
@@ -49,39 +61,78 @@ export class OrganizeBatchPreviewModal extends Modal {
     });
 
     const list = contentEl.createDiv('organize-batch-list');
-    for (const item of this.items) {
-      this.renderItem(list, item);
+    for (const editable of this.editableItems) {
+      this.renderItem(list, editable);
     }
 
     this.renderFooter(contentEl);
   }
 
-  private renderItem(container: HTMLElement, item: BatchPreviewItem): void {
+  private renderItem(container: HTMLElement, editable: EditableItem): void {
     const card = container.createDiv('organize-batch-card');
-    const noteName = (item.notePath as string).split('/').pop()?.replace('.md', '') ?? '';
+    const noteName = (editable.notePath as string).split('/').pop()?.replace('.md', '') ?? '';
     card.createEl('div', { text: noteName, cls: 'organize-batch-card-name' });
 
     const details = card.createDiv('organize-batch-card-details');
 
-    if (item.result.addedTags.length > 0) {
+    if (editable.tags.length > 0) {
       const tagLine = details.createDiv('organize-batch-tags');
       tagLine.createEl('span', { text: t('organize.tagsLabel'), cls: 'organize-batch-label' });
-      for (const tag of item.result.addedTags) {
-        tagLine.createEl('span', { text: `#${tag as string}`, cls: 'organize-chip organize-chip-small' });
+      for (const tag of editable.tags) {
+        tagLine.createEl('span', { text: `#${tag}`, cls: 'organize-chip organize-chip-small' });
       }
     }
 
-    if (item.result.suggestedLinks.length > 0) {
-      const linkLine = details.createDiv('organize-batch-links');
-      linkLine.createEl('span', { text: t('organize.linksLabel'), cls: 'organize-batch-label' });
-      const linkText = item.result.suggestedLinks
-        .map(l => `[[${(l as string).replace('.md', '')}]]`)
-        .join(', ');
-      linkLine.createEl('span', { text: linkText, cls: 'organize-batch-link-text' });
-    }
+    this.renderEditableLinks(details, editable);
 
-    if (item.result.addedTags.length === 0 && item.result.suggestedLinks.length === 0) {
-      details.createEl('span', { text: t('organize.noChanges'), cls: 'organize-empty' });
+    if (editable.tags.length === 0 && editable.links.length === 0) {
+      details.createEl('span', { text: t('organize.noChanges'), cls: 'organize-empty organize-empty-state' });
+    }
+  }
+
+  private renderEditableLinks(container: HTMLElement, editable: EditableItem): void {
+    const linksSection = container.createDiv('organize-batch-links');
+    linksSection.createEl('span', { text: t('organize.linksLabel'), cls: 'organize-batch-label' });
+
+    const chipContainer = linksSection.createDiv('organize-link-chips');
+    this.renderLinkChips(chipContainer, editable);
+
+    const addRow = linksSection.createDiv('organize-link-add-row');
+    const inputEl = new TextComponent(addRow)
+      .setPlaceholder(t('organize.addLinkPlaceholder'));
+    inputEl.inputEl.addClass('organize-link-input');
+
+    new ButtonComponent(addRow)
+      .setButtonText(t('organize.addLinkBtn'))
+      .setClass('organize-link-add-btn')
+      .onClick(() => {
+        const raw = inputEl.getValue().trim();
+        if (!raw) return;
+        const cleaned = raw.replace(/^\[\[/, '').replace(/\]\]$/, '').trim();
+        if (!cleaned) return;
+        const linkPath = /\.md$/i.test(cleaned) ? cleaned.replace(/\.md$/i, '.md') : `${cleaned}.md`;
+        if (editable.links.includes(linkPath)) return;
+        editable.links.push(linkPath);
+        inputEl.setValue('');
+        this.renderLinkChips(chipContainer, editable);
+        const emptyState = container.closest('.organize-batch-card')?.querySelector('.organize-empty-state');
+        if (emptyState) emptyState.remove();
+      });
+  }
+
+  private renderLinkChips(container: HTMLElement, editable: EditableItem): void {
+    container.empty();
+    for (const link of editable.links) {
+      const chip = container.createDiv('organize-link-chip');
+      const displayName = link.replace(/\.md$/i, '').split('/').pop() ?? link;
+      chip.createEl('span', { text: `[[${displayName}]]`, cls: 'organize-link-chip-text' });
+      chip.createEl('span', {
+        text: '×',
+        cls: 'organize-link-chip-remove',
+      }).addEventListener('click', () => {
+        editable.links = editable.links.filter(l => l !== link);
+        this.renderLinkChips(container, editable);
+      });
     }
   }
 
@@ -105,44 +156,41 @@ export class OrganizeBatchPreviewModal extends Modal {
     let failed = 0;
     const appliedEntries: BatchAppliedEntry[] = [];
 
-    for (const item of this.items) {
-      const hasChanges = item.result.addedTags.length > 0 || item.result.suggestedLinks.length > 0;
+    for (const editable of this.editableItems) {
+      const hasChanges = editable.tags.length > 0 || editable.links.length > 0;
       if (!hasChanges) continue;
 
       let previousContent: string;
       try {
-        previousContent = await this.callbacks.readContent(item.notePath);
+        previousContent = await this.callbacks.readContent(editable.notePath);
       } catch (err) {
         failed++;
-        console.error(`Vaultend: batch read failed for ${item.notePath as string}`, err);
+        console.error(`Vaultend: batch read failed for ${editable.notePath as string}`, err);
         continue;
       }
 
       try {
         const entryId = crypto.randomUUID();
 
-        if (item.result.addedTags.length > 0) {
-          const tags = item.result.addedTags.map(tag => tag as string);
-          await this.callbacks.actions.applyTags(item.notePath, tags);
+        if (editable.tags.length > 0) {
+          await this.callbacks.actions.applyTags(editable.notePath, [...editable.tags]);
         }
-        if (item.result.suggestedLinks.length > 0) {
-          await this.callbacks.actions.addLinks(item.notePath, [...item.result.suggestedLinks]);
+        if (editable.links.length > 0) {
+          await this.callbacks.actions.addLinks(editable.notePath, editable.links.map(l => createNotePath(l)));
         }
 
-        const tags = item.result.addedTags.map(tg => tg as string);
-        const links = item.result.suggestedLinks.map(l => l as string);
-        const desc = `Organize Selected: tags=${tags.length}, links=${links.length}`;
-        await this.callbacks.recordHistory(entryId, item.notePath, previousContent, desc, tags, links);
+        const desc = `Organize Selected: tags=${editable.tags.length}, links=${editable.links.length}`;
+        await this.callbacks.recordHistory(entryId, editable.notePath, previousContent, desc, [...editable.tags], [...editable.links]);
 
-        appliedEntries.push({ notePath: item.notePath, historyEntryId: entryId });
+        appliedEntries.push({ notePath: editable.notePath, historyEntryId: entryId });
         success++;
       } catch (err) {
         failed++;
-        console.error(`Vaultend: batch apply failed for ${item.notePath as string}`, err);
+        console.error(`Vaultend: batch apply failed for ${editable.notePath as string}`, err);
         try {
-          await this.callbacks.writeContent(item.notePath, previousContent);
+          await this.callbacks.writeContent(editable.notePath, previousContent);
         } catch (restoreErr) {
-          console.error(`Vaultend: failed to restore ${item.notePath as string}`, restoreErr);
+          console.error(`Vaultend: failed to restore ${editable.notePath as string}`, restoreErr);
         }
       }
     }
