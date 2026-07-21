@@ -29,6 +29,7 @@ import { EstimateRefactorCostUseCase } from './application/usecases/EstimateRefa
 import { GenerateRefactorPlanUseCase } from './application/usecases/GenerateRefactorPlanUseCase';
 import { RecordPreferenceUseCase } from './application/usecases/RecordPreferenceUseCase';
 import { BuildSummaryIndexUseCase } from './application/usecases/BuildSummaryIndexUseCase';
+import { OrganizeTagsUseCase } from './application/usecases/OrganizeTagsUseCase';
 import { replaceRelatedNotesSection } from './application/utils/relatedNotesSection';
 
 // UI
@@ -39,9 +40,11 @@ import { MaintenanceResultView, MAINTENANCE_RESULT_VIEW_TYPE } from './ui/Mainte
 import { OrganizeFolderResultView, ORGANIZE_FOLDER_VIEW_TYPE } from './ui/OrganizeFolderResultView';
 import { FolderSuggestModal } from './ui/FolderSuggestModal';
 import { OrganizeVaultView, ORGANIZE_VAULT_VIEW_TYPE } from './ui/OrganizeVaultView';
+import { OrganizeTagsView, ORGANIZE_TAGS_VIEW_TYPE } from './ui/OrganizeTagsView';
 import { FileOrganizeVaultAdapter } from './adapters/organize-vault/FileOrganizeVaultAdapter';
 import { FilePreferenceAdapter } from './adapters/preference/FilePreferenceAdapter';
 import { FileTagEmbeddingCacheAdapter } from './adapters/tag-embedding-cache/FileTagEmbeddingCacheAdapter';
+import { FileTagGroupCacheAdapter } from './adapters/tag-group-cache/FileTagGroupCacheAdapter';
 import { FileNoteEmbeddingCacheAdapter } from './adapters/note-embedding-cache/FileNoteEmbeddingCacheAdapter';
 import { NoteEmbeddingService } from './domain/services/NoteEmbeddingService';
 import { PluginSettingTab } from './ui/PluginSettingTab';
@@ -70,6 +73,7 @@ import {
   DEFAULT_ARCHIVE_FOLDER,
   DEFAULT_LOCALE,
   COMMAND_VAULT_REFACTOR,
+  COMMAND_ORGANIZE_TAGS,
 } from './constants';
 import { t, setLocale, detectObsidianLocale } from './i18n';
 
@@ -136,6 +140,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private preferenceAdapter!: FilePreferenceAdapter;
   private tagEmbeddingCacheAdapter!: FileTagEmbeddingCacheAdapter;
   private noteEmbeddingCacheAdapter!: FileNoteEmbeddingCacheAdapter;
+  private tagGroupCacheAdapter!: FileTagGroupCacheAdapter;
 
   // Shared ConfigPort (single instance)
   private configPort!: ConfigPort;
@@ -155,6 +160,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
   private estimateRefactorCostUseCase!: EstimateRefactorCostUseCase;
   private generateRefactorPlanUseCase!: GenerateRefactorPlanUseCase;
   private recordPreferenceUseCase!: RecordPreferenceUseCase;
+  private organizeTagsUseCase!: OrganizeTagsUseCase;
 
   // Pro (beta only — tree-shaken in free builds)
   private licenseAdapter: import('./application/ports/LicensePort').LicensePort | null = null;
@@ -226,6 +232,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       await this.vectorStoreAdapter.load();
       await this.tagEmbeddingCacheAdapter.load();
       await this.noteEmbeddingCacheAdapter.load();
+      await this.tagGroupCacheAdapter.load();
 
       if (this.hasAIProviderConfig()) {
         await this.reinitializeEmbeddings();
@@ -251,6 +258,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     // Flush embedding caches
     this.tagEmbeddingCacheAdapter.flush().catch(() => {});
     this.noteEmbeddingCacheAdapter.flush().catch(() => {});
+    this.tagGroupCacheAdapter.flush().catch(() => {});
 
     // Clear maintenance timer
     if (this.maintenanceInterval !== null) {
@@ -375,6 +383,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     }
     this.tagEmbeddingCacheAdapter = new FileTagEmbeddingCacheAdapter(this.vaultAdapter);
     this.noteEmbeddingCacheAdapter = new FileNoteEmbeddingCacheAdapter(this.vaultAdapter);
+    this.tagGroupCacheAdapter = new FileTagGroupCacheAdapter(this.vaultAdapter);
   }
 
   private wireProFeatures(): void {
@@ -425,6 +434,13 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
 
     this.applyMaintenanceActionUseCase = new ApplyMaintenanceActionUseCase(
       this.vaultAdapter, this.historyAdapter, this.clockAdapter,
+    );
+
+    this.organizeTagsUseCase = new OrganizeTagsUseCase(
+      this.vaultAdapter,
+      this.hasAIProviderConfig() ? this.aiAdapter : undefined,
+      this.tagGroupCacheAdapter,
+      this.configPort,
     );
 
     this.syncEmbeddingsUseCase = new SyncEmbeddingsUseCase(
@@ -508,6 +524,20 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
         },
         (v: boolean) => { this.isOrganizing = v; },
+      ),
+    );
+
+    this.registerView(
+      ORGANIZE_TAGS_VIEW_TYPE,
+      (leaf: WorkspaceLeaf) => new OrganizeTagsView(
+        leaf,
+        this.organizeTagsUseCase,
+        this.applyMaintenanceActionUseCase,
+        this.historyAdapter,
+        (path: string) => {
+          const file = this.app.vault.getAbstractFileByPath(path);
+          if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
+        },
       ),
     );
 
@@ -595,6 +625,19 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
       id: 'open-maintenance-log',
       name: t('command.openLog'),
       callback: () => this.activateView(MAINTENANCE_LOG_VIEW_TYPE),
+    });
+
+    this.addCommand({
+      id: COMMAND_ORGANIZE_TAGS,
+      name: t('command.organizeTags'),
+      callback: async () => {
+        await this.activateView(ORGANIZE_TAGS_VIEW_TYPE);
+        const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_TAGS_VIEW_TYPE);
+        if (leaves.length > 0) {
+          const view = leaves[0].view as OrganizeTagsView;
+          await view.triggerScan();
+        }
+      },
     });
 
     if (ENABLE_PRO) {
