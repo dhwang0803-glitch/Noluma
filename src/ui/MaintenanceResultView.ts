@@ -2,9 +2,8 @@ import { ItemView, Notice, Setting, WorkspaceLeaf } from 'obsidian';
 import { RunMaintenanceUseCase } from '../application/usecases/RunMaintenanceUseCase';
 import { ApplyMaintenanceActionUseCase, type ApplyResult } from '../application/usecases/ApplyMaintenanceActionUseCase';
 import { MaintenancePlan, BrokenLink, MissingTagSuggestion, DuplicatePair, OrphanNoteEntry, EmptyNoteEntry, DuplicateTagGroup } from '../domain/models/OrganizeModels';
-import type { MaintenanceAction, MaintenanceIssueType, LinkOrphan, FixBrokenLink } from '../domain/models/MaintenanceAction';
+import type { MaintenanceAction, MaintenanceIssueType, FixBrokenLink } from '../domain/models/MaintenanceAction';
 import { NotePath, createNotePath } from '../domain/values/NotePath';
-import type { TagName } from '../domain/values/TagName';
 import type { SeverityLevel } from '../domain/values/Severity';
 import { ISSUE_SEVERITY, getSeverity } from '../domain/values/Severity';
 import type { ConfigPort } from '../application/ports/ConfigPort';
@@ -58,7 +57,6 @@ export class MaintenanceResultView extends ItemView {
     private readonly openFile: (path: string) => void,
     private readonly openFileSplit: (pathA: string, pathB: string) => void,
     private readonly onMergeRequest: (pair: DuplicatePair) => void,
-    private readonly onLinkOrphan?: (notePath: NotePath) => Promise<ReadonlyArray<NotePath>>,
     private readonly onOrganizePreview?: (notePaths: NotePath[]) => Promise<Array<{ notePath: NotePath; result: OrganizeResult }>>,
     private readonly batchOrganizeCallbacks?: BatchOrganizeCallbacks,
   ) {
@@ -451,34 +449,18 @@ export class MaintenanceResultView extends ItemView {
     }
   }
 
-  private renderUntaggedNotes(container: HTMLElement, items: ReadonlyArray<NotePath>, missingTags?: ReadonlyArray<MissingTagSuggestion>): void {
+  private renderUntaggedNotes(container: HTMLElement, items: ReadonlyArray<NotePath>, _missingTags?: ReadonlyArray<MissingTagSuggestion>): void {
     const filtered = items
       .filter(p => !this.dismissedIds.has(`untagged:${p as string}`))
       .filter(p => this.matchesSearch(p as string));
     if (filtered.length === 0) return;
     const section = this.renderSectionHeading(container, 'untagged', t('issue.untaggedNotes', { count: filtered.length }));
 
-    const tagSuggestionMap = new Map<string, ReadonlyArray<TagName>>();
-    if (missingTags) {
-      for (const s of missingTags) {
-        tagSuggestionMap.set(s.notePath as string, s.suggestedTags);
-      }
-    }
-
-    const hasSuggestions = filtered.some(p => tagSuggestionMap.has(p as string));
     const entries: BatchEntry[] = [];
-    this.renderBatchControls(
-      section, entries,
-      hasSuggestions ? t('batch.selectedApplyTags') : undefined,
-      false, undefined, undefined, false,
-      hasSuggestions ? (e) => this.batchApplyTagsOnly(e) : undefined,
-    );
-    if (this.onOrganizePreview) {
-      this.addOrganizeButton(section, entries);
-    }
+    this.renderBatchControls(section, entries);
+    this.addOrganizeTagsButton(section, entries);
 
     for (const notePath of filtered) {
-      const suggestions = tagSuggestionMap.get(notePath as string);
       const settingEl = new Setting(section)
         .setName(this.basename(notePath));
       settingEl.descEl.createDiv({ text: notePath as string, cls: 'maintenance-card-path' });
@@ -486,28 +468,12 @@ export class MaintenanceResultView extends ItemView {
 
       entries.push({
         checkbox: this.prependCheckbox(settingEl),
-        action: suggestions && suggestions.length > 0
-          ? { kind: 'apply-missing-tags', notePath: createNotePath(notePath as string), tags: suggestions }
-          : { kind: 'dismiss', issueType: 'untagged', identifier: notePath as string },
+        action: { kind: 'dismiss', issueType: 'untagged', identifier: notePath as string },
         setting: settingEl,
         issueType: 'untagged',
         identifier: notePath as string,
         status: 'pending',
       });
-      const untaggedEntry = entries[entries.length - 1];
-
-      if (suggestions && suggestions.length > 0) {
-        settingEl.addButton(btn => btn
-          .setButtonText(t('btn.applyTags'))
-          .setCta()
-          .onClick(() => this.executeAction(
-            { kind: 'apply-missing-tags', notePath: createNotePath(notePath as string), tags: suggestions },
-            settingEl,
-            `untagged:${notePath as string}`,
-            untaggedEntry,
-          )),
-        );
-      }
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.open'))
@@ -515,7 +481,7 @@ export class MaintenanceResultView extends ItemView {
       );
 
       this.addDismissButton(settingEl, 'untagged', notePath as string);
-      this.applyPersistedState(untaggedEntry);
+      this.applyPersistedState(entries[entries.length - 1]);
     }
   }
 
@@ -527,7 +493,8 @@ export class MaintenanceResultView extends ItemView {
     const section = this.renderSectionHeading(container, 'missing-tags', t('issue.missingTags', { count: filtered.length }));
 
     const entries: BatchEntry[] = [];
-    this.renderBatchControls(section, entries, t('batch.selectedApplyTags'));
+    this.renderBatchControls(section, entries);
+    this.addOrganizeTagsButton(section, entries);
 
     for (const item of filtered) {
       const settingEl = new Setting(section)
@@ -537,27 +504,15 @@ export class MaintenanceResultView extends ItemView {
 
       entries.push({
         checkbox: this.prependCheckbox(settingEl),
-        action: { kind: 'apply-missing-tags', notePath: item.notePath, tags: item.suggestedTags },
+        action: { kind: 'dismiss', issueType: 'missing-tags', identifier: item.notePath as string },
         setting: settingEl,
         issueType: 'missing-tags',
         identifier: item.notePath as string,
         status: 'pending',
       });
-      const tagEntry = entries[entries.length - 1];
-
-      settingEl.addButton(btn => btn
-        .setButtonText(t('btn.applyTags'))
-        .setCta()
-        .onClick(() => this.executeAction(
-          { kind: 'apply-missing-tags', notePath: item.notePath, tags: item.suggestedTags },
-          settingEl,
-          `missing-tags:${item.notePath as string}`,
-          tagEntry,
-        )),
-      );
 
       this.addDismissButton(settingEl, 'missing-tags', item.notePath as string);
-      this.applyPersistedState(tagEntry);
+      this.applyPersistedState(entries[entries.length - 1]);
     }
   }
 
@@ -671,28 +626,6 @@ export class MaintenanceResultView extends ItemView {
         .setButtonText(t('btn.open'))
         .onClick(() => this.openFile(entry.notePath as string)),
       );
-
-      if (this.onLinkOrphan || (entry.suggestedLinks && entry.suggestedLinks.length > 0)) {
-        settingEl.addButton(btn => btn
-          .setButtonText(t('btn.linkOrphan'))
-          .setCta()
-          .onClick(async () => {
-            const links = entry.suggestedLinks && entry.suggestedLinks.length > 0
-              ? entry.suggestedLinks.map(p => createNotePath(p))
-              : this.onLinkOrphan ? await this.onLinkOrphan(entry.notePath) : [];
-            if (links.length === 0) {
-              new Notice(t('notice.noRelatedNotes'));
-              return;
-            }
-            await this.executeAction(
-              { kind: 'link-orphan', notePath: entry.notePath, suggestedLinks: links } satisfies LinkOrphan,
-              settingEl,
-              `orphan:${entry.notePath as string}`,
-              orphanEntry,
-            );
-          }),
-        );
-      }
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.archive'))
@@ -1030,15 +963,6 @@ export class MaintenanceResultView extends ItemView {
     if (success > 0) this.app.workspace.trigger(HISTORY_CHANGED_EVENT);
   }
 
-  private async batchApplyTagsOnly(entries: BatchEntry[]): Promise<void> {
-    const taggable = entries.filter(e => e.checkbox.checked && e.status === 'pending' && e.action.kind === 'apply-missing-tags');
-    if (taggable.length === 0) {
-      new Notice(t('notice.noSelection'));
-      return;
-    }
-    await this.executeBatch(taggable);
-  }
-
   private async batchRemoveBrokenLinks(entries: BatchEntry[]): Promise<void> {
     const selected = entries.filter(e => e.checkbox.checked && e.status === 'pending');
     if (selected.length === 0) {
@@ -1239,6 +1163,19 @@ export class MaintenanceResultView extends ItemView {
       this.addRestoreButton(entry.setting, applied.historyEntryId, appliedKey);
     }
     this.app.workspace.trigger(HISTORY_CHANGED_EVENT);
+  }
+
+  private addOrganizeTagsButton(section: HTMLElement, _entries: BatchEntry[]): void {
+    const batchControls = section.querySelector('.maintenance-batch-controls .setting-item-control');
+    if (!batchControls) return;
+    const btn = batchControls.createEl('button', {
+      cls: 'mod-cta',
+      text: t('batch.selectedOrganize'),
+    });
+    batchControls.prepend(btn);
+    btn.addEventListener('click', () => {
+      new Notice(t('organize.tagsComingSoon'));
+    });
   }
 
   private async getArchiveFolder(): Promise<string> {
