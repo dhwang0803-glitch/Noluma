@@ -105,7 +105,6 @@ export class OrganizeTagsUseCase {
       const hasNewSingletons = singletonTags.some(t => newTags.has(t.tag));
 
       if (hasNewSingletons) {
-        // Send ALL singletons so new tags can be compared against existing ungrouped tags
         const result = await this.llmGrouping(singletonTags, normGroups, existingGroups, onProgress);
         llmGroups = result.groups;
         tokenUsage = result.tokenUsage;
@@ -119,13 +118,22 @@ export class OrganizeTagsUseCase {
     onProgress?.({ phase: 'building' });
     const groups = await this.buildDuplicateTagGroups(mergedGroups, currentTagEntries);
 
-    // 9. Persist cache
+    // 9. Persist cache — exclude ungrouped singletons when LLM returned nothing
     if (this.cache) {
       if (this.aiProvider) {
         const settings = await this.config.getSettings();
         this.cache.setMeta({ provider: settings.aiProvider, model: settings.aiModel });
       }
-      this.cache.setGroups(mergedGroups, currentTagSet);
+      let tagsToCache = currentTagSet;
+      if (this.aiProvider && llmGroups.length === 0 && singletonTags.length > 1) {
+        const groupedTags = new Set<string>();
+        for (const g of mergedGroups) {
+          groupedTags.add(g.canonical);
+          for (const v of g.variants) groupedTags.add(v);
+        }
+        tagsToCache = new Set([...currentTagSet].filter(t => groupedTags.has(t)));
+      }
+      this.cache.setGroups(mergedGroups, tagsToCache);
       await this.cache.flush();
     }
 
