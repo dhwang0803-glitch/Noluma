@@ -124,7 +124,7 @@ export class OrganizeFolderUseCase {
 
           if (!this.noteEmbeddingCache.needsUpdate(np, hash)) {
             const cached = this.noteEmbeddingCache.get(np);
-            if (cached) {
+            if (cached && cached.vector.length > 0) {
               cachedNoteEmbeddings.set(np, cached.vector);
               continue;
             }
@@ -151,8 +151,10 @@ export class OrganizeFolderUseCase {
             const hash = await NoteEmbeddingService.computeContentHash(
               batch[i].title, batch[i].body,
             );
+            const existingSummary = this.noteEmbeddingCache.get(batch[i].path)?.onelineSummary;
             this.noteEmbeddingCache.put({
               notePath: batch[i].path, vector: combined, contentHash: hash,
+              onelineSummary: existingSummary,
             });
           }
         }
