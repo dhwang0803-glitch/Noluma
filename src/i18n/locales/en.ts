@@ -202,6 +202,8 @@ const en = {
   'organize.tagsLabel': 'Tags: ',
   'organize.linksLabel': 'Links: ',
   'organize.noChanges': 'No changes to apply.',
+  'organize.addLinkBtn': 'Add',
+  'organize.tagsComingSoon': 'Organize Tags feature is coming soon.',
 
   // ─── Organize Folder ───
   'organizeFolder.placeholder': 'Select a folder to organize...',

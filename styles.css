@@ -625,20 +625,119 @@
   font-style: italic;
 }
 
+/* ─── Batch Preview Modal ─── */
+
+.vaultend-organize-batch-preview .organize-batch-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.organize-batch-card {
+  padding: 10px;
+  margin-bottom: 8px;
+  border-radius: 6px;
+  background: var(--background-primary-alt);
+}
+
+.organize-batch-card-name {
+  font-weight: var(--font-semibold);
+  margin-bottom: 6px;
+}
+
+.organize-batch-card-details {
+  padding-left: 4px;
+}
+
+.organize-batch-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.organize-batch-label {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+
+.organize-chip-small {
+  font-size: var(--font-ui-smaller);
+  padding: 1px 6px;
+}
+
+.organize-batch-links {
+  margin-bottom: 6px;
+}
+
+.organize-link-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0;
+}
+
+.organize-link-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px 2px 8px;
+  border-radius: 4px;
+  background: var(--background-primary-alt);
+  border: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-small);
+}
+
+.organize-link-chip-text {
+  color: var(--text-accent);
+}
+
+.organize-link-chip-remove {
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 2px;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.organize-link-chip-remove:hover {
+  color: var(--text-error);
+  background: rgba(var(--color-red-rgb), 0.15);
+}
+
+.organize-link-add-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.organize-link-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.organize-link-add-btn {
+  flex-shrink: 0;
+}
+
+.organize-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
 .organize-token-info {
   margin: 0;
   padding: 0 4px;
   color: var(--text-muted);
   font-size: var(--font-smallest);
   text-align: right;
-}
-
-.organize-footer {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--background-modifier-border);
 }
 
 .organize-applied {
