@@ -2,7 +2,7 @@ import { ItemView, Notice, Setting, WorkspaceLeaf } from 'obsidian';
 import { OrganizeTagsUseCase, OrganizeTagsResult, OrganizeTagsProgress } from '../application/usecases/OrganizeTagsUseCase';
 import { ApplyMaintenanceActionUseCase } from '../application/usecases/ApplyMaintenanceActionUseCase';
 import { HistoryPort } from '../application/ports/HistoryPort';
-import { DuplicateTagGroup, TagGroupType } from '../domain/models/OrganizeModels';
+import { DuplicateTagGroup } from '../domain/models/OrganizeModels';
 import { TagName } from '../domain/values/TagName';
 import { ORGANIZE_TAGS_VIEW_TYPE, HISTORY_CHANGED_EVENT } from '../constants';
 import { OrganizeTagEditModal } from './OrganizeTagEditModal';
