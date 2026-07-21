@@ -506,6 +506,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         },
         (pair) => this.triggerMergeForPair(pair),
         (notePaths) => this.previewOrganizeNotes(notePaths),
+        (notePaths) => this.previewOrganizeNotesTagsOnly(notePaths),
         this.buildBatchOrganizeCallbacks(),
       ),
     );
@@ -847,6 +848,23 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
     for (const notePath of notePaths) {
       try {
         const result = await this.organizeNoteUseCase.execute(notePath, false);
+        results.push({ notePath, result });
+      } catch {
+        failed++;
+      }
+    }
+    if (failed > 0) {
+      new Notice(t('notice.organizePreviewFailed', { failed }));
+    }
+    return results;
+  }
+
+  private async previewOrganizeNotesTagsOnly(notePaths: NotePath[]): Promise<Array<{ notePath: NotePath; result: OrganizeResult }>> {
+    const results: Array<{ notePath: NotePath; result: OrganizeResult }> = [];
+    let failed = 0;
+    for (const notePath of notePaths) {
+      try {
+        const result = await this.organizeNoteUseCase.execute(notePath, false, { skipLinkSuggestion: true });
         results.push({ notePath, result });
       } catch {
         failed++;
