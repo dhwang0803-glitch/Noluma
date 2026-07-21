@@ -99,6 +99,7 @@ export class OrganizeTagsUseCase {
 
     // 6. Phase 2: LLM semantic grouping (singletons only)
     let llmGroups: CachedTagGroup[] = [];
+    let llmProcessedTags = new Set<string>();
     let tokenUsage: TokenUsage | undefined;
 
     if (this.aiProvider && singletonTags.length > 1) {
@@ -107,6 +108,7 @@ export class OrganizeTagsUseCase {
       if (hasNewSingletons) {
         const result = await this.llmGrouping(singletonTags, normGroups, existingGroups, onProgress);
         llmGroups = result.groups;
+        llmProcessedTags = result.processedTags;
         tokenUsage = result.tokenUsage;
       }
     }
@@ -118,21 +120,18 @@ export class OrganizeTagsUseCase {
     onProgress?.({ phase: 'building' });
     const groups = await this.buildDuplicateTagGroups(mergedGroups, currentTagEntries);
 
-    // 9. Persist cache — exclude ungrouped singletons when LLM returned nothing
+    // 9. Persist cache — only mark successfully LLM-processed tags + grouped tags
     if (this.cache) {
       if (this.aiProvider) {
         const settings = await this.config.getSettings();
         this.cache.setMeta({ provider: settings.aiProvider, model: settings.aiModel });
       }
-      let tagsToCache = currentTagSet;
-      if (this.aiProvider && llmGroups.length === 0 && singletonTags.length > 1) {
-        const groupedTags = new Set<string>();
-        for (const g of mergedGroups) {
-          groupedTags.add(g.canonical);
-          for (const v of g.variants) groupedTags.add(v);
-        }
-        tagsToCache = new Set([...currentTagSet].filter(t => groupedTags.has(t)));
+      const tagsToCache = new Set(cachedProcessedTags);
+      for (const g of mergedGroups) {
+        tagsToCache.add(g.canonical);
+        for (const v of g.variants) tagsToCache.add(v);
       }
+      for (const t of llmProcessedTags) tagsToCache.add(t);
       this.cache.setGroups(mergedGroups, tagsToCache);
       await this.cache.flush();
     }
@@ -161,33 +160,31 @@ export class OrganizeTagsUseCase {
     normGroups: ReadonlyArray<CachedTagGroup>,
     existingGroups: ReadonlyArray<CachedTagGroup>,
     onProgress?: OrganizeTagsProgressCallback,
-  ): Promise<{ groups: CachedTagGroup[]; tokenUsage: TokenUsage }> {
+  ): Promise<{ groups: CachedTagGroup[]; processedTags: Set<string>; tokenUsage: TokenUsage }> {
     const groups: CachedTagGroup[] = [];
+    const processedTags = new Set<string>();
     let totalPromptTokens = 0;
     let totalCompletionTokens = 0;
     let totalEstimatedCost = 0;
 
     const totalBatches = Math.ceil(singletons.length / TAG_GROUPING_BATCH_SIZE);
 
-    // Detect language from tag names
     const sampleTags = singletons.slice(0, 5).map(t => t.tag).join(' ');
     const lang = detectContentLanguage(sampleTags);
     const systemPrompt = PromptTemplates.tagGroupingSystemPrompt(lang);
 
-    // Cross-batch: accumulate canonicals from previous batches
     const accumulatedCanonicals: string[] = [
       ...normGroups.map(g => g.canonical),
       ...existingGroups.map(g => g.canonical),
     ];
 
     for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      const start = batchIdx * TAG_GROUPING_BATCH_SIZE;
+      const batch = singletons.slice(start, start + TAG_GROUPING_BATCH_SIZE);
+
       try {
         onProgress?.({ phase: 'llm', current: batchIdx + 1, total: totalBatches });
 
-        const start = batchIdx * TAG_GROUPING_BATCH_SIZE;
-        const batch = singletons.slice(start, start + TAG_GROUPING_BATCH_SIZE);
-
-        // Build index map for this batch
         const indexToTag = new Map<number, string>();
         const indexedTags: Array<{ index: number; tag: string; count: number }> = [];
         for (let i = 0; i < batch.length; i++) {
@@ -229,6 +226,8 @@ export class OrganizeTagsUseCase {
             accumulatedCanonicals.push(pg.canonical);
           }
         }
+
+        for (const item of batch) processedTags.add(item.tag);
       } catch (err) {
         console.error(`Vaultend: tag grouping batch ${batchIdx + 1} failed`, err);
       }
@@ -236,6 +235,7 @@ export class OrganizeTagsUseCase {
 
     return {
       groups,
+      processedTags,
       tokenUsage: {
         promptTokens: totalPromptTokens,
         completionTokens: totalCompletionTokens,
