@@ -16,6 +16,9 @@ import { PromptTemplates } from '../PromptTemplates';
 import { parseLinkSelectionResponse } from '../utils/parseLinkSelectionResponse';
 import { detectContentLanguage } from '../utils/detectContentLanguage';
 import { replaceRelatedNotesSection } from '../utils/relatedNotesSection';
+import { stripRelatedNotesSection } from '../utils/relatedNotesSection';
+import { stripFrontmatter } from '../../domain/services/tokenize';
+import { ORGANIZE_MIN_WORD_COUNT, ORGANIZE_SUFFICIENT_LINKS } from '../../constants';
 
 export interface OrganizeFolderProgressInfo {
   readonly current: number;
@@ -31,9 +34,17 @@ export interface OrganizeFolderOptions {
   readonly folder?: string;
 }
 
+export interface SkipBreakdown {
+  readonly alreadyProcessed: number;
+  readonly tooShort: number;
+  readonly alreadyLinked: number;
+  readonly alreadyOrganized: number;
+}
+
 export interface OrganizeFolderResult {
   readonly processedCount: number;
   readonly skippedCount: number;
+  readonly skipBreakdown?: SkipBreakdown;
   readonly results: ReadonlyArray<OrganizeResult>;
   readonly errors: ReadonlyArray<{ path: NotePath; error: string }>;
   readonly cancelled?: boolean;
@@ -61,13 +72,38 @@ export class OrganizeFolderUseCase {
     const targetFolder = rawFolder === '/' ? undefined : rawFolder;
 
     const allNotes = await this.vault.listNotes(targetFolder);
-    const unprocessedNotes = [];
+    const unprocessedNotes: NotePath[] = [];
+    const skipBreakdown: SkipBreakdown = { alreadyProcessed: 0, tooShort: 0, alreadyLinked: 0, alreadyOrganized: 0 };
+    const mutableSkip = skipBreakdown as { -readonly [K in keyof SkipBreakdown]: SkipBreakdown[K] };
 
     for (const notePath of allNotes) {
       const note = await this.vault.readNote(notePath);
-      if (note && !note.metadata.isProcessed) {
-        unprocessedNotes.push(notePath);
+      if (!note) continue;
+
+      if (note.metadata.isProcessed) {
+        mutableSkip.alreadyProcessed++;
+        continue;
       }
+
+      const bodyText = stripFrontmatter(stripRelatedNotesSection(note.content));
+      const wordCount = bodyText.trim().split(/\s+/).filter(w => w.length > 0).length;
+      if (wordCount < ORGANIZE_MIN_WORD_COUNT) {
+        mutableSkip.tooShort++;
+        continue;
+      }
+
+      if (note.metadata.links.length >= ORGANIZE_SUFFICIENT_LINKS) {
+        mutableSkip.alreadyLinked++;
+        continue;
+      }
+
+      const hasRelatedSection = /\n## Related Notes\n/.test(note.content);
+      if (hasRelatedSection) {
+        mutableSkip.alreadyOrganized++;
+        continue;
+      }
+
+      unprocessedNotes.push(notePath);
     }
 
     const results: OrganizeResult[] = [];
@@ -116,9 +152,14 @@ export class OrganizeFolderUseCase {
     const noteSummaryMap = new Map<NotePath, string>();
     if (this.noteEmbeddingCache) {
       const allEntries = this.noteEmbeddingCache.getAll();
+      let withSummary = 0;
+      let withoutSummary = 0;
       for (const [path, entry] of allEntries) {
         if (entry.onelineSummary) {
           noteSummaryMap.set(path, entry.onelineSummary);
+          withSummary++;
+        } else {
+          withoutSummary++;
         }
       }
     }
@@ -240,21 +281,48 @@ export class OrganizeFolderUseCase {
           const sampleSummary = targets[0].summary;
           const lang = detectContentLanguage(sampleSummary);
           const systemPrompt = PromptTemplates.linkSelectionSystemPrompt(lang);
-          const prompt = PromptTemplates.linkSelectionUserMessage(targets, vaultNotes, lang);
 
-          const maxTokens = Math.min(4000, Math.max(200, targets.length * 40));
-          const response = await this.aiProvider.callCompletion({
-            prompt,
-            systemPrompt,
-            maxTokens,
-            temperature: 0.1,
-            jsonMode: true,
-          });
+          const combinedLinkMap = new Map<NotePath, NotePath[]>();
+          let totalPromptTokens = 0;
+          let totalCompletionTokens = 0;
+          let totalEstimatedCost = 0;
 
-          batchLinkTokenUsage = response.tokenUsage;
-          const linkMap = parseLinkSelectionResponse(response.content, noteIndexToPath, targetIndexToPath);
+          const BATCH_SIZE = 3;
+          for (let i = 0; i < targets.length; i += BATCH_SIZE) {
+            try {
+              const chunk = targets.slice(i, i + BATCH_SIZE);
+              const chunkIndexToPath = new Map<number, NotePath>();
+              for (const t of chunk) {
+                chunkIndexToPath.set(t.index, targetIndexToPath.get(t.index)!);
+              }
 
-          for (const [targetPath, linkedPaths] of linkMap) {
+              const prompt = PromptTemplates.linkSelectionUserMessage(chunk, vaultNotes, lang);
+              const maxTokens = Math.min(4000, Math.max(800, chunk.length * 300));
+
+              const response = await this.aiProvider.callCompletion({
+                prompt,
+                systemPrompt,
+                maxTokens,
+                temperature: 0.1,
+                jsonMode: true,
+              });
+
+              totalPromptTokens += response.tokenUsage.promptTokens;
+              totalCompletionTokens += response.tokenUsage.completionTokens;
+              totalEstimatedCost += response.tokenUsage.estimatedCostUsd;
+
+              const linkMap = parseLinkSelectionResponse(response.content, noteIndexToPath, chunkIndexToPath);
+              for (const [tp, lps] of linkMap) {
+                combinedLinkMap.set(tp, lps);
+              }
+            } catch (batchErr) {
+              console.error(`Vaultend: link selection batch ${Math.floor(i / BATCH_SIZE) + 1} failed`, batchErr);
+            }
+          }
+
+          batchLinkTokenUsage = { promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens, totalTokens: totalPromptTokens + totalCompletionTokens, estimatedCostUsd: totalEstimatedCost };
+
+          for (const [targetPath, linkedPaths] of combinedLinkMap) {
             if (linkedPaths.length === 0) continue;
 
             if (settings.autoApplyOrganize) {
@@ -302,9 +370,11 @@ export class OrganizeFolderUseCase {
       await this.tagEmbeddingCache.flush();
     }
 
+    const totalSkipped = mutableSkip.alreadyProcessed + mutableSkip.tooShort + mutableSkip.alreadyLinked + mutableSkip.alreadyOrganized;
     return {
       processedCount: results.length,
-      skippedCount: allNotes.length - unprocessedNotes.length,
+      skippedCount: totalSkipped,
+      skipBreakdown,
       results,
       errors,
       cancelled,
