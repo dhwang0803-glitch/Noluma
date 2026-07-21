@@ -2,7 +2,7 @@ import type { TagGroupCachePort, TagGroupCacheMeta, CachedTagGroup } from '../..
 import type { VaultAccessPort } from '../../application/ports/VaultAccessPort';
 import { TAG_GROUPS_PATH } from '../../constants';
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 interface StoredData {
   meta: TagGroupCacheMeta | null;
@@ -83,7 +83,7 @@ export class FileTagGroupCacheAdapter implements TagGroupCachePort {
 
   isCompatible(provider: string, model: string): boolean {
     if (!this.meta) return this.processedTags.size === 0;
-    return this.meta.provider === provider && this.meta.model === model;
+    return this.meta.provider === provider && this.meta.model === model && this.meta.version === SCHEMA_VERSION;
   }
 
   async clear(): Promise<void> {
