@@ -79,17 +79,5 @@ export function parseLinkSelectionResponse(
     }
   }
 
-  const targetPaths = new Set(targetIndexToPath.values());
-  for (const [sourcePath, linkedPaths] of result) {
-    for (const linkedPath of linkedPaths) {
-      if (!targetPaths.has(linkedPath)) continue;
-      const reverse = result.get(linkedPath) ?? [];
-      if (reverse.includes(sourcePath)) continue;
-      if (reverse.length >= MAX_LINKS_PER_TARGET) continue;
-      reverse.push(sourcePath);
-      result.set(linkedPath, reverse);
-    }
-  }
-
   return result;
 }
