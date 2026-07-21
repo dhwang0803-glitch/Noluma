@@ -1,7 +1,7 @@
 import { NotePath } from '../../domain/values/NotePath';
 
 const MAX_LINKS_PER_TARGET = 5;
-export const DEFAULT_LINK_RELEVANCE_THRESHOLD = 7;
+export const DEFAULT_LINK_RELEVANCE_THRESHOLD = 6;
 
 interface ScoredLinkEntry {
   readonly note: number;

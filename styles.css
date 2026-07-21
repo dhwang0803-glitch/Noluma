@@ -144,7 +144,8 @@
   color: var(--text-muted);
 }
 
-.organize-folder-no-changes {
+.organize-folder-no-changes,
+.organize-folder-no-links {
   color: var(--text-muted);
   font-style: italic;
   font-size: var(--font-ui-small);

@@ -181,7 +181,7 @@ describe('parseLinkSelectionResponse', () => {
   });
 
   it('exports default threshold constant', () => {
-    expect(DEFAULT_LINK_RELEVANCE_THRESHOLD).toBe(7);
+    expect(DEFAULT_LINK_RELEVANCE_THRESHOLD).toBe(6);
   });
 
   it('handles scored entries with missing reason gracefully', () => {
