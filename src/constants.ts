@@ -10,6 +10,7 @@ export const MAINTENANCE_LOG_VIEW_TYPE = 'vaultend-log';
 export const MAINTENANCE_RESULT_VIEW_TYPE = 'vaultend-result';
 export const ORGANIZE_FOLDER_VIEW_TYPE = 'vaultend-organize-folder';
 export const ORGANIZE_VAULT_VIEW_TYPE = 'vaultend-organize-vault';
+export const ORGANIZE_TAGS_VIEW_TYPE = 'vaultend-organize-tags';
 
 /** 플러그인 내부 데이터 폴더 경로 */
 export const PLUGIN_DATA_FOLDER = '.vaultend';
@@ -19,6 +20,7 @@ export const TFIDF_CORPUS_PATH = `${PLUGIN_DATA_FOLDER}/tfidf-corpus.json`;
 export const EMBEDDINGS_PATH = `${PLUGIN_DATA_FOLDER}/embeddings.json`;
 export const HISTORY_FOLDER = `${PLUGIN_DATA_FOLDER}/history`;
 export const ORGANIZE_VAULT_FOLDER = `${PLUGIN_DATA_FOLDER}/organize-vault`;
+export const TAG_GROUPS_PATH = `${PLUGIN_DATA_FOLDER}/tag-groups.json`;
 
 /** 기본 설정값 */
 export const DEFAULT_SAVE_FOLDER = 'Vaultend';
@@ -39,6 +41,7 @@ export const DEFAULT_LOCALE: 'auto' | 'en' | 'ko' = 'auto';
 export const COMMAND_ORGANIZE_CURRENT_NOTE = 'organize-current-note';
 export const COMMAND_RUN_MAINTENANCE = 'run-maintenance';
 export const COMMAND_ORGANIZE_FOLDER = 'organize-folder';
+export const COMMAND_ORGANIZE_TAGS = 'organize-tags';
 export const COMMAND_OPEN_MAINTENANCE_LOG = 'open-maintenance-log';
 
 /** Tag Embedding Cache */
@@ -66,6 +69,9 @@ export const FLEETING_MIN_CLUSTER_SIZE = 2;
 export const REFACTOR_MAX_TAGS_IN_PROMPT = 200;
 export const REORG_LOW_CONFIDENCE_THRESHOLD = 0.5;
 export const REORG_TIER2_TRIGGER_RATIO = 0.3;
+
+/** Organize Tags 상수 */
+export const TAG_GROUPING_BATCH_SIZE = 200;
 
 /** Vault Refactor 재설계 상수 */
 export const COMMAND_VAULT_REFACTOR = 'vault-refactor';
