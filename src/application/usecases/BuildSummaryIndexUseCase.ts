@@ -3,6 +3,7 @@ import { NotePath } from '../../domain/values/NotePath';
 import { NoteEmbeddingService } from '../../domain/services/NoteEmbeddingService';
 import { SummaryIndexService, SummaryBatchItem } from '../../domain/services/SummaryIndexService';
 import { applyContentRedaction } from '../../domain/models/PrivacyRule';
+import { stripFrontmatter } from '../../domain/services/tokenize';
 import { VaultAccessPort } from '../ports/VaultAccessPort';
 import { AIProviderPort } from '../ports/AIProviderPort';
 import { NoteEmbeddingCachePort } from '../ports/NoteEmbeddingCachePort';
@@ -50,14 +51,14 @@ export class BuildSummaryIndexUseCase {
       if (!note) continue;
 
       const title = (notePath as string).split('/').pop()?.replace(/\.md$/, '') ?? '';
-      const body = note.content.replace(/^---[\s\S]*?---\s*/, '').trim();
+      const redactedContent = applyContentRedaction(note.content, privacyRules);
+      const body = stripFrontmatter(redactedContent).slice(0, 8000);
       const contentHash = await NoteEmbeddingService.computeContentHash(title, body);
 
       if (!options?.forceRebuild && !this.needsSummaryUpdate(notePath, contentHash)) {
         continue;
       }
 
-      const redactedContent = applyContentRedaction(note.content, privacyRules);
       needsProcessing.push({ notePath, title, content: redactedContent, contentHash });
     }
 
@@ -132,7 +133,7 @@ export class BuildSummaryIndexUseCase {
             const contentHash = hashMap.get(sr.notePath as string) ?? '';
             this.noteEmbeddingCache.put({
               notePath: sr.notePath,
-              vector: existing?.vector ?? new Float32Array(0),
+              vector: new Float32Array(0),
               contentHash,
               onelineSummary: sr.onelineSummary,
             });
