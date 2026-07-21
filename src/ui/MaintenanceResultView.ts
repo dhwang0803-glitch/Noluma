@@ -58,6 +58,7 @@ export class MaintenanceResultView extends ItemView {
     private readonly openFileSplit: (pathA: string, pathB: string) => void,
     private readonly onMergeRequest: (pair: DuplicatePair) => void,
     private readonly onOrganizePreview?: (notePaths: NotePath[]) => Promise<Array<{ notePath: NotePath; result: OrganizeResult }>>,
+    private readonly onOrganizeTagsOnly?: (notePaths: NotePath[]) => Promise<Array<{ notePath: NotePath; result: OrganizeResult }>>,
     private readonly batchOrganizeCallbacks?: BatchOrganizeCallbacks,
   ) {
     super(leaf);
@@ -458,7 +459,9 @@ export class MaintenanceResultView extends ItemView {
 
     const entries: BatchEntry[] = [];
     this.renderBatchControls(section, entries);
-    this.addOrganizeTagsButton(section, entries);
+    if (this.onOrganizeTagsOnly) {
+      this.addOrganizeButton(section, entries, this.onOrganizeTagsOnly);
+    }
 
     for (const notePath of filtered) {
       const settingEl = new Setting(section)
@@ -494,7 +497,9 @@ export class MaintenanceResultView extends ItemView {
 
     const entries: BatchEntry[] = [];
     this.renderBatchControls(section, entries);
-    this.addOrganizeTagsButton(section, entries);
+    if (this.onOrganizeTagsOnly) {
+      this.addOrganizeButton(section, entries, this.onOrganizeTagsOnly);
+    }
 
     for (const item of filtered) {
       const settingEl = new Setting(section)
@@ -1089,7 +1094,11 @@ export class MaintenanceResultView extends ItemView {
     }
   }
 
-  private addOrganizeButton(section: HTMLElement, entries: BatchEntry[]): void {
+  private addOrganizeButton(
+    section: HTMLElement,
+    entries: BatchEntry[],
+    previewFn?: (notePaths: NotePath[]) => Promise<Array<{ notePath: NotePath; result: OrganizeResult }>>,
+  ): void {
     const batchControls = section.querySelector('.maintenance-batch-controls .setting-item-control');
     if (!batchControls) return;
     const btn = batchControls.createEl('button', {
@@ -1097,11 +1106,16 @@ export class MaintenanceResultView extends ItemView {
       text: t('batch.selectedOrganize'),
     });
     batchControls.prepend(btn);
-    btn.addEventListener('click', () => this.executeOrganizeBatch(btn, entries));
+    btn.addEventListener('click', () => this.executeOrganizeBatch(btn, entries, previewFn));
   }
 
-  private async executeOrganizeBatch(btn: HTMLButtonElement, entries: BatchEntry[]): Promise<void> {
-    if (!this.onOrganizePreview || !this.batchOrganizeCallbacks) return;
+  private async executeOrganizeBatch(
+    btn: HTMLButtonElement,
+    entries: BatchEntry[],
+    previewFn?: (notePaths: NotePath[]) => Promise<Array<{ notePath: NotePath; result: OrganizeResult }>>,
+  ): Promise<void> {
+    const preview = previewFn ?? this.onOrganizePreview;
+    if (!preview || !this.batchOrganizeCallbacks) return;
     const selected = entries.filter(e => e.checkbox.checked && e.status === 'pending');
     if (selected.length === 0) {
       new Notice(t('notice.noSelection'));
@@ -1121,7 +1135,7 @@ export class MaintenanceResultView extends ItemView {
     btn.textContent = t('organize.processing', { current: 0, total: notePaths.length });
 
     try {
-      const previews = await this.onOrganizePreview(notePaths);
+      const previews = await preview(notePaths);
       btn.textContent = originalText;
       btn.disabled = false;
 
@@ -1163,19 +1177,6 @@ export class MaintenanceResultView extends ItemView {
       this.addRestoreButton(entry.setting, applied.historyEntryId, appliedKey);
     }
     this.app.workspace.trigger(HISTORY_CHANGED_EVENT);
-  }
-
-  private addOrganizeTagsButton(section: HTMLElement, _entries: BatchEntry[]): void {
-    const batchControls = section.querySelector('.maintenance-batch-controls .setting-item-control');
-    if (!batchControls) return;
-    const btn = batchControls.createEl('button', {
-      cls: 'mod-cta',
-      text: t('batch.selectedOrganize'),
-    });
-    batchControls.prepend(btn);
-    btn.addEventListener('click', () => {
-      new Notice(t('organize.tagsComingSoon'));
-    });
   }
 
   private async getArchiveFolder(): Promise<string> {
