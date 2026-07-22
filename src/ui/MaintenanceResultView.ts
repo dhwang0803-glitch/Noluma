@@ -1070,7 +1070,7 @@ export class MaintenanceResultView extends ItemView {
     let success = 0;
     let failed = 0;
     try {
-      for (const entry of restorable) {
+      for (const entry of [...restorable].reverse()) {
         try {
           await this.historyPort.undo(entry.historyEntryId!);
           const appliedKey = `${entry.issueType}:${entry.identifier}`;
