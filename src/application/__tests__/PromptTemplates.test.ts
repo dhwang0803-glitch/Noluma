@@ -6,13 +6,13 @@ describe('PromptTemplates', () => {
     it('한국어 시스템 프롬프트를 반환한다', () => {
       const result = PromptTemplates.classificationSystemPrompt('ko');
       expect(result).toContain('JSON');
-      expect(result).toContain('노트 분류');
+      expect(result).toContain('노트 태깅');
     });
 
     it('영어 시스템 프롬프트를 반환한다', () => {
       const result = PromptTemplates.classificationSystemPrompt('en');
       expect(result).toContain('JSON');
-      expect(result).toContain('classification');
+      expect(result).toContain('note tagging');
     });
 
     it('JSON 형식 가이드를 포함한다 (score/isNew/reason)', () => {
