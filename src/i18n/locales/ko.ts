@@ -147,6 +147,20 @@ const ko: { [K in keyof typeof en]: string } = {
   'log.refresh': '새로고침',
   'log.undo': '복원',
 
+  // History descriptions
+  'historyDesc.delete': '고아 노트 삭제: {{path}}',
+  'historyDesc.linkRemove': '깨진 링크 제거: [[{{link}}]] → {{link}} ({{path}}:{{line}})',
+  'historyDesc.create': '누락 노트 생성: {{name}}',
+  'historyDesc.tagAdd': '태그 추가: {{tags}} → {{path}}',
+  'historyDesc.archive': '노트 아카이브: {{path}} → {{folder}}/',
+  'historyDesc.linkAdd': '고아 노트 링크 생성: {{count}}개 관련 노트 → {{path}}',
+  'historyDesc.linkFix': '깨진 링크 수정: [[{{oldLink}}]] → [[{{newLink}}]] ({{path}}:{{line}})',
+  'historyDesc.dismiss': '이슈 무시: [{{type}}] {{id}}',
+  'historyDesc.tagMerge': '태그 병합: {{replacedTags}} → {{keepTag}} ({{count}}개 노트)',
+  'historyDesc.restoreTagMerge': '복원: 태그 병합 취소 ({{restored}}/{{total}}개 노트{{failDetail}})',
+  'historyDesc.restoreTagMergeFail': ', 실패: {{files}}',
+  'historyDesc.restore': '복원: {{path}} ({{action}} 취소)',
+
   // ─── Organize Folder Result View ───
   'organizeFolder.viewTitle': '폴더 정리',
   'organizeFolder.scanning': 'AI로 노트를 분석하는 중...',

@@ -1,6 +1,7 @@
 import { ItemView, WorkspaceLeaf, Setting, Notice } from 'obsidian';
 import { GetHistoryUseCase } from '../application/usecases/GetHistoryUseCase';
 import { HistoryPort } from '../application/ports/HistoryPort';
+import { HistoryEntry } from '../domain/models/HistoryEntry';
 import { MAINTENANCE_LOG_VIEW_TYPE, HISTORY_CHANGED_EVENT } from '../constants';
 import { t, formatDate } from '../i18n';
 import { localizeError } from './localizeError';
@@ -71,7 +72,7 @@ export class MaintenanceLogView extends ItemView {
       const setting = new Setting(contentEl);
       const time = formatDate(entry.timestamp as number);
       setting.setName(`[${time}] ${entry.action}`);
-      setting.setDesc(entry.description);
+      setting.setDesc(this.formatDescription(entry));
 
       const canUndo = entry.previousContent !== undefined
         || (entry.action === 'archive' && entry.metadata?.archivedTo)
@@ -91,6 +92,35 @@ export class MaintenanceLogView extends ItemView {
           }),
         );
       }
+    }
+  }
+
+  private formatDescription(entry: HistoryEntry): string {
+    const meta = entry.metadata ?? {};
+    const path = entry.notePath as string;
+
+    switch (entry.action) {
+      case 'delete':
+        return t('historyDesc.delete', { path });
+      case 'create':
+        return t('historyDesc.create', { name: path.replace(/\.md$/, '').split('/').pop() ?? path });
+      case 'archive':
+        if (meta.archivedTo) {
+          const folder = String(meta.archivedTo).replace(/\/[^/]+$/, '');
+          return t('historyDesc.archive', { path, folder });
+        }
+        return entry.description;
+      case 'tag-merge':
+        if (meta.keepTag && Array.isArray(meta.replacedTags)) {
+          return t('historyDesc.tagMerge', {
+            replacedTags: (meta.replacedTags as string[]).join(', '),
+            keepTag: String(meta.keepTag),
+            count: String(meta.mergedNoteCount ?? 0),
+          });
+        }
+        return entry.description;
+      default:
+        return entry.description;
     }
   }
 

@@ -185,7 +185,7 @@ describe('FileHistoryAdapter', () => {
       const written = JSON.parse((vault.writeFileRaw as any).mock.calls[0][1]);
       const restoreEntry = written.find((e: any) => e.action === 'restore');
       expect(restoreEntry).toBeDefined();
-      expect(restoreEntry.description).toContain('복원');
+      expect(restoreEntry.description).toContain('Restore');
     });
 
     it('tag-merge 항목은 모든 affectedFiles의 내용을 복원한다', async () => {
@@ -218,7 +218,7 @@ describe('FileHistoryAdapter', () => {
       const written = JSON.parse((vault.writeFileRaw as any).mock.calls[0][1]);
       const restoreEntry = written.find((e: any) => e.action === 'restore');
       expect(restoreEntry).toBeDefined();
-      expect(restoreEntry.description).toContain('2/2개 노트');
+      expect(restoreEntry.description).toContain('2/2 notes');
 
       const original = written.find((e: any) => e.id === 'merge-1');
       expect(original.metadata.keepTag).toBe('#typescript');
@@ -252,8 +252,8 @@ describe('FileHistoryAdapter', () => {
       expect(vault.writeNote).toHaveBeenCalledTimes(2);
       const written = JSON.parse((vault.writeFileRaw as any).mock.calls[0][1]);
       const restoreEntry = written.find((e: any) => e.action === 'restore');
-      expect(restoreEntry.description).toContain('1/2개 노트');
-      expect(restoreEntry.description).toContain('실패: b.md');
+      expect(restoreEntry.description).toContain('1/2 notes');
+      expect(restoreEntry.description).toContain('failed: b.md');
     });
 
     it('tag-merge 빈 affectedFiles는 HistoryEntryNotFoundError를 던진다', async () => {
