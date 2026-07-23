@@ -6,6 +6,7 @@ import { ClockPort } from '../ports/ClockPort';
 import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { TagName } from '../../domain/values/TagName';
 import { replaceRelatedNotesSection } from '../utils/relatedNotesSection';
+import { t } from '../../i18n';
 
 export interface ApplyResult {
   readonly entryId: string;
@@ -53,7 +54,7 @@ export class ApplyMaintenanceActionUseCase {
       action: 'delete',
       notePath,
       timestamp: this.clock.now(),
-      description: `고아 노트 삭제: ${notePath as string}`,
+      description: t('historyDesc.delete', { path: notePath as string }),
       previousContent: note.content,
     };
     await this.history.record(entry);
@@ -79,7 +80,7 @@ export class ApplyMaintenanceActionUseCase {
       action: 'link-remove',
       notePath: sourcePath,
       timestamp: this.clock.now(),
-      description: `깨진 링크 제거: [[${targetLink}]] → ${targetLink} (${sourcePath as string}:${lineNumber})`,
+      description: t('historyDesc.linkRemove', { link: targetLink, path: sourcePath as string, line: String(lineNumber) }),
       previousContent: note.content,
     };
     await this.history.record(entry);
@@ -102,7 +103,7 @@ export class ApplyMaintenanceActionUseCase {
       action: 'create',
       notePath,
       timestamp: this.clock.now(),
-      description: `누락 노트 생성: ${baseName}`,
+      description: t('historyDesc.create', { name: baseName }),
     };
     await this.history.record(entry);
     return { entryId: entry.id, undoable: false };
@@ -125,7 +126,7 @@ export class ApplyMaintenanceActionUseCase {
       action: 'tag-add',
       notePath,
       timestamp: this.clock.now(),
-      description: `태그 추가: ${newTags.join(', ')} → ${notePath as string}`,
+      description: t('historyDesc.tagAdd', { tags: newTags.join(', '), path: notePath as string }),
       previousContent: note.content,
     };
     await this.history.record(entry);
@@ -142,7 +143,7 @@ export class ApplyMaintenanceActionUseCase {
       action: 'archive',
       notePath,
       timestamp: this.clock.now(),
-      description: `노트 아카이브: ${notePath as string} → ${targetFolder}/`,
+      description: t('historyDesc.archive', { path: notePath as string, folder: targetFolder }),
       metadata: { archivedTo: destPath as string },
     };
     await this.history.record(entry);
@@ -173,7 +174,7 @@ export class ApplyMaintenanceActionUseCase {
       action: 'link-add',
       notePath,
       timestamp: this.clock.now(),
-      description: `고아 노트 링크 생성: ${suggestedLinks.length}개 관련 노트 → ${notePath as string}`,
+      description: t('historyDesc.linkAdd', { count: String(suggestedLinks.length), path: notePath as string }),
       previousContent: note.content,
     };
     await this.history.record(entry);
@@ -205,7 +206,7 @@ export class ApplyMaintenanceActionUseCase {
       action: 'link-add',
       notePath: sourcePath,
       timestamp: this.clock.now(),
-      description: `깨진 링크 수정: [[${targetLink}]] → [[${resolvedTarget}]] (${sourcePath as string}:${lineNumber})`,
+      description: t('historyDesc.linkFix', { oldLink: targetLink, newLink: resolvedTarget, path: sourcePath as string, line: String(lineNumber) }),
       previousContent: note.content,
     };
     await this.history.record(entry);
@@ -218,7 +219,8 @@ export class ApplyMaintenanceActionUseCase {
       action: 'dismiss',
       notePath: createNotePath(`${identifier}.md`.replace(/\.md\.md$/, '.md')),
       timestamp: this.clock.now(),
-      description: `이슈 무시: [${issueType}] ${identifier}`,
+      description: t('historyDesc.dismiss', { type: issueType, id: identifier }),
+      metadata: { issueType },
     };
     await this.history.record(entry);
     return { entryId: entry.id, undoable: false };
@@ -277,7 +279,7 @@ export class ApplyMaintenanceActionUseCase {
       action: 'tag-merge',
       notePath: affectedNotes[0],
       timestamp: this.clock.now(),
-      description: `태그 병합: ${replaceTags.map(t => t as string).join(', ')} → ${keepStr} (${mergedCount}개 노트)`,
+      description: t('historyDesc.tagMerge', { replacedTags: replaceTags.map(tag => tag as string).join(', '), keepTag: keepStr, count: String(mergedCount) }),
       metadata: {
         keepTag: keepStr,
         replacedTags: replaceTags.map(t => t as string),

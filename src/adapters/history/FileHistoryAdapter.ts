@@ -6,6 +6,7 @@ import { NotePath, createNotePath } from '../../domain/values/NotePath';
 import { Timestamp } from '../../domain/values/Timestamp';
 import { HistoryEntryNotFoundError } from '../../domain/errors/DomainErrors';
 import { HISTORY_FOLDER } from '../../constants';
+import { t } from '../../i18n';
 
 /**
  * 파일 기반 변경 이력 어댑터.
@@ -94,7 +95,11 @@ export class FileHistoryAdapter implements HistoryPort {
           action: 'restore' as const,
           notePath: target.notePath,
           timestamp: this.clock.now(),
-          description: `복원: 태그 병합 취소 (${restored}/${files.length}개 노트${failed.length > 0 ? `, 실패: ${failed.join(', ')}` : ''})`,
+          description: t('historyDesc.restoreTagMerge', {
+            restored: String(restored),
+            total: String(files.length),
+            failDetail: failed.length > 0 ? t('historyDesc.restoreTagMergeFail', { files: failed.join(', ') }) : '',
+          }),
         });
 
         await this.vault.writeFileRaw(filePath as string, JSON.stringify(entries, null, 2));
@@ -118,7 +123,7 @@ export class FileHistoryAdapter implements HistoryPort {
           action: 'restore' as const,
           notePath: target.notePath,
           timestamp: this.clock.now(),
-          description: `복원: ${target.notePath as string} (${target.action} 취소)`,
+          description: t('historyDesc.restore', { path: target.notePath as string, action: target.action }),
         });
 
         await this.vault.writeFileRaw(filePath as string, JSON.stringify(entries, null, 2));
@@ -138,7 +143,7 @@ export class FileHistoryAdapter implements HistoryPort {
           action: 'restore' as const,
           notePath: target.notePath,
           timestamp: this.clock.now(),
-          description: `복원: ${target.notePath as string} (${target.action} 취소)`,
+          description: t('historyDesc.restore', { path: target.notePath as string, action: target.action }),
         });
 
         await this.vault.writeFileRaw(filePath as string, JSON.stringify(entries, null, 2));

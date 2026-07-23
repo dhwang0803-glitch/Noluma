@@ -145,6 +145,26 @@ const en = {
   'log.refresh': 'Refresh',
   'log.undo': 'Restore',
 
+  // History descriptions
+  'historyDesc.delete': 'Orphan note deleted: {{path}}',
+  'historyDesc.linkRemove': 'Broken link removed: [[{{link}}]] → {{link}} ({{path}}:{{line}})',
+  'historyDesc.create': 'Missing note created: {{name}}',
+  'historyDesc.tagAdd': 'Tags added: {{tags}} → {{path}}',
+  'historyDesc.archive': 'Note archived: {{path}} → {{folder}}/',
+  'historyDesc.linkAdd': 'Orphan note linked: {{count}} related notes → {{path}}',
+  'historyDesc.linkFix': 'Broken link fixed: [[{{oldLink}}]] → [[{{newLink}}]] ({{path}}:{{line}})',
+  'historyDesc.dismiss': 'Issue dismissed: [{{type}}] {{id}}',
+  'historyDesc.tagMerge': 'Tag merge: {{replacedTags}} → {{keepTag}} ({{count}} notes)',
+  'historyDesc.restoreTagMerge': 'Restore: tag merge undone ({{restored}}/{{total}} notes{{failDetail}})',
+  'historyDesc.restoreTagMergeFail': ', failed: {{files}}',
+  'historyDesc.restore': 'Restore: {{path}} ({{action}} undone)',
+  'historyDesc.linkRemoveSimple': 'Broken link removed ({{path}})',
+  'historyDesc.tagAddSimple': 'Tags added to {{path}}',
+  'historyDesc.linkAddSimple': 'Orphan note linked: {{path}}',
+  'historyDesc.restoreSimple': 'Restore: {{path}}',
+  'historyDesc.dismissSimple': 'Issue dismissed: {{id}}',
+  'historyDesc.classify': 'Note organized: {{path}}',
+
   // ─── Organize Folder Result View ───
   'organizeFolder.viewTitle': 'Organize Folder',
   'organizeFolder.scanning': 'Analyzing notes with AI...',
