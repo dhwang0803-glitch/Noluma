@@ -518,11 +518,15 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
         }
         new FolderSuggestModal(this.app, (folder) => {
           void (async () => {
-            await this.activateView(ORGANIZE_FOLDER_VIEW_TYPE);
-            const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_FOLDER_VIEW_TYPE);
-            if (leaves.length > 0) {
-              const view = leaves[0].view as OrganizeFolderResultView;
-              void view.triggerScan(folder.path);
+            try {
+              await this.activateView(ORGANIZE_FOLDER_VIEW_TYPE);
+              const leaves = this.app.workspace.getLeavesOfType(ORGANIZE_FOLDER_VIEW_TYPE);
+              if (leaves.length > 0) {
+                const view = leaves[0].view as OrganizeFolderResultView;
+                void view.triggerScan(folder.path);
+              }
+            } catch (err) {
+              console.error('Vaultend: failed to open organize folder view', err);
             }
           })();
         }).open();

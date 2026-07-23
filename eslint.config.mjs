@@ -26,9 +26,9 @@ export default [
       "@typescript-eslint/explicit-function-return-type": "off",
       "no-console": "off",
       "semi": ["error", "always"],
-      // setDestructive() requires Obsidian 1.13.0 (unreleased); setWarning() is the only available API
+      // minAppVersion 1.7.2 호환: setDestructive()는 1.13+ 전용이므로 setWarning() 유지
       "@typescript-eslint/no-deprecated": "off",
-      // false positives on form placeholders (URLs, API key hints, model IDs)
+      // URL·API키 placeholder·모델 ID 등 비문장 텍스트에서 오탐 다수 발생
       "obsidianmd/ui/sentence-case": "off",
     },
   },
