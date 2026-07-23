@@ -183,7 +183,7 @@ export class OrganizeFolderResultView extends ItemView {
     new Setting(actions)
       .addButton(btn =>
         btn.setButtonText(t('organizeFolder.cancel'))
-          .setDestructive()
+          .setWarning()
           .onClick(() => this.abortController?.abort()),
       );
   }
@@ -339,7 +339,7 @@ export class OrganizeFolderResultView extends ItemView {
       )
       .addButton(btn =>
         btn.setButtonText(t('batch.selectedUndo'))
-          .setDestructive()
+          .setWarning()
           .onClick(() => this.undoBatch()),
       );
   }
@@ -557,7 +557,7 @@ export class OrganizeFolderResultView extends ItemView {
     if (entry.historyEntryId) {
       entry.setting.addButton(btn =>
         btn.setButtonText(t('organizeFolder.undoNote'))
-          .setDestructive()
+          .setWarning()
           .onClick(() => this.undoEntry(entry)),
       );
     }

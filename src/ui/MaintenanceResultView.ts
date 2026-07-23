@@ -436,7 +436,7 @@ export class MaintenanceResultView extends ItemView {
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.delete'))
-        .setDestructive()
+        .setWarning()
         .onClick(() => { void this.executeAction(
           { kind: 'delete-orphan', notePath: item.notePath },
           settingEl,
@@ -649,7 +649,7 @@ export class MaintenanceResultView extends ItemView {
 
       settingEl.addButton(btn => btn
         .setButtonText(t('btn.delete'))
-        .setDestructive()
+        .setWarning()
         .onClick(() => { void this.executeAction(
           { kind: 'delete-orphan', notePath: entry.notePath },
           settingEl,
@@ -791,7 +791,7 @@ export class MaintenanceResultView extends ItemView {
       batchSetting.addButton(btn => {
         btn.setButtonText(primaryLabel)
           .onClick(() => primaryActionOverride ? primaryActionOverride(entries) : this.executeBatch(entries));
-        if (primaryWarning) btn.setDestructive();
+        if (primaryWarning) btn.setWarning();
       });
     }
 
@@ -799,7 +799,7 @@ export class MaintenanceResultView extends ItemView {
       batchSetting.addButton(btn => {
         btn.setButtonText(secondaryLabel)
           .onClick(() => secondaryActionOverride(entries));
-        if (secondaryWarning) btn.setDestructive();
+        if (secondaryWarning) btn.setWarning();
       });
     }
 
@@ -842,7 +842,7 @@ export class MaintenanceResultView extends ItemView {
 
         setting.addButton(b => b
           .setButtonText(t('log.undo'))
-          .setDestructive()
+          .setWarning()
           .onClick(() => {
             this.dismissedIds.delete(`${issueType}:${identifier}`);
             this.render();
@@ -911,7 +911,7 @@ export class MaintenanceResultView extends ItemView {
   private addRestoreButton(setting: Setting, historyEntryId: string, appliedKey: string): void {
     setting.addButton(btn => btn
       .setButtonText(t('log.undo'))
-      .setDestructive()
+      .setWarning()
       .onClick(async () => {
         btn.setDisabled(true);
         try {
@@ -1061,7 +1061,7 @@ export class MaintenanceResultView extends ItemView {
 
         entry.setting.addButton(b => b
           .setButtonText(t('log.undo'))
-          .setDestructive()
+          .setWarning()
           .onClick(() => {
             this.dismissedIds.delete(dismissKey);
             this.render();
