@@ -241,7 +241,7 @@ export class OrganizeTagsView extends ItemView {
       )
       .addButton(btn =>
         btn.setButtonText(t('batch.selectedUndo'))
-          .setDestructive()
+          .setWarning()
           .onClick(() => this.undoBatch()),
       );
   }
@@ -446,7 +446,7 @@ export class OrganizeTagsView extends ItemView {
     if (entry.historyEntryId) {
       entry.setting.addButton(btn =>
         btn.setButtonText(t('organizeTags.undo'))
-          .setDestructive()
+          .setWarning()
           .onClick(() => this.undoEntry(entry)),
       );
     }
