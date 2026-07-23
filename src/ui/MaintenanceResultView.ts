@@ -867,6 +867,20 @@ export class MaintenanceResultView extends ItemView {
     try {
       const result: ApplyResult | null = await this.applyAction.execute(action);
       if (!result) {
+        if (action.kind === 'merge-duplicate-tags') {
+          setting.settingEl.addClass('maintenance-result-applied');
+          setting.settingEl.querySelectorAll('button').forEach(btn => btn.remove());
+          if (batchEntry) {
+            batchEntry.checkbox.checked = false;
+            batchEntry.status = 'applied';
+          } else {
+            const cb = setting.settingEl.querySelector('.maintenance-batch-checkbox');
+            if (cb) cb.remove();
+          }
+          setting.setDesc(t('maintenance.applied'));
+          new Notice(t('notice.actionApplied'));
+          return;
+        }
         new Notice(t('notice.noChangeNeeded'));
         return;
       }

@@ -7,7 +7,7 @@ An AI-powered vault maintenance plugin for Obsidian. Automatically classify, tag
 ![Obsidian](https://img.shields.io/badge/Obsidian-1.7.2+-purple)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-<!-- TODO: Add hero screenshot showing the maintenance result view -->
+![Vault Maintenance Results](docs/assets/hero.gif)
 
 ---
 
@@ -65,7 +65,7 @@ This is a deliberate design choice: AI tools should be transparent about resourc
 
 Analyze the active note with AI — classify, tag, link, and move — all from an interactive modal.
 
-<!-- TODO: screenshot of Organize Note modal -->
+![Organize Current Note](docs/assets/organize-note.gif)
 
 **How to use**: Open a note → `Ctrl/Cmd + P` → "Organize Current Note"
 
@@ -95,7 +95,7 @@ Results open in an **interactive modal** where you can review and edit everythin
 
 Batch-organize any folder in your vault with AI. Pick a folder, and the plugin classifies, tags, links, and moves each note — with full per-note review in a side panel.
 
-<!-- TODO: screenshot of Organize Folder result panel -->
+![Organize Folder](docs/assets/organize-folder.gif)
 
 **How to use**:
 - **Command Palette**: `Ctrl/Cmd + P` → "Organize Folder" → select a folder from the fuzzy search modal
@@ -136,7 +136,7 @@ Batch-organize any folder in your vault with AI. Pick a folder, and the plugin c
 
 Find and merge duplicate tags across your vault using AI-powered similarity detection.
 
-<!-- TODO: screenshot of Organize Tags view -->
+![Organize Tags](docs/assets/organize-tags.gif)
 
 **How to use**: `Ctrl/Cmd + P` → "Organize Tags"
 
@@ -166,7 +166,7 @@ Find and merge duplicate tags across your vault using AI-powered similarity dete
 
 Scan your vault for structural issues and fix them in bulk. **No AI required** — all detection is local analysis (link graph, file content, keyword matching).
 
-<!-- TODO: screenshot of Maintenance Results view with severity badges and filter -->
+![Run Maintenance](docs/assets/run-maintenance.gif)
 
 **How to use**:
 - **Full vault**: `Ctrl/Cmd + P` → "Run Maintenance"
@@ -237,7 +237,7 @@ Enable in Settings to run maintenance on a timer (default: every 60 minutes). Th
 
 Track every action the plugin takes — and restore previous states.
 
-<!-- TODO: screenshot of Activity Log with refresh button and restore -->
+![Activity Log](docs/assets/activity-log.gif)
 
 **How to open**: `Ctrl/Cmd + P` → "Open Maintenance Log"
 

@@ -160,6 +160,12 @@ const ko: { [K in keyof typeof en]: string } = {
   'historyDesc.restoreTagMerge': '복원: 태그 병합 취소 ({{restored}}/{{total}}개 노트{{failDetail}})',
   'historyDesc.restoreTagMergeFail': ', 실패: {{files}}',
   'historyDesc.restore': '복원: {{path}} ({{action}} 취소)',
+  'historyDesc.linkRemoveSimple': '깨진 링크 제거 ({{path}})',
+  'historyDesc.tagAddSimple': '{{path}}에 태그 추가',
+  'historyDesc.linkAddSimple': '고아 노트 링크 생성: {{path}}',
+  'historyDesc.restoreSimple': '복원: {{path}}',
+  'historyDesc.dismissSimple': '이슈 무시: {{id}}',
+  'historyDesc.classify': '노트 정리: {{path}}',
 
   // ─── Organize Folder Result View ───
   'organizeFolder.viewTitle': '폴더 정리',

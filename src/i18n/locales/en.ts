@@ -158,6 +158,12 @@ const en = {
   'historyDesc.restoreTagMerge': 'Restore: tag merge undone ({{restored}}/{{total}} notes{{failDetail}})',
   'historyDesc.restoreTagMergeFail': ', failed: {{files}}',
   'historyDesc.restore': 'Restore: {{path}} ({{action}} undone)',
+  'historyDesc.linkRemoveSimple': 'Broken link removed ({{path}})',
+  'historyDesc.tagAddSimple': 'Tags added to {{path}}',
+  'historyDesc.linkAddSimple': 'Orphan note linked: {{path}}',
+  'historyDesc.restoreSimple': 'Restore: {{path}}',
+  'historyDesc.dismissSimple': 'Issue dismissed: {{id}}',
+  'historyDesc.classify': 'Note organized: {{path}}',
 
   // ─── Organize Folder Result View ───
   'organizeFolder.viewTitle': 'Organize Folder',

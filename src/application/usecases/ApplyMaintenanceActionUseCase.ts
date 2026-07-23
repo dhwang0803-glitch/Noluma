@@ -220,6 +220,7 @@ export class ApplyMaintenanceActionUseCase {
       notePath: createNotePath(`${identifier}.md`.replace(/\.md\.md$/, '.md')),
       timestamp: this.clock.now(),
       description: t('historyDesc.dismiss', { type: issueType, id: identifier }),
+      metadata: { issueType },
     };
     await this.history.record(entry);
     return { entryId: entry.id, undoable: false };
