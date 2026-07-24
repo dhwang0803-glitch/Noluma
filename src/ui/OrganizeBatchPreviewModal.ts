@@ -98,11 +98,13 @@ export class OrganizeBatchPreviewModal extends Modal {
         cls: 'organize-batch-reorg-btn',
         attr: {
           'aria-label': t('organize.reorganize'),
+          'title': t('organize.reorganize'),
           'tabindex': '0',
           'role': 'button',
         },
       });
       setIcon(reorgBtn, 'refresh-cw');
+      reorgBtn.createSpan({ text: t('organize.reorganize'), cls: 'organize-batch-reorg-label' });
       reorgBtn.addEventListener('click', () => { void this.reorganizeItem(card, editable); });
       reorgBtn.addEventListener('keydown', (e: KeyboardEvent) => {
         if (e.key === 'Enter' || e.key === ' ') {
