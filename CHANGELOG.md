@@ -6,6 +6,299 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.0.10] - 2026-07-24
+
+### Added
+- **Embedding model selector**: Per-provider dropdown in settings (OpenAI, Gemini, Ollama models) with custom input option.
+- **API error notices**: User-visible `Notice` for embedding initialization failures and scheduled maintenance errors (previously console-only).
+- **i18n keys**: `notice.embeddingInitFailed`, `notice.maintenanceFailed`, `settings.embeddingModel`, `settings.embeddingModelDesc` in EN/KO.
+
+### Fixed
+- **Embedding model not applied**: `AIEmbeddingAdapter.callEmbedding()` now passes selected model to API (Codex P2).
+- **Provider switch stale model**: Switching AI provider resets `embeddingsModel` to new provider's default (Codex P2).
+- **Error swallowed on init**: `initialize()` now re-throws errors so Notice displays actual error message (Codex P3).
+
+---
+
+## [1.0.9] - 2026-07-24
+
+### Fixed
+- **Toggle restore for chips**: Tag/link chips in OrganizeResultModal support toggle restore (×/↺ pattern).
+
+---
+
+## [1.0.8] - 2026-07-24
+
+### Added
+- **Organize Note undo**: Apply All now records history and shows Notice toast with Undo button (10s timeout).
+- **Tag/link input consistency**: Organize Folder and Batch Preview now support direct tag/link input (matching Organize Note UX).
+
+---
+
+## [1.0.7] - 2026-07-24
+
+### Fixed
+- **ESLint integration**: Added `eslint-plugin-obsidianmd` and resolved all lint violations across codebase.
+- **Codex cross-verify P2 fixes**: Addressed findings from independent code review.
+
+---
+
+## [1.0.5] - 2026-07-24
+
+### Fixed
+- **setDestructive rollback**: Reverted to `setWarning` — Obsidian 1.13.0 (which introduces `setDestructive`) not yet released.
+- **minAppVersion restored**: Reverted to 1.7.2 for broader compatibility.
+
+---
+
+## [1.0.4] - 2026-07-23
+
+### Fixed
+- **Community plugin review feedback**: Resolved all Obsidian community auto-review findings — `authorUrl` mismatch, deprecated API usage, vault enumeration disclosure.
+
+---
+
+## [1.0.3] - 2026-07-23
+
+### Added
+- **Organize Folder batch cap**: Limited to 50 notes per batch to prevent API timeout and excessive token usage.
+
+---
+
+## [1.0.2] - 2026-07-23
+
+### Removed
+- **DeepSeek provider**: Removed due to reliability issues.
+
+### Fixed
+- **Embedding safety guards**: Added null checks and fallbacks for embedding operations.
+- **Model dropdown unification**: Unified model selection dropdown across providers.
+
+---
+
+## [1.0.1] - 2026-07-23
+
+### Fixed
+- **Nested tag handling**: Obsidian nested tags (`#dev/#frontend`) now work correctly across all tag paths (classification, merge, search).
+- **History log i18n**: All history log descriptions now use localized strings.
+- **Duplicate tag merge sync**: Fixed cache invalidation after tag merge operations.
+
+### Added
+- **README GIF demos**: 6 demo GIFs (hero, organize-note, organize-folder, organize-tags, run-maintenance, activity-log).
+
+---
+
+## [1.0.0] - 2026-07-23
+
+### Removed
+- **All Pro features**: Stripped Pro/Beta gating for community plugin submission. Single free build — all features available to all users.
+
+---
+
+## [0.9.6] - 2026-07-22
+
+### Changed
+- **Maintenance view UI polish**: Note dropdowns, tag/link chip toggles with ×/↺ pattern, cleaned up section labels and spacing.
+
+---
+
+## [0.9.4] - 2026-07-22
+
+### Added
+- **Batch undo**: Organize Folder and Organize Tags views now support batch restore with correct reverse-order application.
+
+### Fixed
+- **Tag merge YAML quote parsing**: Properly handles quoted tags in frontmatter during merge operations.
+- **Tags-only mode**: `tagsOnly` flag correctly skips link suggestion phase.
+- **Progress tracking**: Accurate progress percentage during multi-note operations.
+- **Threshold tuning**: Adjusted grouping similarity thresholds for better accuracy.
+
+---
+
+## [0.9.3] - 2026-07-22
+
+### Added
+- **Tag format rules**: Classification prompt now enforces consistent tag formatting conventions.
+- **Organize Selected activation**: Button enabled in maintenance view for batch note organization.
+
+---
+
+## [0.9.0] - 2026-07-22
+
+### Added
+- **3-Level tag grouping**: Tags are now grouped into three relationship levels — merge (synonyms), nest (parent-child), relate (see-also). Replaces flat grouping from 0.8.30.
+
+### Fixed
+- **Cache schema versioning**: Tag group cache auto-invalidates when grouping schema version changes.
+- **Singleton cache bug**: Ungrouped singletons no longer cached when LLM returns empty results.
+- **Per-batch cache tracking**: Precise cache hit/miss tracking per LLM batch call.
+
+---
+
+## [0.8.30] - 2026-07-22
+
+### Added
+- **Organize Tags**: 2-phase vault-wide tag grouping — scan all tags, then LLM-powered clustering with merge/rename suggestions and one-click application.
+
+---
+
+## [0.8.31] - 2026-07-22
+
+### Fixed
+- **Organize Tags rescan**: Fixed issue where rescan sent all singleton tags to LLM unnecessarily when new tags existed.
+
+---
+
+## [0.8.29] - 2026-07-21
+
+### Changed
+- **Organize Folder optimization**: Smart filtering skips already-organized notes, reduced token usage per note via trimmed context.
+
+---
+
+## [0.8.27] - 2026-07-21
+
+### Fixed
+- **Cache hash unification**: Unified hash computation across summary index and vector store to prevent summary destruction and stale vectors.
+
+---
+
+## [0.8.24] – [0.8.26] - 2026-07-21
+
+### Added & Reverted
+- **Symmetric link enforcement**: Added symmetric bidirectional linking, then reverted due to over-filtering. Restored 0.8.23 behavior.
+
+---
+
+## [0.8.21] – [0.8.23] - 2026-07-21
+
+### Added
+- **Link suggestion guardrails**: Anti-pattern prompt and score-based filtering to reduce low-quality link suggestions.
+
+### Fixed
+- **Empty-state messages**: Unified UX when no suggestions are available.
+- **Guide-series linking**: Improved prompt examples for series/guide content linking.
+
+---
+
+## [0.8.20] - 2026-07-21
+
+### Changed
+- **Maintenance UI cleanup**: Removed per-item tag/link action buttons from maintenance view. Added editable preview modal for reviewing changes before apply.
+
+---
+
+## [0.8.19] - 2026-07-21
+
+### Added
+- **Organize Selected**: Select multiple notes in maintenance results and batch-organize with AI — preview modal with per-note undo support.
+- **Summary index**: Infrastructure for note summaries used as LLM context during organization.
+
+### Fixed
+- **Token display**: Embedding tokens excluded from displayed usage totals.
+
+---
+
+## [0.8.18] - 2026-07-21
+
+### Changed
+- **LLM-based link suggestion**: Replaced embedding cosine similarity with LLM-based approach for higher-quality link recommendations (ADR-0011).
+
+---
+
+## [0.8.17] - 2026-07-21
+
+### Added
+- **Configurable similarity threshold**: Settings UI slider for embedding similarity threshold.
+
+### Changed
+- **Frontmatter stripping**: YAML frontmatter removed from text before embedding to improve vector quality.
+
+---
+
+## [0.8.16] - 2026-07-21
+
+### Fixed
+- **Similarity threshold**: Lowered embedding similarity threshold from 0.80 to 0.70 for better link recall.
+- **No-links UX**: Improved empty-state message when no similar notes are found.
+
+---
+
+## [0.8.13] – [0.8.15] - 2026-07-21
+
+### Changed
+- **Embedding-based link suggestion**: Replaced AI-generated link suggestions with deterministic embedding cosine similarity.
+
+### Fixed
+- **OpenAI 400 error**: Reduced embedding batch size to stay within API limits.
+- **Debug output**: Added similarity score logging for link suggestion diagnostics.
+
+---
+
+## [0.8.12] - 2026-07-21
+
+### Fixed
+- **Hardcoded Korean badge**: Removed hardcoded Korean category badge from maintenance results.
+- **Link scoring**: Improved prompt caching and link relevance scoring.
+
+---
+
+## [0.8.11] - 2026-07-20
+
+### Changed
+- **Tag/link suggestion accuracy**: 6-phase enhancement — better vault context injection, deduplication pipeline, tag reasoning, and embedding token tracking.
+
+### Removed
+- **Folder move suggestion**: Removed from Organize Note and Organize Folder (ADR-0010). Folder suggestions added unnecessary complexity without clear user benefit.
+
+---
+
+## [0.8.10] - 2026-07-20
+
+### Changed
+- **Token optimization**: Merged classify + link API calls into single request, enabled prefix caching for repeated prompts, fixed embedding token tracking in cost display.
+
+---
+
+## [0.8.8] – [0.8.9] - 2026-07-20
+
+### Added
+- **Folder profiles**: AI classification uses folder-specific content profiles for more accurate routing.
+- **Folder reason**: `folderReason` field shows AI's reasoning for folder selection in Organize results.
+
+### Changed
+- **Classification temperature**: Lowered to 0.1 for more deterministic organize results.
+
+---
+
+## [0.8.7] - 2026-07-20
+
+### Fixed
+- **Empty folder listing**: `listFolders()` now includes empty folders in AI move-target suggestions.
+
+---
+
+## [0.8.5] – [0.8.6] - 2026-07-20
+
+### Changed
+- **Pro feature gating**: All Pro features gated behind `ENABLE_PRO` build flag for dual-track Free/Beta builds.
+
+### Fixed
+- **Organize Folder ungated**: Correctly classified as Free feature, not Pro.
+
+---
+
+## [0.8.4] - 2026-07-20
+
+### Changed
+- **Pricing accuracy**: AI cost estimation now uses official per-provider pricing tables instead of generic defaults.
+- **Build flag dual-track**: Separate Free (`ENABLE_PRO=false`) and Beta (`ENABLE_PRO=true`) build configurations for CI/CD.
+
+### Fixed
+- **Community audit**: Removed Pro gating, trial logic, and debug logs for community plugin submission compliance.
+
+---
+
 ## [0.8.3] - 2026-07-20
 
 ### Changed

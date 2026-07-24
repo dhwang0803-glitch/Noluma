@@ -1,4 +1,4 @@
-import { App, ButtonComponent, Modal, Notice, TextComponent } from 'obsidian';
+import { App, ButtonComponent, Modal, Notice, setIcon, TextComponent } from 'obsidian';
 import { OrganizeResult } from '../domain/models/OrganizeModels';
 import { NotePath, createNotePath } from '../domain/values/NotePath';
 import type { OrganizeApplyActions } from './OrganizeResultModal';
@@ -93,7 +93,10 @@ export class OrganizeBatchPreviewModal extends Modal {
     }
 
     if (editable.tags.length === 0 && (this.tagsOnly || editable.links.length === 0)) {
-      details.createSpan({ text: t('organize.noChanges'), cls: 'organize-empty organize-empty-state' });
+      const emptyEl = details.createDiv({ cls: 'vaultend-empty-state' });
+      const iconEl = emptyEl.createSpan({ cls: 'vaultend-empty-state-icon' });
+      setIcon(iconEl, 'check-circle');
+      emptyEl.createSpan({ text: t('organize.noChanges') });
     }
   }
 
@@ -130,7 +133,7 @@ export class OrganizeBatchPreviewModal extends Modal {
     editable.tags.push({ name: tag, enabled: true });
     input.setValue('');
     this.renderTagChips(chipContainer, editable);
-    const emptyState = card.closest('.organize-batch-card')?.querySelector('.organize-empty-state');
+    const emptyState = card.closest('.organize-batch-card')?.querySelector('.vaultend-empty-state');
     if (emptyState) emptyState.remove();
   }
 
@@ -143,7 +146,11 @@ export class OrganizeBatchPreviewModal extends Modal {
       chip.createSpan({ text: `#${tag.name}`, cls: 'organize-chip-text' });
       const action = chip.createSpan({
         cls: tag.enabled ? 'organize-chip-remove' : 'organize-chip-restore',
-        attr: { 'aria-label': tag.enabled ? 'Remove' : 'Restore' },
+        attr: {
+          'aria-label': tag.enabled ? t('organize.removeTag') : t('organize.restoreTag'),
+          'tabindex': '0',
+          'role': 'button',
+        },
       });
       action.textContent = tag.enabled ? '×' : '↺';
 
@@ -151,6 +158,12 @@ export class OrganizeBatchPreviewModal extends Modal {
         e.stopPropagation();
         tag.enabled = !tag.enabled;
         this.renderTagChips(container, editable);
+      });
+      action.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          action.click();
+        }
       });
     }
   }
@@ -180,7 +193,7 @@ export class OrganizeBatchPreviewModal extends Modal {
         editable.links.push({ path: linkPath, enabled: true });
         inputEl.setValue('');
         this.renderLinkChips(chipContainer, editable);
-        const emptyState = container.closest('.organize-batch-card')?.querySelector('.organize-empty-state');
+        const emptyState = container.closest('.organize-batch-card')?.querySelector('.vaultend-empty-state');
         if (emptyState) emptyState.remove();
       });
   }
@@ -196,9 +209,18 @@ export class OrganizeBatchPreviewModal extends Modal {
         cls: link.enabled ? 'organize-link-chip-remove' : 'organize-chip-restore',
       });
       action.textContent = link.enabled ? '×' : '↺';
+      action.setAttribute('tabindex', '0');
+      action.setAttribute('role', 'button');
+      action.setAttribute('aria-label', link.enabled ? t('organize.removeLink') : t('organize.restoreLink'));
       action.addEventListener('click', () => {
         link.enabled = !link.enabled;
         this.renderLinkChips(container, editable);
+      });
+      action.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          action.click();
+        }
       });
     }
   }

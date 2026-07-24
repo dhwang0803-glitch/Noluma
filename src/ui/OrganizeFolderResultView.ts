@@ -1,4 +1,4 @@
-import { ButtonComponent, FuzzySuggestModal, ItemView, Notice, Setting, TextComponent, TFolder, WorkspaceLeaf } from 'obsidian';
+import { ButtonComponent, FuzzySuggestModal, ItemView, Notice, setIcon, Setting, TextComponent, TFolder, WorkspaceLeaf } from 'obsidian';
 import { OrganizeFolderUseCase, OrganizeFolderResult } from '../application/usecases/RunInboxProcessUseCase';
 import { OrganizeResult } from '../domain/models/OrganizeModels';
 import { OrganizeApplyActions } from './OrganizeResultModal';
@@ -294,10 +294,10 @@ export class OrganizeFolderResultView extends ItemView {
 
     // No results
     if (result.results.length === 0) {
-      this.contentEl.createEl('p', {
-        text: t('organizeFolder.noResults'),
-        cls: 'organize-folder-empty',
-      });
+      const emptyEl = this.contentEl.createDiv({ cls: 'vaultend-empty-state' });
+      const iconEl = emptyEl.createSpan({ cls: 'vaultend-empty-state-icon' });
+      setIcon(iconEl, 'folder-open');
+      emptyEl.createSpan({ text: t('organizeFolder.noResults') });
       return;
     }
 
@@ -417,10 +417,10 @@ export class OrganizeFolderResultView extends ItemView {
     }
 
     if (!hasChanges) {
-      detailsEl.createEl('p', {
-        text: t('organizeFolder.noChanges'),
-        cls: 'organize-folder-no-changes',
-      });
+      const emptyEl = detailsEl.createDiv({ cls: 'vaultend-empty-state' });
+      const iconEl = emptyEl.createSpan({ cls: 'vaultend-empty-state-icon' });
+      setIcon(iconEl, 'check-circle');
+      emptyEl.createSpan({ text: t('organizeFolder.noChanges') });
     }
 
     // Tags section — always render in review mode so users can manually add tags
@@ -489,9 +489,18 @@ export class OrganizeFolderResultView extends ItemView {
       }
       if (entry.status === 'pending' && !this.autoApplyMode) {
         const removeBtn = chip.createSpan({ text: '×', cls: 'organize-chip-remove' });
+        removeBtn.setAttribute('tabindex', '0');
+        removeBtn.setAttribute('role', 'button');
+        removeBtn.setAttribute('aria-label', t('organize.removeTag'));
         removeBtn.addEventListener('click', () => {
           entry.selectedTags = entry.selectedTags.filter(t2 => t2 !== tag);
           this.rebuildFolderTagChips(chipList, entry);
+        });
+        removeBtn.addEventListener('keydown', (e: KeyboardEvent) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            removeBtn.click();
+          }
         });
       }
     }
@@ -539,9 +548,18 @@ export class OrganizeFolderResultView extends ItemView {
       const chip = chipList.createSpan({ text: `[[${linkPath}]]`, cls: 'organize-chip' });
       if (entry.status === 'pending' && !this.autoApplyMode) {
         const removeBtn = chip.createSpan({ text: '×', cls: 'organize-chip-remove' });
+        removeBtn.setAttribute('tabindex', '0');
+        removeBtn.setAttribute('role', 'button');
+        removeBtn.setAttribute('aria-label', t('organize.removeLink'));
         removeBtn.addEventListener('click', () => {
           entry.selectedLinks = entry.selectedLinks.filter(l => l !== link);
           this.rebuildFolderLinkChips(chipList, entry);
+        });
+        removeBtn.addEventListener('keydown', (e: KeyboardEvent) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            removeBtn.click();
+          }
         });
       }
     }

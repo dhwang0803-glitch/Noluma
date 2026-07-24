@@ -1,4 +1,4 @@
-import { App, ButtonComponent, Modal, Notice, TextComponent } from 'obsidian';
+import { App, ButtonComponent, Modal, Notice, setIcon, TextComponent } from 'obsidian';
 import { HistoryPort } from '../application/ports/HistoryPort';
 import { VaultAccessPort } from '../application/ports/VaultAccessPort';
 import { HISTORY_CHANGED_EVENT } from '../constants';
@@ -89,7 +89,10 @@ export class OrganizeResultModal extends Modal {
   private rebuildTagList(tagListEl: HTMLElement): void {
     tagListEl.empty();
     if (this.tagItems.length === 0) {
-      tagListEl.createSpan({ text: t('organize.noTags'), cls: 'organize-empty' });
+      const emptyEl = tagListEl.createDiv({ cls: 'vaultend-empty-state' });
+      const iconEl = emptyEl.createSpan({ cls: 'vaultend-empty-state-icon' });
+      setIcon(iconEl, 'tag');
+      emptyEl.createSpan({ text: t('organize.noTags') });
       return;
     }
     for (const item of this.tagItems) {
@@ -113,9 +116,18 @@ export class OrganizeResultModal extends Modal {
         text: item.enabled ? '×' : '↺',
         cls: item.enabled ? 'organize-chip-remove' : 'organize-chip-restore',
       });
+      action.setAttribute('tabindex', '0');
+      action.setAttribute('role', 'button');
+      action.setAttribute('aria-label', item.enabled ? t('organize.removeTag') : t('organize.restoreTag'));
       action.addEventListener('click', () => {
         item.enabled = !item.enabled;
         this.rebuildTagList(tagListEl);
+      });
+      action.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          action.click();
+        }
       });
     }
   }
@@ -157,7 +169,10 @@ export class OrganizeResultModal extends Modal {
   private rebuildLinkList(linkListEl: HTMLElement): void {
     linkListEl.empty();
     if (this.linkItems.length === 0) {
-      linkListEl.createSpan({ text: t('organize.noLinks'), cls: 'organize-empty' });
+      const emptyEl = linkListEl.createDiv({ cls: 'vaultend-empty-state' });
+      const iconEl = emptyEl.createSpan({ cls: 'vaultend-empty-state-icon' });
+      setIcon(iconEl, 'link');
+      emptyEl.createSpan({ text: t('organize.noLinks') });
       return;
     }
     for (const item of this.linkItems) {
@@ -171,9 +186,18 @@ export class OrganizeResultModal extends Modal {
         text: item.enabled ? '×' : '↺',
         cls: item.enabled ? 'organize-chip-remove' : 'organize-chip-restore',
       });
+      action.setAttribute('tabindex', '0');
+      action.setAttribute('role', 'button');
+      action.setAttribute('aria-label', item.enabled ? t('organize.removeLink') : t('organize.restoreLink'));
       action.addEventListener('click', () => {
         item.enabled = !item.enabled;
         this.rebuildLinkList(linkListEl);
+      });
+      action.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          action.click();
+        }
       });
     }
   }
@@ -284,6 +308,9 @@ export class OrganizeResultModal extends Modal {
       text: t('log.undo'),
       cls: 'mod-warning vaultend-notice-undo',
     });
+
+    const timerBar = fragment.createDiv({ cls: 'vaultend-notice-timer' });
+    timerBar.createDiv({ cls: 'vaultend-notice-timer-fill' });
 
     const notice = new Notice(fragment, 10_000);
 

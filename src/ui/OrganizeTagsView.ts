@@ -1,4 +1,4 @@
-import { ItemView, Notice, Setting, WorkspaceLeaf } from 'obsidian';
+import { ItemView, Notice, setIcon, Setting, WorkspaceLeaf } from 'obsidian';
 import { OrganizeTagsUseCase, OrganizeTagsResult, OrganizeTagsProgress } from '../application/usecases/OrganizeTagsUseCase';
 import { ApplyMaintenanceActionUseCase } from '../application/usecases/ApplyMaintenanceActionUseCase';
 import { HistoryPort } from '../application/ports/HistoryPort';
@@ -198,10 +198,10 @@ export class OrganizeTagsView extends ItemView {
     }
 
     if (result.groups.length === 0) {
-      this.contentEl.createEl('p', {
-        text: t('organizeTags.noGroups'),
-        cls: 'organize-tags-empty',
-      });
+      const emptyEl = this.contentEl.createDiv({ cls: 'vaultend-empty-state' });
+      const iconEl = emptyEl.createSpan({ cls: 'vaultend-empty-state-icon' });
+      setIcon(iconEl, 'check-circle');
+      emptyEl.createSpan({ text: t('organizeTags.noGroups') });
       return;
     }
 
