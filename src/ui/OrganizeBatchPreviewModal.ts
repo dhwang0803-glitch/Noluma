@@ -86,12 +86,7 @@ export class OrganizeBatchPreviewModal extends Modal {
 
     const details = card.createDiv('organize-batch-card-details');
 
-    if (editable.tags.length > 0) {
-      const tagLine = details.createDiv('organize-batch-tags');
-      tagLine.createSpan({ text: t('organize.tagsLabel'), cls: 'organize-batch-label' });
-      const chipContainer = tagLine.createDiv('organize-batch-tag-chips');
-      this.renderTagChips(chipContainer, editable);
-    }
+    this.renderEditableTags(details, editable);
 
     if (!this.tagsOnly) {
       this.renderEditableLinks(details, editable);
@@ -100,6 +95,43 @@ export class OrganizeBatchPreviewModal extends Modal {
     if (editable.tags.length === 0 && (this.tagsOnly || editable.links.length === 0)) {
       details.createSpan({ text: t('organize.noChanges'), cls: 'organize-empty organize-empty-state' });
     }
+  }
+
+  private renderEditableTags(container: HTMLElement, editable: EditableItem): void {
+    const tagLine = container.createDiv('organize-batch-tags');
+    tagLine.createSpan({ text: t('organize.tagsLabel'), cls: 'organize-batch-label' });
+    const chipContainer = tagLine.createDiv('organize-batch-tag-chips');
+    this.renderTagChips(chipContainer, editable);
+
+    const addRow = tagLine.createDiv('organize-tag-add-row');
+    const inputEl = new TextComponent(addRow)
+      .setPlaceholder(t('organize.addTagPlaceholder'));
+    inputEl.inputEl.addClass('organize-tag-input');
+
+    inputEl.inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this.addTagToEditable(inputEl, chipContainer, editable, container);
+      }
+    });
+
+    new ButtonComponent(addRow)
+      .setButtonText(t('organize.addBtn'))
+      .setClass('organize-tag-add-btn')
+      .onClick(() => this.addTagToEditable(inputEl, chipContainer, editable, container));
+  }
+
+  private addTagToEditable(input: TextComponent, chipContainer: HTMLElement, editable: EditableItem, card: HTMLElement): void {
+    const raw = input.getValue().trim();
+    if (!raw) return;
+    const tag = raw.startsWith('#') ? raw.slice(1) : raw;
+    if (!tag) return;
+    if (editable.tags.some(t2 => t2.name === tag)) return;
+    editable.tags.push({ name: tag, enabled: true });
+    input.setValue('');
+    this.renderTagChips(chipContainer, editable);
+    const emptyState = card.closest('.organize-batch-card')?.querySelector('.organize-empty-state');
+    if (emptyState) emptyState.remove();
   }
 
   private renderTagChips(container: HTMLElement, editable: EditableItem): void {

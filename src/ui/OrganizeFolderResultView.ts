@@ -1,4 +1,4 @@
-import { FuzzySuggestModal, ItemView, Notice, Setting, TFolder, WorkspaceLeaf } from 'obsidian';
+import { ButtonComponent, FuzzySuggestModal, ItemView, Notice, Setting, TextComponent, TFolder, WorkspaceLeaf } from 'obsidian';
 import { OrganizeFolderUseCase, OrganizeFolderResult } from '../application/usecases/RunInboxProcessUseCase';
 import { OrganizeResult } from '../domain/models/OrganizeModels';
 import { OrganizeApplyActions } from './OrganizeResultModal';
@@ -423,20 +423,14 @@ export class OrganizeFolderResultView extends ItemView {
       });
     }
 
-    // Tags section
-    if (result.addedTags.length > 0) {
+    // Tags section — always render in review mode so users can manually add tags
+    if (result.addedTags.length > 0 || (!this.autoApplyMode && entry.status === 'pending')) {
       this.renderTagSection(detailsEl, entry);
     }
 
-    // Links section
-    if (result.suggestedLinks.length > 0) {
+    // Links section — always render in review mode so users can manually add links
+    if (result.suggestedLinks.length > 0 || (!this.autoApplyMode && entry.status === 'pending')) {
       this.renderLinkSection(detailsEl, entry);
-    } else if (result.addedTags.length > 0) {
-      const noLinkEl = detailsEl.createDiv({ cls: 'organize-folder-section' });
-      noLinkEl.createSpan({
-        text: t('organizeFolder.noLinks'),
-        cls: 'organize-folder-no-links',
-      });
     }
 
     // Action buttons
@@ -456,6 +450,27 @@ export class OrganizeFolderResultView extends ItemView {
     section.createSpan({ text: t('organizeFolder.tagsSection'), cls: 'organize-folder-section-label' });
     const chipList = section.createDiv({ cls: 'organize-tag-list' });
 
+    this.rebuildFolderTagChips(chipList, entry);
+
+    if (entry.status === 'pending' && !this.autoApplyMode) {
+      const addRow = section.createDiv({ cls: 'organize-add-row' });
+      const input = new TextComponent(addRow);
+      input.setPlaceholder(t('organize.addTagPlaceholder'));
+      input.inputEl.addClass('organize-add-input');
+      input.inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          this.addTagToEntry(input, chipList, entry);
+        }
+      });
+      new ButtonComponent(addRow)
+        .setButtonText(t('organize.addBtn'))
+        .onClick(() => this.addTagToEntry(input, chipList, entry));
+    }
+  }
+
+  private rebuildFolderTagChips(chipList: HTMLElement, entry: OrganizeFolderEntry): void {
+    chipList.empty();
     for (const tag of entry.selectedTags) {
       const reason = entry.result.tagReasons?.get(tag) ?? entry.result.tagReasons?.get(`#${tag}`);
       const chipClasses = ['organize-chip'];
@@ -475,11 +490,22 @@ export class OrganizeFolderResultView extends ItemView {
       if (entry.status === 'pending' && !this.autoApplyMode) {
         const removeBtn = chip.createSpan({ text: '×', cls: 'organize-chip-remove' });
         removeBtn.addEventListener('click', () => {
-          entry.selectedTags = entry.selectedTags.filter(t => t !== tag);
-          chip.remove();
+          entry.selectedTags = entry.selectedTags.filter(t2 => t2 !== tag);
+          this.rebuildFolderTagChips(chipList, entry);
         });
       }
     }
+  }
+
+  private addTagToEntry(input: TextComponent, chipList: HTMLElement, entry: OrganizeFolderEntry): void {
+    const raw = input.getValue().trim();
+    if (!raw) return;
+    const tag = raw.startsWith('#') ? raw.slice(1) : raw;
+    if (tag && !entry.selectedTags.includes(tag)) {
+      entry.selectedTags.push(tag);
+      this.rebuildFolderTagChips(chipList, entry);
+    }
+    input.setValue('');
   }
 
   private renderLinkSection(container: HTMLElement, entry: OrganizeFolderEntry): void {
@@ -487,6 +513,27 @@ export class OrganizeFolderResultView extends ItemView {
     section.createSpan({ text: t('organizeFolder.linksSection'), cls: 'organize-folder-section-label' });
     const chipList = section.createDiv({ cls: 'organize-link-list' });
 
+    this.rebuildFolderLinkChips(chipList, entry);
+
+    if (entry.status === 'pending' && !this.autoApplyMode) {
+      const addRow = section.createDiv({ cls: 'organize-add-row' });
+      const input = new TextComponent(addRow);
+      input.setPlaceholder(t('organize.addLinkPlaceholder'));
+      input.inputEl.addClass('organize-add-input');
+      input.inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          this.addLinkToEntry(input, chipList, entry);
+        }
+      });
+      new ButtonComponent(addRow)
+        .setButtonText(t('organize.addBtn'))
+        .onClick(() => this.addLinkToEntry(input, chipList, entry));
+    }
+  }
+
+  private rebuildFolderLinkChips(chipList: HTMLElement, entry: OrganizeFolderEntry): void {
+    chipList.empty();
     for (const link of entry.selectedLinks) {
       const linkPath = link.replace('.md', '');
       const chip = chipList.createSpan({ text: `[[${linkPath}]]`, cls: 'organize-chip' });
@@ -494,10 +541,23 @@ export class OrganizeFolderResultView extends ItemView {
         const removeBtn = chip.createSpan({ text: '×', cls: 'organize-chip-remove' });
         removeBtn.addEventListener('click', () => {
           entry.selectedLinks = entry.selectedLinks.filter(l => l !== link);
-          chip.remove();
+          this.rebuildFolderLinkChips(chipList, entry);
         });
       }
     }
+  }
+
+  private addLinkToEntry(input: TextComponent, chipList: HTMLElement, entry: OrganizeFolderEntry): void {
+    const raw = input.getValue().trim();
+    if (!raw) return;
+    const cleaned = raw.replace(/^\[\[/, '').replace(/\]\]$/, '');
+    const path = cleaned.endsWith('.md') ? cleaned : `${cleaned}.md`;
+    const asNotePath = path as unknown as NotePath;
+    if (!entry.selectedLinks.some(l => l === path)) {
+      entry.selectedLinks.push(asNotePath);
+      this.rebuildFolderLinkChips(chipList, entry);
+    }
+    input.setValue('');
   }
 
   private async applyEntry(entry: OrganizeFolderEntry): Promise<boolean> {

@@ -1,6 +1,10 @@
 import { App, ButtonComponent, Modal, Notice, TextComponent } from 'obsidian';
+import { HistoryPort } from '../application/ports/HistoryPort';
+import { VaultAccessPort } from '../application/ports/VaultAccessPort';
+import { HISTORY_CHANGED_EVENT } from '../constants';
 import { OrganizeResult } from '../domain/models/OrganizeModels';
 import { NotePath } from '../domain/values/NotePath';
+import { createTimestamp } from '../domain/values/Timestamp';
 import { t } from '../i18n';
 import { localizeError } from './localizeError';
 
@@ -18,6 +22,8 @@ export class OrganizeResultModal extends Modal {
     private readonly notePath: NotePath,
     private readonly result: OrganizeResult,
     private readonly actions: OrganizeApplyActions,
+    private readonly historyPort: HistoryPort,
+    private readonly vault: VaultAccessPort,
   ) {
     super(app);
     this.selectedTags = [...result.addedTags];
@@ -200,31 +206,84 @@ export class OrganizeResultModal extends Modal {
   }
 
   private async applyAll(): Promise<void> {
-    const applied: string[] = [];
+    const tagsToApply = [...this.selectedTags];
+    const linksToApply = [...this.selectedLinks];
 
+    if (tagsToApply.length === 0 && linksToApply.length === 0) {
+      new Notice(t('organize.nothingToApply'));
+      return;
+    }
+
+    let previousContent = '';
     try {
-      if (this.selectedTags.length > 0) {
-        await this.actions.applyTags(this.notePath, this.selectedTags);
-        applied.push(t('organize.tagsApplied', { count: String(this.selectedTags.length) }));
-        this.selectedTags = [];
+      const note = await this.vault.readNote(this.notePath);
+      previousContent = note?.content ?? '';
+
+      if (tagsToApply.length > 0) {
+        await this.actions.applyTags(this.notePath, tagsToApply);
+      }
+      if (linksToApply.length > 0) {
+        await this.actions.addLinks(this.notePath, linksToApply);
       }
 
-      if (this.selectedLinks.length > 0) {
-        await this.actions.addLinks(this.notePath, this.selectedLinks);
-        applied.push(t('organize.linksAdded', { count: String(this.selectedLinks.length) }));
-        this.selectedLinks = [];
+      const entryId = crypto.randomUUID();
+      try {
+        await this.historyPort.record({
+          id: entryId,
+          action: 'classify',
+          notePath: this.notePath,
+          timestamp: createTimestamp(Date.now()),
+          description: `Organized: tags=${tagsToApply.length}, links=${linksToApply.length}`,
+          previousContent,
+          metadata: { tags: tagsToApply, links: [...linksToApply] },
+        });
+      } catch {
+        await this.vault.writeNote(this.notePath, previousContent);
+        throw new Error('history-record-failed');
       }
 
-      if (applied.length > 0) {
-        new Notice(applied.join('\n'));
-      } else {
-        new Notice(t('organize.nothingToApply'));
-      }
-
+      this.app.workspace.trigger(HISTORY_CHANGED_EVENT);
+      this.selectedTags = [];
+      this.selectedLinks = [];
       this.close();
+
+      this.showUndoNotice(tagsToApply, linksToApply, entryId);
     } catch (err) {
       new Notice(t('notice.actionFailed', { error: localizeError(err) }));
     }
+  }
+
+  private showUndoNotice(tags: string[], links: NotePath[], entryId: string): void {
+    const applied: string[] = [];
+    if (tags.length > 0) {
+      applied.push(t('organize.tagsApplied', { count: String(tags.length) }));
+    }
+    if (links.length > 0) {
+      applied.push(t('organize.linksAdded', { count: String(links.length) }));
+    }
+
+    const fragment = createFragment();
+    fragment.appendText(applied.join('\n'));
+
+    const undoBtn = fragment.createEl('button', {
+      text: t('log.undo'),
+      cls: 'mod-warning vaultend-notice-undo',
+    });
+
+    const notice = new Notice(fragment, 10_000);
+
+    undoBtn.addEventListener('click', () => {
+      void (async () => {
+        try {
+          await this.historyPort.undo(entryId);
+          notice.hide();
+          new Notice(t('undo.success'));
+          this.app.workspace.trigger(HISTORY_CHANGED_EVENT, entryId);
+        } catch (err) {
+          new Notice(t('undo.failed', { error: localizeError(err) }));
+        }
+      })();
+    });
   }
 
   onClose(): void {

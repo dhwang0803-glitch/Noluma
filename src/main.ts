@@ -487,7 +487,7 @@ export default class KnowledgeMaintenancePlugin extends Plugin {
           .execute(notePath, false)
           .then(async result => {
             const actions = this.buildOrganizeApplyActions();
-            new OrganizeResultModal(this.app, notePath, result, actions).open();
+            new OrganizeResultModal(this.app, notePath, result, actions, this.historyAdapter, this.vaultAdapter).open();
           })
           .catch(err => {
             new Notice(t('notice.organizeFailed', { error: localizeError(err) }));
