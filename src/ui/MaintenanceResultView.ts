@@ -1,4 +1,4 @@
-import { ItemView, Notice, Setting, WorkspaceLeaf } from 'obsidian';
+import { ItemView, Notice, setIcon, Setting, WorkspaceLeaf } from 'obsidian';
 import { RunMaintenanceUseCase } from '../application/usecases/RunMaintenanceUseCase';
 import { ApplyMaintenanceActionUseCase, type ApplyResult } from '../application/usecases/ApplyMaintenanceActionUseCase';
 import { MaintenancePlan, BrokenLink, MissingTagSuggestion, DuplicatePair, OrphanNoteEntry, EmptyNoteEntry, DuplicateTagGroup } from '../domain/models/OrganizeModels';
@@ -203,10 +203,10 @@ export class MaintenanceResultView extends ItemView {
     const totalIssues = Object.values(counts).reduce((a, b) => a + b, 0);
 
     if (totalIssues === 0) {
-      contentEl.createEl('p', {
-        text: t('maintenance.vaultClean'),
-        cls: 'maintenance-result-clean',
-      });
+      const emptyEl = contentEl.createDiv({ cls: 'vaultend-empty-state' });
+      const iconEl = emptyEl.createSpan({ cls: 'vaultend-empty-state-icon' });
+      setIcon(iconEl, 'check-circle');
+      emptyEl.createSpan({ text: t('maintenance.vaultClean') });
       return;
     }
 
@@ -365,12 +365,30 @@ export class MaintenanceResultView extends ItemView {
 
   private renderSectionHeading(container: HTMLElement, issueType: MaintenanceIssueType, label: string): HTMLElement {
     const section = container.createDiv(`maintenance-section maintenance-section--${getSeverity(issueType)}`);
-    const heading = section.createEl('h5', { cls: 'maintenance-section-heading' });
+    const heading = section.createEl('h5', { cls: 'maintenance-section-heading maintenance-section-collapsible' });
+    const collapseIcon = heading.createSpan({ cls: 'maintenance-section-collapse-icon' });
+    setIcon(collapseIcon, 'chevron-down');
     const severity = getSeverity(issueType);
     const badge = heading.createSpan({ cls: `maintenance-severity-badge severity-${severity}` });
     badge.textContent = t(`severity.${severity}` as const);
     heading.appendText(` ${label}`);
-    return section;
+    const content = section.createDiv({ cls: 'maintenance-section-content' });
+    heading.setAttribute('tabindex', '0');
+    heading.setAttribute('role', 'button');
+    heading.setAttribute('aria-expanded', 'true');
+    const toggleCollapse = (): void => {
+      const collapsed = !section.hasClass('is-collapsed');
+      section.toggleClass('is-collapsed', collapsed);
+      heading.setAttribute('aria-expanded', String(!collapsed));
+    };
+    heading.addEventListener('click', toggleCollapse);
+    heading.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggleCollapse();
+      }
+    });
+    return content;
   }
 
   private applyCardClass(setting: Setting, issueType: MaintenanceIssueType): void {
