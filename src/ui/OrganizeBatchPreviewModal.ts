@@ -3,6 +3,7 @@ import { OrganizeResult } from '../domain/models/OrganizeModels';
 import { NotePath, createNotePath } from '../domain/values/NotePath';
 import type { OrganizeApplyActions } from './OrganizeResultModal';
 import { t } from '../i18n';
+import { localizeError } from './localizeError';
 
 export interface BatchPreviewItem {
   readonly notePath: NotePath;
@@ -40,12 +41,15 @@ interface EditableItem {
 export class OrganizeBatchPreviewModal extends Modal {
   private onApplied?: (entries: ReadonlyArray<BatchAppliedEntry>) => void;
   private editableItems: EditableItem[];
+  private activeRescanCount = 0;
+  private applyAllBtn?: ButtonComponent;
 
   constructor(
     app: App,
     private readonly items: ReadonlyArray<BatchPreviewItem>,
     private readonly callbacks: BatchOrganizeCallbacks,
     private readonly tagsOnly: boolean = false,
+    private readonly onRescanNote?: (notePath: NotePath) => Promise<OrganizeResult>,
   ) {
     super(app);
     this.editableItems = items.map(item => ({
@@ -81,8 +85,32 @@ export class OrganizeBatchPreviewModal extends Modal {
 
   private renderItem(container: HTMLElement, editable: EditableItem): void {
     const card = container.createDiv('organize-batch-card');
+    this.renderItemContent(card, editable);
+  }
+
+  private renderItemContent(card: HTMLElement, editable: EditableItem): void {
     const noteName = editable.notePath.split('/').pop()?.replace('.md', '') ?? '';
-    card.createDiv({ text: noteName, cls: 'organize-batch-card-name' });
+    const header = card.createDiv({ cls: 'organize-batch-card-header' });
+    header.createDiv({ text: noteName, cls: 'organize-batch-card-name' });
+
+    if (this.onRescanNote) {
+      const rescanBtn = header.createSpan({
+        cls: 'organize-batch-rescan-btn',
+        attr: {
+          'aria-label': t('organize.rescan'),
+          'tabindex': '0',
+          'role': 'button',
+        },
+      });
+      setIcon(rescanBtn, 'refresh-cw');
+      rescanBtn.addEventListener('click', () => { void this.rescanItem(card, editable); });
+      rescanBtn.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          rescanBtn.click();
+        }
+      });
+    }
 
     const details = card.createDiv('organize-batch-card-details');
 
@@ -225,10 +253,39 @@ export class OrganizeBatchPreviewModal extends Modal {
     }
   }
 
+  private async rescanItem(card: HTMLElement, editable: EditableItem): Promise<void> {
+    if (!this.onRescanNote) return;
+    const prevChildren = Array.from(card.childNodes);
+    card.empty();
+    card.createEl('p', { text: t('organize.rescanning'), cls: 'organize-rescanning' });
+
+    this.activeRescanCount++;
+    this.applyAllBtn?.setDisabled(true);
+
+    try {
+      const newResult = await this.onRescanNote(editable.notePath);
+      editable.tags = newResult.addedTags.map(name => ({ name, enabled: true }));
+      editable.links = this.tagsOnly
+        ? []
+        : newResult.suggestedLinks.map(path => ({ path, enabled: true }));
+      card.empty();
+      this.renderItemContent(card, editable);
+    } catch (err) {
+      card.empty();
+      for (const child of prevChildren) card.appendChild(child);
+      new Notice(t('notice.organizeFailed', { error: localizeError(err) }));
+    } finally {
+      this.activeRescanCount--;
+      if (this.activeRescanCount === 0) {
+        this.applyAllBtn?.setDisabled(false);
+      }
+    }
+  }
+
   private renderFooter(container: HTMLElement): void {
     const footer = container.createDiv('organize-footer');
 
-    new ButtonComponent(footer)
+    this.applyAllBtn = new ButtonComponent(footer)
       .setButtonText(t('organize.applyAll'))
       .setCta()
       .onClick(async () => {
@@ -247,7 +304,7 @@ export class OrganizeBatchPreviewModal extends Modal {
 
     for (const editable of this.editableItems) {
       const enabledTags = editable.tags.filter(t => t.enabled).map(t => t.name);
-      const enabledLinks = editable.links.filter(l => l.enabled).map(l => l.path);
+      const enabledLinks = this.tagsOnly ? [] : editable.links.filter(l => l.enabled).map(l => l.path);
       const hasChanges = enabledTags.length > 0 || enabledLinks.length > 0;
       if (!hasChanges) continue;
 
