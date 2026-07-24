@@ -639,6 +639,16 @@
   font-style: italic;
 }
 
+/* ─── Notice Undo Button ─── */
+
+.vaultend-notice-undo {
+  display: block;
+  margin-top: 6px;
+  padding: 2px 10px;
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+}
+
 /* ─── Batch Preview Modal ─── */
 
 .vaultend-organize-batch-preview .organize-batch-list {
@@ -750,19 +760,22 @@
   background: rgba(var(--color-red-rgb), 0.15);
 }
 
-.organize-link-add-row {
+.organize-link-add-row,
+.organize-tag-add-row {
   display: flex;
   gap: 6px;
   align-items: center;
   margin-top: 4px;
 }
 
-.organize-link-input {
+.organize-link-input,
+.organize-tag-input {
   flex: 1;
   min-width: 0;
 }
 
-.organize-link-add-btn {
+.organize-link-add-btn,
+.organize-tag-add-btn {
   flex-shrink: 0;
 }
 
